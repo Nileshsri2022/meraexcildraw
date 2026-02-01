@@ -1,56 +1,58 @@
 import React, { useState, useCallback } from "react";
-import { Whiteboard, whiteboardStore, selectedToolAtom, appStateAtom, zoomAtom, useHistory } from "@whiteboard/whiteboard";
-import { useAtom, Provider } from "jotai";
-import { COLORS, type Tool } from "@whiteboard/common";
-import type { WhiteboardElement } from "@whiteboard/element";
-import { Toolbar } from "./components/Toolbar";
-import { ZoomControls } from "./components/ZoomControls";
-import { PropertiesPanel } from "./components/PropertiesPanel";
+import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
+import "@excalidraw/excalidraw/index.css";
+
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/types";
+import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 const App: React.FC = () => {
+    const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
     const [theme, setTheme] = useState<"light" | "dark">("light");
-    const [elements, setElements] = useState<WhiteboardElement[]>([]);
 
-    const handleChange = useCallback((newElements: WhiteboardElement[]) => {
-        setElements(newElements);
-    }, []);
+    const handleChange = useCallback(
+        (elements: readonly ExcalidrawElement[], appState: AppState) => {
+            // Handle changes to elements if needed
+            console.log("Elements changed:", elements.length);
+        },
+        []
+    );
 
     const toggleTheme = () => {
         const newTheme = theme === "light" ? "dark" : "light";
         setTheme(newTheme);
-        document.body.classList.toggle("dark", newTheme === "dark");
     };
 
     return (
-        <Provider store={whiteboardStore}>
-            <div className="app">
-                {/* Main Toolbar */}
-                <Toolbar />
-
-                {/* Theme Toggle */}
-                <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
-                    {theme === "light" ? "🌙" : "☀️"}
-                </button>
-
-                {/* Main Canvas */}
-                <Whiteboard
-                    onChange={handleChange}
-                    viewBackgroundColor={theme === "light" ? "#f8f9fa" : "#1a1a2e"}
-                    theme={theme}
-                />
-
-                {/* Properties Panel */}
-                <PropertiesPanel />
-
-                {/* Status Bar */}
-                <div className="status-bar">
-                    {elements.filter((e) => !e.isDeleted).length} elements
-                </div>
-
-                {/* Zoom Controls */}
-                <ZoomControls />
-            </div>
-        </Provider>
+        <div style={{ width: "100vw", height: "100vh" }}>
+            <Excalidraw
+                excalidrawAPI={(api) => setExcalidrawAPI(api)}
+                onChange={handleChange}
+                theme={theme}
+                UIOptions={{
+                    canvasActions: {
+                        toggleTheme: true,
+                        export: { saveFileToDisk: true },
+                    },
+                }}
+            >
+                <MainMenu>
+                    <MainMenu.DefaultItems.LoadScene />
+                    <MainMenu.DefaultItems.SaveToActiveFile />
+                    <MainMenu.DefaultItems.Export />
+                    <MainMenu.DefaultItems.SaveAsImage />
+                    <MainMenu.Separator />
+                    <MainMenu.DefaultItems.ClearCanvas />
+                    <MainMenu.Separator />
+                    <MainMenu.DefaultItems.ToggleTheme />
+                    <MainMenu.DefaultItems.ChangeCanvasBackground />
+                </MainMenu>
+                <WelcomeScreen>
+                    <WelcomeScreen.Hints.MenuHint />
+                    <WelcomeScreen.Hints.ToolbarHint />
+                    <WelcomeScreen.Hints.HelpHint />
+                </WelcomeScreen>
+            </Excalidraw>
+        </div>
     );
 };
 
