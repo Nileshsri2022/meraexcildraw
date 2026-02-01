@@ -3,13 +3,16 @@
     "private": true,
     "packageManager": "yarn@1.22.22",
     "workspaces": [
-        "whiteboard-app"
+        "whiteboard-app",
+        "server"
     ],
     "engines": {
         "node": ">=18.0.0"
     },
     "scripts": {
         "start": "yarn --cwd ./whiteboard-app start",
+        "server": "node ./server/index.js",
+        "dev": "concurrently \"yarn start\" \"yarn server\"",
         "build": "yarn --cwd ./whiteboard-app build",
         "typecheck": "tsc --noEmit",
         "lint": "eslint --ext .js,.ts,.tsx .",
@@ -17,6 +20,7 @@
         "clean": "rimraf whiteboard-app/dist"
     },
     "devDependencies": {
+        "@types/lodash.throttle": "^4.1.9",
         "@types/node": "^20.11.0",
         "@types/react": "^18.2.0",
         "@types/react-dom": "^18.2.0",

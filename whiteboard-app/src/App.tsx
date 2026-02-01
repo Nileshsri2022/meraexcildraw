@@ -4,18 +4,51 @@ import {
     MainMenu,
     WelcomeScreen,
     Footer,
+    LiveCollaborationTrigger,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { useCollaboration, generateRoomId } from "./collab";
 
 const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
+
+    const {
+        isCollaborating,
+        roomId,
+        username,
+        startCollaboration,
+        stopCollaboration,
+        onPointerUpdate,
+        onSceneChange,
+    } = useCollaboration({ excalidrawAPI });
+
+    // Toggle collaboration
+    const toggleCollaboration = useCallback(() => {
+        if (isCollaborating) {
+            stopCollaboration();
+        } else {
+            startCollaboration(generateRoomId());
+        }
+    }, [isCollaborating, startCollaboration, stopCollaboration]);
+
+    // Handle scene changes
+    const handleChange = useCallback(
+        (elements: readonly OrderedExcalidrawElement[]) => {
+            onSceneChange(elements);
+        },
+        [onSceneChange]
+    );
 
     return (
         <div style={{ width: "100vw", height: "100vh" }}>
             <Excalidraw
                 excalidrawAPI={(api) => setExcalidrawAPI(api)}
+                isCollaborating={isCollaborating}
+                onPointerUpdate={onPointerUpdate}
+                onChange={handleChange}
                 UIOptions={{
                     canvasActions: {
                         toggleTheme: true,
@@ -25,7 +58,6 @@ const App: React.FC = () => {
                     },
                 }}
             >
-                {/* Custom Main Menu */}
                 <MainMenu>
                     <MainMenu.DefaultItems.LoadScene />
                     <MainMenu.DefaultItems.SaveToActiveFile />
@@ -37,26 +69,26 @@ const App: React.FC = () => {
                     <MainMenu.DefaultItems.ToggleTheme />
                     <MainMenu.DefaultItems.ChangeCanvasBackground />
                     <MainMenu.Separator />
-                    {/* Custom menu items */}
-                    <MainMenu.Item
-                        onSelect={() => {
-                            window.open("https://docs.excalidraw.com/", "_blank");
-                        }}
-                    >
-                        📖 Documentation
+                    <MainMenu.Item onSelect={toggleCollaboration}>
+                        {isCollaborating ? "🔴 Stop Collaboration" : "🟢 Start Collaboration"}
                     </MainMenu.Item>
-                    <MainMenu.Item
-                        onSelect={() => {
-                            if (excalidrawAPI) {
-                                excalidrawAPI.resetScene();
-                            }
-                        }}
-                    >
-                        🔄 Reset Canvas
-                    </MainMenu.Item>
+                    {isCollaborating && roomId && (
+                        <MainMenu.Item
+                            onSelect={() => {
+                                navigator.clipboard.writeText(window.location.href);
+                                alert("Link copied to clipboard!");
+                            }}
+                        >
+                            📋 Copy Room Link
+                        </MainMenu.Item>
+                    )}
                 </MainMenu>
 
-                {/* Welcome Screen */}
+                <LiveCollaborationTrigger
+                    isCollaborating={isCollaborating}
+                    onSelect={toggleCollaboration}
+                />
+
                 <WelcomeScreen>
                     <WelcomeScreen.Center>
                         <WelcomeScreen.Center.Logo>
@@ -71,10 +103,13 @@ const App: React.FC = () => {
                     <WelcomeScreen.Hints.HelpHint />
                 </WelcomeScreen>
 
-                {/* Footer */}
                 <Footer>
                     <span style={{ fontSize: "12px", opacity: 0.7 }}>
-                        Powered by Excalidraw
+                        {isCollaborating ? (
+                            <>🟢 {username} in room: {roomId}</>
+                        ) : (
+                            "Powered by Excalidraw"
+                        )}
                     </span>
                 </Footer>
             </Excalidraw>
