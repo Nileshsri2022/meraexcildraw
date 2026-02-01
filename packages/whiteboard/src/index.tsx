@@ -77,6 +77,7 @@ const WhiteboardCanvas: React.FC<WhiteboardProps> = ({
     const [editingTextElement, setEditingTextElement] = useState<WhiteboardElement | null>(null);
     const textInputRef = useRef<HTMLTextAreaElement>(null);
     const editingStartTimeRef = useRef<number>(0);
+    const editingTextElementRef = useRef<WhiteboardElement | null>(null);
 
     // Resize state
     const [resizeHandle, setResizeHandle] = useState<string | null>(null);
@@ -99,6 +100,11 @@ const WhiteboardCanvas: React.FC<WhiteboardProps> = ({
             textInputRef.current.focus();
         }
     }, [isEditingText]);
+
+    // Keep editingTextElementRef in sync with state to avoid stale closures
+    useEffect(() => {
+        editingTextElementRef.current = editingTextElement;
+    }, [editingTextElement]);
 
     // Initialize elements
     useEffect(() => {
@@ -327,12 +333,29 @@ const WhiteboardCanvas: React.FC<WhiteboardProps> = ({
 
             // Handle text tool - show text input
             if (selectedTool === "text") {
-                console.log('TEXT TOOL: Click at', point);
+                // Check if clicking on an existing text element - if so, edit it
+                const existingTextElement = getElementAtPoint(point);
+                if (existingTextElement && existingTextElement.type === "text" && !existingTextElement.isDeleted) {
+                    console.log('TEXT TOOL: Clicked on existing text, editing', existingTextElement.id);
+                    editingStartTimeRef.current = Date.now();
+                    editingTextElementRef.current = existingTextElement;
+                    setEditingTextElement(existingTextElement);
+                    const textEl = existingTextElement as any;
+                    setTextInputPosition({ x: existingTextElement.x, y: existingTextElement.y });
+                    setTextInputValue(textEl.text || textEl.originalText || "");
+                    setIsEditingText(true);
+                    setSelectedIds(new Set([existingTextElement.id]));
+                    return;
+                }
+
+                // Create new text
+                console.log('TEXT TOOL: Click at', point, '(creating new text)');
                 editingStartTimeRef.current = Date.now();
+                editingTextElementRef.current = null;
+                setEditingTextElement(null);
                 setTextInputPosition(point);
                 setTextInputValue("");
                 setIsEditingText(true);
-                console.log('TEXT TOOL: isEditingText set to true, startTime =', editingStartTimeRef.current);
                 return;
             }
 
@@ -756,11 +779,15 @@ const WhiteboardCanvas: React.FC<WhiteboardProps> = ({
                 1.25 // Default line height
             );
 
-            if (editingTextElement) {
+            // Use ref to get latest value (avoids stale closure in onBlur)
+            const currentEditingElement = editingTextElementRef.current;
+            console.log('TEXT SUBMIT: currentEditingElement =', currentEditingElement?.id);
+
+            if (currentEditingElement) {
                 // Update existing text element
                 setElements((prev) =>
                     prev.map((el) =>
-                        el.id === editingTextElement.id
+                        el.id === currentEditingElement.id
                             ? {
                                 ...el,
                                 text: textInputValue,
@@ -817,11 +844,12 @@ const WhiteboardCanvas: React.FC<WhiteboardProps> = ({
             console.log('DOUBLE CLICK: elementAtPoint =', elementAtPoint);
 
             if (elementAtPoint && elementAtPoint.type === "text" && !elementAtPoint.isDeleted) {
-                console.log('DOUBLE CLICK: Editing text element');
+                console.log('DOUBLE CLICK: Editing text element', elementAtPoint.id);
                 // Edit existing text element
                 editingStartTimeRef.current = Date.now();
                 const textEl = elementAtPoint as any;
                 setEditingTextElement(elementAtPoint);
+                editingTextElementRef.current = elementAtPoint; // Set ref immediately
                 setTextInputPosition({ x: elementAtPoint.x, y: elementAtPoint.y });
                 setTextInputValue(textEl.text || textEl.originalText || "");
                 setIsEditingText(true);
