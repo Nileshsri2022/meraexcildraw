@@ -1,0 +1,41 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@whiteboard/common": [
+                "../packages/common/src/index.ts"
+            ],
+            "@whiteboard/common/*": [
+                "../packages/common/src/*"
+            ],
+            "@whiteboard/element": [
+                "../packages/element/src/index.ts"
+            ],
+            "@whiteboard/element/*": [
+                "../packages/element/src/*"
+            ],
+            "@whiteboard/math": [
+                "../packages/math/src/index.ts"
+            ],
+            "@whiteboard/math/*": [
+                "../packages/math/src/*"
+            ],
+            "@whiteboard/utils": [
+                "../packages/utils/src/index.ts"
+            ],
+            "@whiteboard/utils/*": [
+                "../packages/utils/src/*"
+            ],
+            "@whiteboard/whiteboard": [
+                "../packages/whiteboard/src/index.tsx"
+            ],
+            "@whiteboard/whiteboard/*": [
+                "../packages/whiteboard/src/*"
+            ]
+        }
+    },
+    "include": [
+        "src"
+    ]
+}

@@ -1,0 +1,55 @@
+{
+    "name": "whiteboard-monorepo",
+    "private": true,
+    "packageManager": "yarn@1.22.22",
+    "workspaces": [
+        "whiteboard-app",
+        "packages/*",
+        "examples/*"
+    ],
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "start": "yarn --cwd ./whiteboard-app start",
+        "build": "yarn --cwd ./whiteboard-app build",
+        "build:packages": "yarn build:common && yarn build:math && yarn build:element && yarn build:whiteboard",
+        "build:common": "yarn --cwd ./packages/common build",
+        "build:element": "yarn --cwd ./packages/element build",
+        "build:math": "yarn --cwd ./packages/math build",
+        "build:whiteboard": "yarn --cwd ./packages/whiteboard build",
+        "test": "vitest",
+        "test:coverage": "vitest --coverage",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint --ext .js,.ts,.tsx .",
+        "fix": "eslint --ext .js,.ts,.tsx . --fix && prettier --write .",
+        "clean": "rimraf packages/*/dist whiteboard-app/dist"
+    },
+    "devDependencies": {
+        "@testing-library/jest-dom": "^6.4.0",
+        "@testing-library/react": "^14.2.0",
+        "@vitest/coverage-v8": "^1.4.0",
+        "jsdom": "^24.0.0",
+        "@types/node": "^20.11.0",
+        "@types/react": "^18.2.0",
+        "@types/react-dom": "^18.2.0",
+        "@vitejs/plugin-react": "^4.2.0",
+        "eslint": "^8.57.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-react": "^7.34.0",
+        "eslint-plugin-react-hooks": "^4.6.0",
+        "husky": "^9.0.0",
+        "lint-staged": "^15.2.0",
+        "prettier": "^3.2.0",
+        "rimraf": "^5.0.0",
+        "typescript": "^5.4.0",
+        "vite": "^5.2.0",
+        "vitest": "^1.4.0"
+    },
+    "prettier": {
+        "semi": true,
+        "singleQuote": false,
+        "tabWidth": 2,
+        "trailingComma": "es5"
+    }
+}
