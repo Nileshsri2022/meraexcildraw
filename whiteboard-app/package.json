@@ -11,8 +11,11 @@
     },
     "dependencies": {
         "@excalidraw/excalidraw": "0.18.0",
+        "@excalidraw/mermaid-to-excalidraw": "^1.1.2",
         "jotai": "^2.6.0",
         "lodash.throttle": "^4.1.1",
+        "markmap-lib": "^0.18.12",
+        "markmap-view": "^0.18.12",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "socket.io-client": "^4.7.4"

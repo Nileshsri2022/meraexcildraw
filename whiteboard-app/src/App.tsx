@@ -4,16 +4,17 @@ import {
     MainMenu,
     WelcomeScreen,
     Footer,
-    LiveCollaborationTrigger,
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCollaboration } from "./collab";
+import { AIDialog } from "./components/AIDialog";
 
 const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
+    const [isAIDialogOpen, setIsAIDialogOpen] = useState(false);
 
     const {
         isCollaborating,
@@ -30,7 +31,6 @@ const App: React.FC = () => {
         if (isCollaborating) {
             stopCollaboration();
         } else {
-            // Use existing room from URL, or generate new one
             startCollaboration();
         }
     }, [isCollaborating, startCollaboration, stopCollaboration]);
@@ -70,6 +70,10 @@ const App: React.FC = () => {
                     <MainMenu.DefaultItems.ToggleTheme />
                     <MainMenu.DefaultItems.ChangeCanvasBackground />
                     <MainMenu.Separator />
+                    <MainMenu.Item onSelect={() => setIsAIDialogOpen(true)}>
+                        🤖 Generate Diagram with AI
+                    </MainMenu.Item>
+                    <MainMenu.Separator />
                     <MainMenu.Item onSelect={toggleCollaboration}>
                         {isCollaborating ? "🔴 Stop Collaboration" : "🟢 Start Collaboration"}
                     </MainMenu.Item>
@@ -84,11 +88,6 @@ const App: React.FC = () => {
                         </MainMenu.Item>
                     )}
                 </MainMenu>
-
-                <LiveCollaborationTrigger
-                    isCollaborating={isCollaborating}
-                    onSelect={toggleCollaboration}
-                />
 
                 <WelcomeScreen>
                     <WelcomeScreen.Center>
@@ -114,6 +113,13 @@ const App: React.FC = () => {
                     </span>
                 </Footer>
             </Excalidraw>
+
+            {/* AI Diagram Generation Dialog */}
+            <AIDialog
+                isOpen={isAIDialogOpen}
+                onClose={() => setIsAIDialogOpen(false)}
+                excalidrawAPI={excalidrawAPI}
+            />
         </div>
     );
 };
