@@ -1,8 +1,10 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { atom, useAtom } from "jotai";
+import { reconcileElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, Collaborator, SocketId } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import Portal from "./Portal";
 import { COLLAB_SERVER_URL, WS_SUBTYPES, SYNC_FULL_SCENE_INTERVAL_MS } from "./constants";
 
@@ -15,8 +17,7 @@ export const roomIdAtom = atom<string | null>(null);
 const generateUsername = () => {
     const adjectives = ["Happy", "Clever", "Swift", "Brave", "Calm"];
     const animals = ["Panda", "Eagle", "Tiger", "Dolphin", "Fox"];
-    return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]
-        }`;
+    return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
 };
 
 // Get room ID from URL hash
@@ -42,21 +43,22 @@ interface UseCollaborationProps {
 
 export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
     const [isCollaborating, setIsCollaborating] = useAtom(isCollaboratingAtom);
-    const [collaborators, setCollaboratorsState] = useAtom(collaboratorsAtom);
+    const [, setCollaboratorsState] = useAtom(collaboratorsAtom);
     const [roomId, setRoomId] = useAtom(roomIdAtom);
     const [username] = useState(generateUsername);
 
     const portalRef = useRef<Portal | null>(null);
     const socketRef = useRef<Socket | null>(null);
     const syncIntervalRef = useRef<number | null>(null);
+    const hasAutoJoinedRef = useRef(false);
+    const collaboratorsRef = useRef<Map<SocketId, Collaborator>>(new Map());
 
     // Set collaborators
     const setCollaborators = useCallback(
         (socketIds: SocketId[]) => {
             const newCollaborators = new Map<SocketId, Collaborator>();
             for (const id of socketIds) {
-                // Keep existing collaborator data or create new
-                const existing = collaborators.get(id);
+                const existing = collaboratorsRef.current.get(id);
                 if (existing) {
                     newCollaborators.set(id, existing);
                 } else {
@@ -70,18 +72,33 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
                     });
                 }
             }
+            collaboratorsRef.current = newCollaborators;
             setCollaboratorsState(newCollaborators);
             excalidrawAPI?.updateScene({ collaborators: newCollaborators });
         },
-        [collaborators, excalidrawAPI, setCollaboratorsState]
+        [excalidrawAPI, setCollaboratorsState]
     );
 
     // Start collaboration
     const startCollaboration = useCallback(
         (targetRoomId?: string) => {
-            if (!excalidrawAPI || isCollaborating) return;
+            if (!excalidrawAPI) {
+                console.log("❌ Cannot start: no excalidrawAPI");
+                return;
+            }
 
-            const room = targetRoomId || getRoomIdFromUrl() || generateRoomId();
+            // If already connected, skip
+            if (portalRef.current?.isOpen()) {
+                console.log("⚠️ Already connected, skipping");
+                return;
+            }
+
+            // Priority: passed roomId > URL roomId > generate new
+            const urlRoomId = getRoomIdFromUrl();
+            const room = targetRoomId || urlRoomId || generateRoomId();
+
+            console.log(`� JOINING room: ${room}`);
+
             setRoomIdInUrl(room);
             setRoomId(room);
 
@@ -106,19 +123,23 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
                 try {
                     const parsed = JSON.parse(data);
 
-                    if (
-                        parsed.type === WS_SUBTYPES.INIT ||
-                        parsed.type === WS_SUBTYPES.UPDATE
-                    ) {
-                        // Scene update
-                        const elements = parsed.payload.elements;
-                        if (elements?.length) {
-                            excalidrawAPI.updateScene({ elements });
+                    if (parsed.type === WS_SUBTYPES.INIT || parsed.type === WS_SUBTYPES.UPDATE) {
+                        const remoteElements = parsed.payload.elements as RemoteExcalidrawElement[];
+                        if (remoteElements?.length) {
+                            console.log(`📥 Received ${remoteElements.length} elements`);
+                            // Reconcile remote elements with local elements
+                            const localElements = excalidrawAPI.getSceneElementsIncludingDeleted();
+                            const appState = excalidrawAPI.getAppState();
+                            const reconciledElements = reconcileElements(
+                                localElements as OrderedExcalidrawElement[],
+                                remoteElements,
+                                appState
+                            );
+                            excalidrawAPI.updateScene({ elements: reconciledElements });
                         }
                     } else if (parsed.type === WS_SUBTYPES.MOUSE_LOCATION) {
-                        // Cursor update
                         const { socketId, pointer, button, username: remoteUsername } = parsed.payload;
-                        const newCollaborators = new Map(collaborators);
+                        const newCollaborators = new Map(collaboratorsRef.current);
                         newCollaborators.set(socketId as SocketId, {
                             id: socketId,
                             pointer,
@@ -129,6 +150,7 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
                                 stroke: `hsl(${(socketId.charCodeAt(0) * 37) % 360}, 70%, 50%)`,
                             },
                         });
+                        collaboratorsRef.current = newCollaborators;
                         setCollaboratorsState(newCollaborators);
                         excalidrawAPI.updateScene({ collaborators: newCollaborators });
                     }
@@ -148,10 +170,8 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
                     true
                 );
             }, SYNC_FULL_SCENE_INTERVAL_MS);
-
-            console.log(`🟢 Joined room: ${room}`);
         },
-        [excalidrawAPI, isCollaborating, username, collaborators, setCollaborators, setCollaboratorsState, setIsCollaborating, setRoomId]
+        [excalidrawAPI, username, setCollaborators, setCollaboratorsState, setIsCollaborating, setRoomId]
     );
 
     // Stop collaboration
@@ -165,8 +185,10 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
         socketRef.current = null;
         setIsCollaborating(false);
         setCollaboratorsState(new Map());
+        collaboratorsRef.current = new Map();
         excalidrawAPI?.updateScene({ collaborators: new Map() });
         window.location.hash = "";
+        hasAutoJoinedRef.current = false;
         console.log("🔴 Left collaboration");
     }, [excalidrawAPI, setIsCollaborating, setCollaboratorsState]);
 
@@ -184,31 +206,42 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
     // Handle scene changes
     const onSceneChange = useCallback(
         (elements: readonly OrderedExcalidrawElement[]) => {
-            if (portalRef.current?.isOpen()) {
-                portalRef.current.broadcastScene(WS_SUBTYPES.UPDATE, elements, false);
+            const isOpen = portalRef.current?.isOpen();
+            if (isOpen) {
+                portalRef.current!.broadcastScene(WS_SUBTYPES.UPDATE, elements, false);
+            } else {
+                console.log(`⚠️ onSceneChange called but portal not open (isOpen: ${isOpen}, portal: ${!!portalRef.current})`);
             }
         },
         []
     );
 
-    // Auto-join room from URL on mount
+    // Auto-join room from URL on mount (runs once)
     useEffect(() => {
+        if (hasAutoJoinedRef.current) return;
+
         const roomFromUrl = getRoomIdFromUrl();
-        if (roomFromUrl && excalidrawAPI && !isCollaborating) {
-            startCollaboration(roomFromUrl);
+        if (roomFromUrl && excalidrawAPI) {
+            hasAutoJoinedRef.current = true;
+            console.log(`🔄 Auto-joining room: ${roomFromUrl}`);
+            // Use setTimeout to ensure React is done with initial render
+            setTimeout(() => {
+                startCollaboration(roomFromUrl);
+            }, 100);
         }
-    }, [excalidrawAPI]); // eslint-disable-line
+    }, [excalidrawAPI, startCollaboration]);
 
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            stopCollaboration();
+            if (portalRef.current) {
+                portalRef.current.close();
+            }
         };
-    }, [stopCollaboration]);
+    }, []);
 
     return {
         isCollaborating,
-        collaborators,
         roomId,
         username,
         startCollaboration,

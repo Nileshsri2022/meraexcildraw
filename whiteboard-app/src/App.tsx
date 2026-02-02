@@ -10,7 +10,7 @@ import "@excalidraw/excalidraw/index.css";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { useCollaboration, generateRoomId } from "./collab";
+import { useCollaboration } from "./collab";
 
 const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -30,7 +30,8 @@ const App: React.FC = () => {
         if (isCollaborating) {
             stopCollaboration();
         } else {
-            startCollaboration(generateRoomId());
+            // Use existing room from URL, or generate new one
+            startCollaboration();
         }
     }, [isCollaborating, startCollaboration, stopCollaboration]);
 
