@@ -171,6 +171,55 @@ OUTPUT (Mermaid code only):`;
     }
 });
 
+// ==== AI Image Generation Endpoint ====
+// Using Stable Diffusion XL
+const IMAGE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0";
+
+app.post("/api/ai/generate-image", async (req, res) => {
+    try {
+        const { prompt, width = 512, height = 512 } = req.body;
+
+        if (!prompt) {
+            return res.status(400).json({ error: "Prompt is required" });
+        }
+
+        if (!process.env.HF_TOKEN) {
+            return res.status(500).json({ error: "HF_TOKEN not configured" });
+        }
+
+        console.log(`[AI Image] Generating image with ${IMAGE_MODEL}...`);
+        console.log(`[AI Image] Prompt: "${prompt}"`);
+
+        // Generate image using Stable Diffusion (free tier)
+        const imageBlob = await hf.textToImage({
+            model: IMAGE_MODEL,
+            inputs: prompt,
+            provider: "hf-inference",
+        });
+
+        // Convert blob to base64
+        const arrayBuffer = await imageBlob.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString("base64");
+        const dataUrl = `data:image/png;base64,${base64}`;
+
+        console.log(`[AI Image] Successfully generated image (${base64.length} bytes)`);
+
+        res.json({
+            success: true,
+            imageUrl: dataUrl,
+            width: width,
+            height: height,
+            prompt: prompt,
+        });
+    } catch (error) {
+        console.error("[AI Image] Error generating image:", error);
+        res.status(500).json({
+            error: "Failed to generate image",
+            message: error.message,
+        });
+    }
+});
+
 // ==== Collaboration Socket Events ====
 io.on("connection", (socket) => {
     console.log(`[${new Date().toISOString()}] User connected: ${socket.id}`);
