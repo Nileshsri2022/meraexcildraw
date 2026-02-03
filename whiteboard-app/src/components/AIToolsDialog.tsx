@@ -13,7 +13,7 @@ interface AIToolsDialogProps {
     isOpen: boolean;
     onClose: () => void;
     excalidrawAPI: ExcalidrawImperativeAPI | null;
-    initialTab?: "diagram" | "image" | "ocr";
+    initialTab?: "diagram" | "image" | "ocr" | "speech";
 }
 
 const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
@@ -24,7 +24,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     excalidrawAPI,
     initialTab = "diagram"
 }) => {
-    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr">(initialTab as any);
+    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "speech">(initialTab as any);
     const [prompt, setPrompt] = useState("");
     const [style, setStyle] = useState("flowchart");
     const [loading, setLoading] = useState(false);
@@ -32,6 +32,13 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     const [ocrImage, setOcrImage] = useState<string | null>(null);
     const [ocrResult, setOcrResult] = useState<string | null>(null);
     const ocrMarkdownRef = useRef<HTMLDivElement>(null);
+
+    // Speech-to-Text state
+    const [isRecording, setIsRecording] = useState(false);
+    const [speechResult, setSpeechResult] = useState<string | null>(null);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
 
     // Generate Diagram
     const generateDiagram = useCallback(async () => {
@@ -325,6 +332,116 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         }
     }, [ocrResult, excalidrawAPI, onClose]);
 
+    // ===== Speech-to-Text Functions =====
+    const startRecording = useCallback(async () => {
+        try {
+            setError(null);
+            setSpeechResult(null);
+            setAudioBlob(null);
+            audioChunksRef.current = [];
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                setAudioBlob(blob);
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Failed to start recording:", err);
+            setError("Microphone access denied. Please allow microphone access.");
+        }
+    }, []);
+
+    const stopRecording = useCallback(() => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    }, [isRecording]);
+
+    const transcribeAudio = useCallback(async () => {
+        if (!audioBlob) {
+            setError("No audio recorded");
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            // Convert blob to base64
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve) => {
+                reader.onloadend = () => {
+                    const base64 = (reader.result as string).split(',')[1];
+                    resolve(base64);
+                };
+            });
+            reader.readAsDataURL(audioBlob);
+            const audioBase64 = await base64Promise;
+
+            const response = await fetch(`${AI_SERVER_URL}/api/ai/speech-to-text`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ audioBase64, mimeType: 'audio/webm' }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || data.error || `Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            setSpeechResult(data.text);
+        } catch (err) {
+            console.error("Transcription error:", err);
+            setError(err instanceof Error ? err.message : "Failed to transcribe audio");
+        } finally {
+            setLoading(false);
+        }
+    }, [audioBlob]);
+
+    const addSpeechToCanvas = useCallback(() => {
+        if (!speechResult || !excalidrawAPI) return;
+
+        const lines = speechResult.split('\n').filter(l => l.trim());
+        const fontSize = 20;
+        const lineSpacing = fontSize * 1.5;
+
+        const textElements = lines.map((line, index) =>
+            convertToExcalidrawElements([{
+                type: "text",
+                x: 100,
+                y: 100 + (index * lineSpacing),
+                text: line.trim(),
+                fontSize: fontSize,
+                fontFamily: 1,
+            }])
+        ).flat();
+
+        const currentElements = excalidrawAPI.getSceneElements();
+        excalidrawAPI.updateScene({
+            elements: [...currentElements, ...textElements],
+        });
+        excalidrawAPI.scrollToContent(textElements, { fitToContent: true });
+
+        onClose();
+        setSpeechResult(null);
+        setAudioBlob(null);
+    }, [speechResult, excalidrawAPI, onClose]);
+
     const handleGenerate = activeTab === "diagram" ? generateDiagram : activeTab === "image" ? generateImage : performOcr;
 
     if (!isOpen) return null;
@@ -446,10 +563,35 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     >
                         <span style={{ fontSize: "14px" }}>📝</span> OCR
                     </button>
+                    <button
+                        onClick={() => { setActiveTab("speech"); setError(null); }}
+                        style={{
+                            flex: 1,
+                            padding: "10px 14px",
+                            borderRadius: "8px",
+                            border: activeTab === "speech"
+                                ? "2px solid #6366f1"
+                                : "1px solid rgba(255, 255, 255, 0.15)",
+                            backgroundColor: activeTab === "speech"
+                                ? "rgba(99, 102, 241, 0.15)"
+                                : "transparent",
+                            color: activeTab === "speech" ? "#a5b4fc" : "#9ca3af",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            transition: "all 0.2s ease",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                        }}
+                    >
+                        <span style={{ fontSize: "14px" }}>🎤</span> Speech
+                    </button>
                 </div>
 
                 {/* Prompt Input - Only for diagram/image tabs */}
-                {activeTab !== "ocr" && (
+                {(activeTab === "diagram" || activeTab === "image") && (
                     <div style={{ marginBottom: "14px" }}>
                         <label style={{
                             display: "block",
@@ -708,6 +850,160 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     </div>
                 )}
 
+                {/* Speech Tab Content */}
+                {activeTab === "speech" && (
+                    <div style={{ marginBottom: "14px" }}>
+                        <div style={{
+                            padding: "20px",
+                            borderRadius: "12px",
+                            backgroundColor: "rgba(255, 255, 255, 0.02)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            textAlign: "center",
+                        }}>
+                            {/* Recording Button */}
+                            <button
+                                onClick={isRecording ? stopRecording : startRecording}
+                                disabled={loading}
+                                style={{
+                                    width: "80px",
+                                    height: "80px",
+                                    borderRadius: "50%",
+                                    border: "none",
+                                    backgroundColor: isRecording ? "#ef4444" : "#6366f1",
+                                    color: "#ffffff",
+                                    cursor: loading ? "not-allowed" : "pointer",
+                                    fontSize: "32px",
+                                    transition: "all 0.2s ease",
+                                    boxShadow: isRecording
+                                        ? "0 0 20px rgba(239, 68, 68, 0.5)"
+                                        : "0 4px 15px rgba(99, 102, 241, 0.3)",
+                                }}
+                            >
+                                {isRecording ? "⏹" : "🎤"}
+                            </button>
+                            <p style={{
+                                marginTop: "12px",
+                                color: isRecording ? "#ef4444" : "#9ca3af",
+                                fontSize: "14px",
+                                fontWeight: 500,
+                            }}>
+                                {isRecording ? "🔴 Recording... Click to stop" : "Click to start recording"}
+                            </p>
+                        </div>
+
+                        {/* Audio Preview */}
+                        {audioBlob && !isRecording && (
+                            <div style={{ marginTop: "16px" }}>
+                                <audio
+                                    controls
+                                    src={URL.createObjectURL(audioBlob)}
+                                    style={{ width: "100%", borderRadius: "8px" }}
+                                />
+                            </div>
+                        )}
+
+                        {/* Transcribe Button */}
+                        {audioBlob && !isRecording && !speechResult && (
+                            <button
+                                onClick={transcribeAudio}
+                                disabled={loading}
+                                style={{
+                                    marginTop: "12px",
+                                    width: "100%",
+                                    padding: "12px 20px",
+                                    borderRadius: "8px",
+                                    border: "none",
+                                    backgroundColor: loading ? "#4b5563" : "#6366f1",
+                                    color: "#ffffff",
+                                    cursor: loading ? "not-allowed" : "pointer",
+                                    fontSize: "14px",
+                                    fontWeight: 500,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "8px",
+                                }}
+                            >
+                                {loading ? (
+                                    <>
+                                        <span style={{
+                                            width: "14px",
+                                            height: "14px",
+                                            border: "2px solid transparent",
+                                            borderTopColor: "#fff",
+                                            borderRadius: "50%",
+                                            animation: "spin 0.8s linear infinite",
+                                        }}></span>
+                                        Transcribing...
+                                    </>
+                                ) : "✨ Transcribe Audio"}
+                            </button>
+                        )}
+
+                        {/* Speech Result */}
+                        {speechResult && (
+                            <div style={{ marginTop: "16px" }}>
+                                <label style={{
+                                    display: "block",
+                                    marginBottom: "8px",
+                                    color: "#10b981",
+                                    fontSize: "13px",
+                                    fontWeight: 500,
+                                }}>✅ Transcription:</label>
+                                <div style={{
+                                    padding: "12px",
+                                    borderRadius: "8px",
+                                    backgroundColor: "rgba(16, 185, 129, 0.1)",
+                                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                                    color: "#e4e4e7",
+                                    fontSize: "14px",
+                                    lineHeight: "1.6",
+                                    whiteSpace: "pre-wrap",
+                                    maxHeight: "150px",
+                                    overflowY: "auto",
+                                }}>
+                                    {speechResult}
+                                </div>
+                                <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                                    <button
+                                        onClick={addSpeechToCanvas}
+                                        style={{
+                                            flex: 1,
+                                            padding: "10px 14px",
+                                            borderRadius: "8px",
+                                            border: "none",
+                                            backgroundColor: "#10b981",
+                                            color: "#ffffff",
+                                            cursor: "pointer",
+                                            fontSize: "13px",
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        📝 Add to Canvas
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setSpeechResult(null);
+                                            setAudioBlob(null);
+                                        }}
+                                        style={{
+                                            padding: "10px 14px",
+                                            borderRadius: "8px",
+                                            border: "1px solid rgba(255,255,255,0.2)",
+                                            backgroundColor: "transparent",
+                                            color: "#9ca3af",
+                                            cursor: "pointer",
+                                            fontSize: "13px",
+                                        }}
+                                    >
+                                        🔄 New
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Style selector (only for diagrams) */}
                 {activeTab === "diagram" && (
                     <div style={{ marginBottom: "14px" }}>
@@ -765,57 +1061,59 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     </div>
                 )}
 
-                {/* Action Buttons */}
-                <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                    <button
-                        onClick={handleGenerate}
-                        disabled={loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())}
-                        style={{
-                            padding: "10px 18px",
-                            borderRadius: "8px",
-                            border: "none",
-                            backgroundColor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
-                                ? "rgba(99, 102, 241, 0.3)"
-                                : "#6366f1",
-                            color: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "#9ca3af" : "#ffffff",
-                            cursor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "not-allowed" : "pointer",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            transition: "all 0.2s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                            const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
-                            if (!loading && !isDisabled) {
-                                e.currentTarget.style.backgroundColor = "#4f46e5";
-                            }
-                        }}
-                        onMouseLeave={(e) => {
-                            const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
-                            if (!loading && !isDisabled) {
-                                e.currentTarget.style.backgroundColor = "#6366f1";
-                            }
-                        }}
-                    >
-                        {loading ? (
-                            <>
-                                <span className="spinner" style={{
-                                    width: "14px",
-                                    height: "14px",
-                                    border: "2px solid transparent",
-                                    borderTopColor: "#9ca3af",
-                                    borderRadius: "50%",
-                                    animation: "spin 0.8s linear infinite",
-                                }}></span>
-                                {activeTab === "ocr" ? "Extracting..." : "Generating..."}
-                            </>
-                        ) : (
-                            <>{activeTab === "ocr" ? "📝 Extract Text" : "✨ Generate"}</>
-                        )}
-                    </button>
-                </div>
+                {/* Action Buttons - Not shown for speech tab */}
+                {activeTab !== "speech" && (
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                        <button
+                            onClick={handleGenerate}
+                            disabled={loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())}
+                            style={{
+                                padding: "10px 18px",
+                                borderRadius: "8px",
+                                border: "none",
+                                backgroundColor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
+                                    ? "rgba(99, 102, 241, 0.3)"
+                                    : "#6366f1",
+                                color: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "#9ca3af" : "#ffffff",
+                                cursor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "not-allowed" : "pointer",
+                                fontSize: "13px",
+                                fontWeight: 500,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                                const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
+                                if (!loading && !isDisabled) {
+                                    e.currentTarget.style.backgroundColor = "#4f46e5";
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
+                                if (!loading && !isDisabled) {
+                                    e.currentTarget.style.backgroundColor = "#6366f1";
+                                }
+                            }}
+                        >
+                            {loading ? (
+                                <>
+                                    <span className="spinner" style={{
+                                        width: "14px",
+                                        height: "14px",
+                                        border: "2px solid transparent",
+                                        borderTopColor: "#9ca3af",
+                                        borderRadius: "50%",
+                                        animation: "spin 0.8s linear infinite",
+                                    }}></span>
+                                    {activeTab === "ocr" ? "Extracting..." : "Generating..."}
+                                </>
+                            ) : (
+                                <>{activeTab === "ocr" ? "📝 Extract Text" : "✨ Generate"}</>
+                            )}
+                        </button>
+                    </div>
+                )}
 
                 {/* Footer */}
                 <div style={{

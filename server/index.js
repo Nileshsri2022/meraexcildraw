@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import { InferenceClient } from "@huggingface/inference";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import NLPCloud from "nlpcloud";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -290,6 +291,81 @@ app.post("/api/ai/ocr", async (req, res) => {
         console.error("[OCR] Error:", error);
         res.status(500).json({
             error: "Failed to process OCR",
+            message: error.message,
+        });
+    }
+});
+
+// ==== NLP Cloud Whisper Speech-to-Text Endpoint ====
+const nlpcloudClient = process.env.NLPCLOUD_API_KEY
+    ? new NLPCloud("whisper", process.env.NLPCLOUD_API_KEY, true) // true = GPU
+    : null;
+
+app.post("/api/ai/speech-to-text", async (req, res) => {
+    try {
+        const { audioBase64, mimeType = "audio/webm" } = req.body;
+
+        if (!audioBase64) {
+            return res.status(400).json({ error: "Audio data required" });
+        }
+
+        if (!nlpcloudClient) {
+            return res.status(500).json({ error: "NLP Cloud not configured" });
+        }
+
+        console.log(`[Speech-to-Text] Processing audio...`);
+
+        // Remove data URL prefix if present
+        const base64Data = audioBase64.replace(/^data:audio\/\w+;base64,/, "");
+
+        // Create a temporary file path for the audio
+        const tempDir = join(__dirname, "temp");
+        const fs = await import("fs/promises");
+
+        // Ensure temp directory exists
+        try {
+            await fs.mkdir(tempDir, { recursive: true });
+        } catch (e) {
+            // Directory may already exist
+        }
+
+        // Determine file extension from mimeType
+        const ext = mimeType.includes("webm") ? "webm" :
+            mimeType.includes("mp3") ? "mp3" :
+                mimeType.includes("wav") ? "wav" : "webm";
+
+        const tempFile = join(tempDir, `audio_${Date.now()}.${ext}`);
+
+        // Write audio to temp file
+        const audioBuffer = Buffer.from(base64Data, "base64");
+        await fs.writeFile(tempFile, audioBuffer);
+
+        console.log(`[Speech-to-Text] Saved temp audio: ${tempFile} (${audioBuffer.length} bytes)`);
+
+        // Call NLP Cloud Whisper API
+        const result = await nlpcloudClient.asr(tempFile);
+
+        // Clean up temp file
+        try {
+            await fs.unlink(tempFile);
+        } catch (e) {
+            console.warn(`[Speech-to-Text] Failed to clean up temp file:`, e.message);
+        }
+
+        if (!result || !result.text) {
+            return res.status(500).json({ error: "No transcription returned" });
+        }
+
+        console.log(`[Speech-to-Text] Transcribed: "${result.text.substring(0, 100)}..."`);
+
+        res.json({
+            success: true,
+            text: result.text,
+        });
+    } catch (error) {
+        console.error("[Speech-to-Text] Error:", error);
+        res.status(500).json({
+            error: "Failed to transcribe audio",
             message: error.message,
         });
     }
