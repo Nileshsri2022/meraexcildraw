@@ -16,7 +16,7 @@ interface AIToolsDialogProps {
     initialTab?: "diagram" | "image" | "ocr";
 }
 
-const AI_SERVER_URL = "http://localhost:3002";
+const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
 
 export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     isOpen,
@@ -578,6 +578,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                         maxHeight: "200px",
                                         overflowY: "auto",
                                         lineHeight: "1.6",
+                                        minWidth: "500px"
                                     }}
                                     className="ocr-markdown-result"
                                 >

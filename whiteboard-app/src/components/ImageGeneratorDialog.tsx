@@ -7,7 +7,7 @@ interface ImageGeneratorDialogProps {
     excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
-const AI_SERVER_URL = "http://localhost:3002";
+const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
 
 export const ImageGeneratorDialog: React.FC<ImageGeneratorDialogProps> = ({ isOpen, onClose, excalidrawAPI }) => {
     const [prompt, setPrompt] = useState("");

@@ -16,7 +16,7 @@ const DIAGRAM_STYLES = [
     { value: "mindmap", label: "Mind Map", example: "project planning ideas" },
 ];
 
-const AI_SERVER_URL = "http://localhost:3002";
+const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
 
 export const AIDialog: React.FC<AIDialogProps> = ({ isOpen, onClose, excalidrawAPI }) => {
     const [prompt, setPrompt] = useState("");

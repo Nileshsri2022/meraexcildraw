@@ -6,3 +6,6 @@ build/
 .env.local
 .env.*.local
 *.tsbuildinfo
+.env
+whiteboard-app/.env
+whiteboard-app/.env.example

@@ -1,5 +1,5 @@
 // Collaboration constants
-export const COLLAB_SERVER_URL = "http://localhost:3002";
+export const COLLAB_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
 
 export const WS_EVENTS = {
     SERVER_VOLATILE: "server-volatile-broadcast",
