@@ -14,7 +14,7 @@ dotenv.config({ path: join(__dirname, ".env") });
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -215,6 +215,81 @@ app.post("/api/ai/generate-image", async (req, res) => {
         console.error("[AI Image] Error generating image:", error);
         res.status(500).json({
             error: "Failed to generate image",
+            message: error.message,
+        });
+    }
+});
+
+// ==== PaddleOCR-VL OCR Endpoint ====
+const PADDLEOCR_SERVER = process.env.PADDLEOCR_SERVER_URL;
+const PADDLEOCR_TOKEN = process.env.PADDLEOCR_ACCESS_TOKEN;
+
+app.post("/api/ai/ocr", async (req, res) => {
+    try {
+        const { imageBase64 } = req.body;
+
+        if (!imageBase64) {
+            return res.status(400).json({ error: "Image data required" });
+        }
+
+        if (!PADDLEOCR_SERVER || !PADDLEOCR_TOKEN) {
+            return res.status(500).json({ error: "PaddleOCR not configured" });
+        }
+
+        console.log(`[OCR] Processing image with PaddleOCR-VL...`);
+
+        // Remove data URL prefix if present
+        const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+
+        // Call PaddleOCR-VL API (layout-parsing endpoint)
+        const response = await fetch(`${PADDLEOCR_SERVER}/layout-parsing`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `token ${PADDLEOCR_TOKEN}`,
+            },
+            body: JSON.stringify({
+                file: base64Data,
+                fileType: 1, // 1 = image
+                useLayoutDetection: false,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[OCR] API Error: ${response.status} - ${errorText}`);
+            throw new Error(`PaddleOCR API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        console.log(`[OCR] Full Response:`);
+        console.log(JSON.stringify(data, null, 2));
+
+        // Extract text from layout-parsing response
+        // Path: result.layoutParsingResults[0].markdown.text
+        let text = '';
+
+        if (data.result?.layoutParsingResults?.[0]?.markdown?.text) {
+            text = data.result.layoutParsingResults[0].markdown.text;
+        } else if (data.result?.layoutParsingResults?.[0]?.prunedResult?.parsing_res_list?.[0]?.block_content) {
+            text = data.result.layoutParsingResults[0].prunedResult.parsing_res_list[0].block_content;
+        } else if (data.result?.markdown) {
+            text = data.result.markdown;
+        } else {
+            text = "No text could be extracted";
+        }
+
+        console.log(`[OCR] Extracted ${text.length} characters`);
+
+        res.json({
+            success: true,
+            text: text,
+        });
+    } catch (error) {
+        console.error("[OCR] Error:", error);
+        res.status(500).json({
+            error: "Failed to process OCR",
             message: error.message,
         });
     }
