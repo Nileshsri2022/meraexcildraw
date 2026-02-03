@@ -11,12 +11,20 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCollaboration } from "./collab";
 import { AIToolsDialog } from "./components/AIToolsDialog";
+import { useAutoSave, SaveStatus } from "./hooks/useAutoSave";
 
 const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
     const [isAIToolsOpen, setIsAIToolsOpen] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Auto-save hook
+    const { saveStatus, lastSaved, triggerSave, clearSavedData, loadSavedData } = useAutoSave({
+        enabled: true,
+        debounceMs: 5000,
+    });
 
     const {
         isCollaborating,
@@ -39,6 +47,28 @@ const App: React.FC = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Restore saved scene on mount
+    useEffect(() => {
+        if (excalidrawAPI && !initialDataLoaded) {
+            loadSavedData().then((savedData) => {
+                if (savedData && savedData.elements.length > 0) {
+                    // Add files first before updating scene
+                    if (savedData.files && Object.keys(savedData.files).length > 0) {
+                        excalidrawAPI.addFiles(
+                            Object.values(savedData.files) as any[]
+                        );
+                    }
+                    excalidrawAPI.updateScene({
+                        elements: savedData.elements as OrderedExcalidrawElement[],
+                        appState: savedData.appState as any,
+                    });
+                    console.log('[App] Restored saved scene with files');
+                }
+                setInitialDataLoaded(true);
+            });
+        }
+    }, [excalidrawAPI, initialDataLoaded, loadSavedData]);
+
     // Toggle collaboration
     const toggleCollaboration = useCallback(() => {
         if (isCollaborating) {
@@ -49,12 +79,17 @@ const App: React.FC = () => {
         setIsDropdownOpen(false);
     }, [isCollaborating, startCollaboration, stopCollaboration]);
 
-    // Handle scene changes
+    // Handle scene changes - sync collab and trigger auto-save
     const handleChange = useCallback(
-        (elements: readonly OrderedExcalidrawElement[]) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (elements: readonly OrderedExcalidrawElement[], appState: any, files: any) => {
             onSceneChange(elements);
+            // Trigger auto-save (debounced) - only when not collaborating
+            if (initialDataLoaded && !isCollaborating) {
+                triggerSave(elements, appState, files || {});
+            }
         },
-        [onSceneChange]
+        [onSceneChange, triggerSave, initialDataLoaded, isCollaborating]
     );
 
     // Render custom dropdown in top right area
@@ -223,6 +258,53 @@ const App: React.FC = () => {
                             </button>
                         </>
                     )}
+
+                    {/* Clear Local Data Option */}
+                    {!isCollaborating && (
+                        <>
+                            <div style={{
+                                height: "1px",
+                                backgroundColor: "rgba(255, 255, 255, 0.08)",
+                                margin: "8px 0"
+                            }} />
+                            <button
+                                onClick={async () => {
+                                    if (confirm("Clear all locally saved data? This cannot be undone.")) {
+                                        await clearSavedData();
+                                        alert("Local data cleared!");
+                                    }
+                                    setIsDropdownOpen(false);
+                                }}
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "12px",
+                                    width: "100%",
+                                    padding: "10px 16px",
+                                    border: "none",
+                                    backgroundColor: "transparent",
+                                    color: "#ef4444",
+                                    cursor: "pointer",
+                                    fontSize: "14px",
+                                    fontFamily: "inherit",
+                                    textAlign: "left",
+                                    transition: "background-color 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                }}
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                                <span>Clear Local Data</span>
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
         </div>
@@ -273,11 +355,20 @@ const App: React.FC = () => {
                 </WelcomeScreen>
 
                 <Footer>
-                    <span style={{ fontSize: "12px", opacity: 0.7 }}>
+                    <span style={{ fontSize: "12px", opacity: 0.7, display: "flex", alignItems: "center", gap: "12px" }}>
                         {isCollaborating ? (
                             <>🟢 {username} in room: {roomId}</>
                         ) : (
                             "Powered by Excalidraw"
+                        )}
+                        {/* Save status indicator */}
+                        {!isCollaborating && (
+                            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                {saveStatus === 'saving' && '💾 Saving...'}
+                                {saveStatus === 'saved' && '✅ Saved'}
+                                {saveStatus === 'error' && '❌ Save failed'}
+                                {saveStatus === 'idle' && lastSaved && `Last saved: ${lastSaved.toLocaleTimeString()}`}
+                            </span>
                         )}
                     </span>
                 </Footer>
