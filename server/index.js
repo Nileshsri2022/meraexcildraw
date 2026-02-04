@@ -360,11 +360,12 @@ app.get("/api/ai/voices", async (req, res) => {
 
         console.log("[Voices] Fetching available voices...");
 
-        const response = await elevenlabs.voices.search({});
+        // Call ElevenLabs Voices API - GET /v2/voices
+        const response = await elevenlabs.voices.getAll();
 
         // Map voices to simpler format
         const voices = response.voices.map(voice => ({
-            id: voice.voice_id,
+            id: voice.voiceId || voice.voice_id,
             name: voice.name,
             category: voice.category || "generated",
             labels: voice.labels || {},
