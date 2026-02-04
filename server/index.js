@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { InferenceClient } from "@huggingface/inference";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import NLPCloud from "nlpcloud";
+import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -296,76 +296,137 @@ app.post("/api/ai/ocr", async (req, res) => {
     }
 });
 
-// ==== NLP Cloud Whisper Speech-to-Text Endpoint ====
-const nlpcloudClient = process.env.NLPCLOUD_API_KEY
-    ? new NLPCloud("whisper", process.env.NLPCLOUD_API_KEY, true) // true = GPU
+// ==== ElevenLabs Speech-to-Text Endpoint ====
+const elevenlabs = process.env.ELEVENLABS_API_KEY
+    ? new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY })
     : null;
 
 app.post("/api/ai/speech-to-text", async (req, res) => {
     try {
-        const { audioBase64, mimeType = "audio/webm" } = req.body;
+        const { audioBase64 } = req.body;
 
         if (!audioBase64) {
             return res.status(400).json({ error: "Audio data required" });
         }
 
-        if (!nlpcloudClient) {
-            return res.status(500).json({ error: "NLP Cloud not configured" });
+        if (!elevenlabs) {
+            return res.status(500).json({ error: "ElevenLabs not configured" });
         }
 
-        console.log(`[Speech-to-Text] Processing audio...`);
+        console.log(`[Speech-to-Text] Processing audio with ElevenLabs...`);
 
         // Remove data URL prefix if present
         const base64Data = audioBase64.replace(/^data:audio\/\w+;base64,/, "");
 
-        // Create a temporary file path for the audio
-        const tempDir = join(__dirname, "temp");
-        const fs = await import("fs/promises");
-
-        // Ensure temp directory exists
-        try {
-            await fs.mkdir(tempDir, { recursive: true });
-        } catch (e) {
-            // Directory may already exist
-        }
-
-        // Determine file extension from mimeType
-        const ext = mimeType.includes("webm") ? "webm" :
-            mimeType.includes("mp3") ? "mp3" :
-                mimeType.includes("wav") ? "wav" : "webm";
-
-        const tempFile = join(tempDir, `audio_${Date.now()}.${ext}`);
-
-        // Write audio to temp file
+        // Convert base64 to Buffer and create Blob
         const audioBuffer = Buffer.from(base64Data, "base64");
-        await fs.writeFile(tempFile, audioBuffer);
+        const audioBlob = new Blob([audioBuffer], { type: 'audio/webm' });
 
-        console.log(`[Speech-to-Text] Saved temp audio: ${tempFile} (${audioBuffer.length} bytes)`);
+        console.log(`[Speech-to-Text] Sending ${audioBuffer.length} bytes to ElevenLabs Scribe...`);
 
-        // Call NLP Cloud Whisper API
-        const result = await nlpcloudClient.asr(tempFile);
+        // Call ElevenLabs Speech-to-Text API
+        const transcription = await elevenlabs.speechToText.convert({
+            file: audioBlob,
+            modelId: "scribe_v2",
+            languageCode: "en", // English, can be changed or auto-detected
+        });
 
-        // Clean up temp file
-        try {
-            await fs.unlink(tempFile);
-        } catch (e) {
-            console.warn(`[Speech-to-Text] Failed to clean up temp file:`, e.message);
-        }
-
-        if (!result || !result.text) {
+        if (!transcription || !transcription.text) {
+            console.log(`[Speech-to-Text] Result:`, transcription);
             return res.status(500).json({ error: "No transcription returned" });
         }
 
-        console.log(`[Speech-to-Text] Transcribed: "${result.text.substring(0, 100)}..."`);
+        console.log(`[Speech-to-Text] Transcribed: "${transcription.text.substring(0, 100)}..."`);
 
         res.json({
             success: true,
-            text: result.text,
+            text: transcription.text,
         });
     } catch (error) {
         console.error("[Speech-to-Text] Error:", error);
         res.status(500).json({
             error: "Failed to transcribe audio",
+            message: error.message,
+        });
+    }
+});
+
+// ==== ElevenLabs Get Voices Endpoint ====
+app.get("/api/ai/voices", async (req, res) => {
+    try {
+        if (!elevenlabs) {
+            return res.status(500).json({ error: "ElevenLabs not configured" });
+        }
+
+        console.log("[Voices] Fetching available voices...");
+
+        const response = await elevenlabs.voices.search({});
+
+        // Map voices to simpler format
+        const voices = response.voices.map(voice => ({
+            id: voice.voice_id,
+            name: voice.name,
+            category: voice.category || "generated",
+            labels: voice.labels || {},
+        }));
+
+        console.log(`[Voices] Found ${voices.length} voices`);
+
+        res.json({
+            success: true,
+            voices: voices,
+        });
+    } catch (error) {
+        console.error("[Voices] Error:", error);
+        res.status(500).json({
+            error: "Failed to fetch voices",
+            message: error.message,
+        });
+    }
+});
+
+// ==== ElevenLabs Text-to-Speech Endpoint ====
+app.post("/api/ai/text-to-speech", async (req, res) => {
+    try {
+        const { text, voiceId = "21m00Tcm4TlvDq8ikWAM" } = req.body; // Default: Rachel voice
+
+        if (!text) {
+            return res.status(400).json({ error: "Text is required" });
+        }
+
+        if (!elevenlabs) {
+            return res.status(500).json({ error: "ElevenLabs not configured" });
+        }
+
+        console.log(`[Text-to-Speech] Converting ${text.length} chars to speech...`);
+
+        // Call ElevenLabs TTS Streaming API
+        const audioStream = await elevenlabs.textToSpeech.stream(voiceId, {
+            text: text,
+            modelId: "eleven_multilingual_v2",
+            outputFormat: "mp3_44100_128",
+        });
+
+        // Convert stream to buffer
+        const chunks = [];
+        for await (const chunk of audioStream) {
+            chunks.push(chunk);
+        }
+        const audioBuffer = Buffer.concat(chunks);
+
+        console.log(`[Text-to-Speech] Generated ${audioBuffer.length} bytes of audio`);
+
+        // Return as base64
+        const audioBase64 = audioBuffer.toString("base64");
+
+        res.json({
+            success: true,
+            audio: `data:audio/mpeg;base64,${audioBase64}`,
+        });
+    } catch (error) {
+        console.error("[Text-to-Speech] Error:", error);
+        res.status(500).json({
+            error: "Failed to convert text to speech",
             message: error.message,
         });
     }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -13,7 +13,7 @@ interface AIToolsDialogProps {
     isOpen: boolean;
     onClose: () => void;
     excalidrawAPI: ExcalidrawImperativeAPI | null;
-    initialTab?: "diagram" | "image" | "ocr" | "speech";
+    initialTab?: "diagram" | "image" | "ocr" | "speech" | "tts";
 }
 
 const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
@@ -24,7 +24,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     excalidrawAPI,
     initialTab = "diagram"
 }) => {
-    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "speech">(initialTab as any);
+    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "speech" | "tts">(initialTab as any);
     const [prompt, setPrompt] = useState("");
     const [style, setStyle] = useState("flowchart");
     const [loading, setLoading] = useState(false);
@@ -38,6 +38,14 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     const [speechResult, setSpeechResult] = useState<string | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+    // Text-to-Speech state
+    const [ttsText, setTtsText] = useState<string>("");
+    const [ttsAudio, setTtsAudio] = useState<string | null>(null);
+    const [ttsVoice, setTtsVoice] = useState<string>(""); // Will be set after fetching voices
+    const [ttsVoices, setTtsVoices] = useState<Array<{ id: string, name: string, category: string }>>([]);
+    const [loadingVoices, setLoadingVoices] = useState(false);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
 
     // Generate Diagram
@@ -442,6 +450,91 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         setAudioBlob(null);
     }, [speechResult, excalidrawAPI, onClose]);
 
+    // ===== Text-to-Speech Functions =====
+
+    // Fetch available voices when TTS tab is opened
+    useEffect(() => {
+        const fetchVoices = async () => {
+            if (activeTab === "tts" && isOpen && ttsVoices.length === 0) {
+                setLoadingVoices(true);
+                try {
+                    const response = await fetch(`${AI_SERVER_URL}/api/ai/voices`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setTtsVoices(data.voices);
+                        // Set default voice to first one
+                        if (data.voices.length > 0 && !ttsVoice) {
+                            setTtsVoice(data.voices[0].id);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch voices:", err);
+                }
+                setLoadingVoices(false);
+            }
+        };
+        fetchVoices();
+    }, [activeTab, isOpen, ttsVoices.length, ttsVoice]);
+
+    // Auto-read clipboard when TTS tab is opened
+    useEffect(() => {
+        const readClipboard = async () => {
+            if (activeTab === "tts" && isOpen) {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    if (text && text.trim()) {
+                        setTtsText(text);
+                    }
+                } catch (err) {
+                    console.log("Clipboard read not available:", err);
+                    // Clipboard API might not be available or permission denied
+                }
+            }
+        };
+        readClipboard();
+    }, [activeTab, isOpen]);
+
+    const speakText = useCallback(async () => {
+        if (!ttsText.trim()) {
+            setError("Please enter or paste text to speak");
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+        setTtsAudio(null);
+
+        try {
+            const response = await fetch(`${AI_SERVER_URL}/api/ai/text-to-speech`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    text: ttsText,
+                    voiceId: ttsVoice,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to generate speech");
+            }
+
+            const data = await response.json();
+            setTtsAudio(data.audio);
+
+            // Auto-play the audio
+            if (audioRef.current) {
+                audioRef.current.src = data.audio;
+                audioRef.current.play();
+            }
+        } catch (err) {
+            console.error("TTS error:", err);
+            setError(err instanceof Error ? err.message : "Failed to generate speech");
+        } finally {
+            setLoading(false);
+        }
+    }, [ttsText, ttsVoice]);
+
     const handleGenerate = activeTab === "diagram" ? generateDiagram : activeTab === "image" ? generateImage : performOcr;
 
     if (!isOpen) return null;
@@ -587,6 +680,31 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                         }}
                     >
                         <span style={{ fontSize: "14px" }}>🎤</span> Speech
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab("tts"); setError(null); }}
+                        style={{
+                            flex: 1,
+                            padding: "10px 14px",
+                            borderRadius: "8px",
+                            border: activeTab === "tts"
+                                ? "2px solid #6366f1"
+                                : "1px solid rgba(255, 255, 255, 0.15)",
+                            backgroundColor: activeTab === "tts"
+                                ? "rgba(99, 102, 241, 0.15)"
+                                : "transparent",
+                            color: activeTab === "tts" ? "#a5b4fc" : "#9ca3af",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            transition: "all 0.2s ease",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                        }}
+                    >
+                        <span style={{ fontSize: "14px" }}>🔊</span> TTS
                     </button>
                 </div>
 
@@ -1004,6 +1122,171 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     </div>
                 )}
 
+                {/* TTS Tab Content */}
+                {activeTab === "tts" && (
+                    <div style={{ marginBottom: "14px" }}>
+                        {/* Hidden audio element for playback */}
+                        <audio ref={audioRef} style={{ display: "none" }} />
+
+                        {/* Instructions */}
+                        <div style={{
+                            padding: "12px",
+                            borderRadius: "8px",
+                            backgroundColor: "rgba(99, 102, 241, 0.1)",
+                            border: "1px solid rgba(99, 102, 241, 0.3)",
+                            marginBottom: "14px",
+                        }}>
+                            <p style={{ margin: 0, color: "#a5b4fc", fontSize: "13px" }}>
+                                💡 <strong>Tip:</strong> Copy text from canvas (Ctrl+C), then open this tab. Text will auto-fill.
+                            </p>
+                        </div>
+
+                        {/* Text Input */}
+                        <label style={{
+                            display: "block",
+                            marginBottom: "6px",
+                            color: "#e4e4e7",
+                            fontSize: "13px",
+                            fontWeight: 500
+                        }}>
+                            Text to speak:
+                        </label>
+                        <textarea
+                            value={ttsText}
+                            onChange={(e) => setTtsText(e.target.value)}
+                            placeholder="Enter or paste text here to convert to speech..."
+                            style={{
+                                width: "100%",
+                                minHeight: "100px",
+                                padding: "10px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid rgba(255, 255, 255, 0.15)",
+                                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                                color: "#e4e4e7",
+                                fontSize: "13px",
+                                lineHeight: "1.5",
+                                resize: "vertical",
+                                boxSizing: "border-box",
+                                outline: "none",
+                                fontFamily: "inherit",
+                            }}
+                        />
+
+                        {/* Voice Selector */}
+                        <div style={{ marginTop: "12px" }}>
+                            <label style={{
+                                display: "block",
+                                marginBottom: "6px",
+                                color: "#e4e4e7",
+                                fontSize: "13px",
+                                fontWeight: 500
+                            }}>
+                                Voice:
+                            </label>
+                            <select
+                                value={ttsVoice}
+                                onChange={(e) => setTtsVoice(e.target.value)}
+                                disabled={loadingVoices}
+                                style={{
+                                    width: "100%",
+                                    padding: "10px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    backgroundColor: "#2d2d35",
+                                    color: "#e4e4e7",
+                                    fontSize: "13px",
+                                    cursor: loadingVoices ? "wait" : "pointer",
+                                    outline: "none",
+                                }}
+                            >
+                                {loadingVoices ? (
+                                    <option>Loading voices...</option>
+                                ) : ttsVoices.length === 0 ? (
+                                    <option>No voices available</option>
+                                ) : (
+                                    ttsVoices.map((voice) => (
+                                        <option key={voice.id} value={voice.id}>
+                                            {voice.name} ({voice.category})
+                                        </option>
+                                    ))
+                                )}
+                            </select>
+                        </div>
+
+                        {/* Speak Button */}
+                        <button
+                            onClick={speakText}
+                            disabled={loading || !ttsText.trim()}
+                            style={{
+                                marginTop: "14px",
+                                width: "100%",
+                                padding: "12px 20px",
+                                borderRadius: "8px",
+                                border: "none",
+                                backgroundColor: (loading || !ttsText.trim()) ? "#4b5563" : "#10b981",
+                                color: "#ffffff",
+                                cursor: (loading || !ttsText.trim()) ? "not-allowed" : "pointer",
+                                fontSize: "14px",
+                                fontWeight: 500,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "8px",
+                            }}
+                        >
+                            {loading ? (
+                                <>
+                                    <span style={{
+                                        width: "14px",
+                                        height: "14px",
+                                        border: "2px solid transparent",
+                                        borderTopColor: "#fff",
+                                        borderRadius: "50%",
+                                        animation: "spin 0.8s linear infinite",
+                                    }}></span>
+                                    Generating speech...
+                                </>
+                            ) : "🔊 Speak Text"}
+                        </button>
+
+                        {/* Audio Player (visible after generation) */}
+                        {ttsAudio && (
+                            <div style={{ marginTop: "16px" }}>
+                                <label style={{
+                                    display: "block",
+                                    marginBottom: "8px",
+                                    color: "#10b981",
+                                    fontSize: "13px",
+                                    fontWeight: 500,
+                                }}>✅ Audio Generated:</label>
+                                <audio
+                                    controls
+                                    src={ttsAudio}
+                                    style={{ width: "100%", borderRadius: "8px" }}
+                                />
+                                <button
+                                    onClick={() => {
+                                        setTtsAudio(null);
+                                        setTtsText("");
+                                    }}
+                                    style={{
+                                        marginTop: "8px",
+                                        padding: "8px 14px",
+                                        borderRadius: "6px",
+                                        border: "1px solid rgba(255,255,255,0.2)",
+                                        backgroundColor: "transparent",
+                                        color: "#9ca3af",
+                                        cursor: "pointer",
+                                        fontSize: "12px",
+                                    }}
+                                >
+                                    🔄 New
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Style selector (only for diagrams) */}
                 {activeTab === "diagram" && (
                     <div style={{ marginBottom: "14px" }}>
@@ -1061,8 +1344,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     </div>
                 )}
 
-                {/* Action Buttons - Not shown for speech tab */}
-                {activeTab !== "speech" && (
+                {/* Action Buttons - Not shown for speech/tts tabs */}
+                {activeTab !== "speech" && activeTab !== "tts" && (
                     <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
                         <button
                             onClick={handleGenerate}
