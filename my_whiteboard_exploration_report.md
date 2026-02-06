@@ -1,339 +1,314 @@
 # My-Whiteboard Implementation Report
 
 **Generated:** 2026-02-02  
+**Last Updated:** 2026-02-04  
 **Reference:** Excalidraw Project (Parent Repository)
 
 ---
 
 ## Executive Summary
 
-My-Whiteboard is a simplified implementation of a whiteboard application inspired by Excalidraw. This report analyzes what has been implemented vs what remains to be added compared to the parent Excalidraw project.
+My-Whiteboard is a feature-rich whiteboard application built on top of the Excalidraw library. It extends the base Excalidraw functionality with **AI-powered features**, **real-time collaboration**, and a **mobile-ready architecture**.
 
 > [!IMPORTANT]
-> **Implementation Status:** ~5-10% of Excalidraw's feature set implemented  
-> **Total Lines of Code:** ~2,400 lines vs Excalidraw's ~150,000+ lines
+> **Implementation Status:** Full Excalidraw integration + Custom AI Features  
+> **Total Lines of Code:** ~25,000+ lines (including Excalidraw library integration)
 
 ---
 
-## 1. Project Structure Comparison
+## 1. Project Architecture
 
-### Monorepo Architecture
+### Current Structure
 
-| Aspect | My-Whiteboard | Excalidraw |
-|--------|---------------|------------|
-| **Package Manager** | Yarn 1.22 | Yarn 1.22 |
-| **Build Tool** | Vite 5.2 | Vite 5.1 |
-| **Test Framework** | Vitest 1.4 | Vitest |
-| **TypeScript** | 5.4 | 5.9.3 |
-| **State Management** | Jotai | Jotai |
-| **Rendering** | RoughJS | RoughJS |
+```
+my-whiteboard/
+├── whiteboard-app/           # React Frontend (Vite)
+│   ├── src/
+│   │   ├── App.tsx           # Main app (388 lines)
+│   │   ├── components/
+│   │   │   ├── AIToolsDialog.tsx    # AI features (1,122 lines)
+│   │   │   ├── AIDialog.tsx         # Diagram gen (9KB)
+│   │   │   └── ImageGeneratorDialog.tsx # Image gen (9KB)
+│   │   ├── collab/
+│   │   │   ├── Portal.ts            # Socket communication
+│   │   │   ├── useCollaboration.ts  # Collab hook (10KB)
+│   │   │   └── constants.ts
+│   │   ├── hooks/
+│   │   │   └── useAutoSave.ts       # Auto-save to localStorage (3.6KB)
+│   │   └── utils/
+│   │       └── mathJaxParser.ts     # LaTeX parsing (1.7KB)
+│   └── android/              # Capacitor Android app
+├── server/                   # Node.js Backend
+│   ├── index.js              # Server + AI endpoints (515 lines)
+│   ├── .env                  # API keys
+│   └── package.json
+└── package.json              # Monorepo config
+```
 
-### Package Comparison
+### Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18 + TypeScript + Vite |
+| **Drawing Engine** | @excalidraw/excalidraw (full library) |
+| **State** | Jotai + React Context |
+| **Styling** | CSS (custom) |
+| **Backend** | Node.js + Express + Socket.IO |
+| **Mobile** | Capacitor (Android APK ready) |
+| **AI APIs** | HuggingFace, PaddleOCR, ElevenLabs |
+| **Deployment** | Render (backend), Vercel-ready (frontend) |
+
+---
+
+## 2. Features Implemented ✅
+
+### Core Drawing (via Excalidraw)
+| Feature | Status | Source |
+|---------|--------|--------|
+| All drawing tools (shapes, lines, text) | ✅ | @excalidraw/excalidraw |
+| Canvas zoom & pan | ✅ | @excalidraw/excalidraw |
+| Element selection, resize, rotate | ✅ | @excalidraw/excalidraw |
+| Undo/Redo | ✅ | @excalidraw/excalidraw |
+| Dark/Light theme | ✅ | @excalidraw/excalidraw |
+| Export PNG/SVG/JSON | ✅ | @excalidraw/excalidraw |
+| Grid & snap | ✅ | @excalidraw/excalidraw |
+| Keyboard shortcuts | ✅ | @excalidraw/excalidraw |
+
+### AI Features (Custom Implementation)
+
+| Feature | Status | Backend Endpoint |
+|---------|--------|-----------------|
+| **AI Diagram Generation** | ✅ | `/api/ai/generate-diagram` |
+| **AI Image Generation** | ✅ | `/api/ai/generate-image` |
+| **OCR / Handwriting Recognition** | ✅ | `/api/ai/ocr` |
+| **Text-to-Speech (TTS)** | ✅ | `/api/ai/text-to-speech` |
+| **Voice Selection** | ✅ | `/api/ai/voices` |
+| Speech-to-Text | ❌ Removed | Was `/api/ai/speech-to-text` |
+
+### Collaboration Features
+
+| Feature | Status | Implementation |
+|---------|--------|---------------|
+| Real-time sync | ✅ | Socket.IO |
+| Multi-user rooms | ✅ | Room-based system |
+| User presence | ✅ | room-user-change events |
+| Encrypted data | ✅ | Client-side encryption |
+| Volatile updates (cursors) | ✅ | server-volatile-broadcast |
+
+### Mobile Features
+
+| Feature | Status | Technology |
+|---------|--------|------------|
+| Android APK | ✅ | Capacitor |
+| Touch support | ✅ | Excalidraw built-in |
+| Responsive UI | ✅ | CSS media queries |
+
+### Data Persistence
+
+| Feature | Status | Implementation |
+|---------|--------|---------------|
+| Auto-save to localStorage | ✅ | useAutoSave hook |
+| Save every 30 seconds | ✅ | Configurable interval |
+| Restore on reload | ✅ | On app mount |
+
+---
+
+## 3. Server Endpoints
+
+### AI Endpoints (server/index.js)
 
 ```mermaid
 graph LR
-  subgraph "My-Whiteboard Packages"
-    MW_W[whiteboard<br/>6 src files]
-    MW_E[element<br/>5 src files]
-    MW_C[common<br/>1 src file]
-    MW_M[math<br/>1 src file]
-    MW_U[utils<br/>1 src file]
-  end
-  
-  subgraph "Excalidraw Packages"
-    EX_E["excalidraw<br/>760 files"]
-    EX_EL["element<br/>75 files"]
-    EX_C["common<br/>28 files"]
-    EX_M["math<br/>26 files"]
-    EX_U["utils<br/>17 files"]
-  end
-```
-
-| Package | My-Whiteboard | Excalidraw | Ratio |
-|---------|---------------|------------|-------|
-| **whiteboard/excalidraw** | 6 files (~41KB) | 760 files | 0.8% |
-| **element** | 5 files (~28KB) | 75 files | 6.7% |
-| **common** | 1 file (~6KB) | 28 files | 3.6% |
-| **math** | 1 file (~5KB) | 26 files | 3.8% |
-| **utils** | 1 file (~3.7KB) | 17 files | 5.9% |
-
----
-
-## 2. Feature Implementation Strategy
-
-> [!IMPORTANT]
-> **Key Insight:** Instead of implementing features from scratch, my-whiteboard should **USE the Excalidraw library packages** to gain instant access to 760+ files of battle-tested functionality.
-
-### Available Excalidraw Library Packages
-
-```mermaid
-graph TB
-    subgraph "Use These Libraries"
-        A["@excalidraw/excalidraw<br/>760+ files<br/>Main React Component"]
-        B["@excalidraw/element<br/>75 files<br/>Bindings, bounds, collision"]
-        C["@excalidraw/common<br/>28 files<br/>Colors, constants, keys"]
-        D["@excalidraw/math<br/>26 files<br/>Points, vectors, curves"]
-        E["@excalidraw/utils<br/>17 files<br/>Bounding boxes, export"]
+    subgraph "AI API Endpoints"
+        A["/api/ai/generate-diagram"] --> |Mermaid| HF[HuggingFace]
+        B["/api/ai/generate-image"] --> |SD XL| HF
+        C["/api/ai/ocr"] --> |Layout Parse| POCR[PaddleOCR]
+        D["/api/ai/text-to-speech"] --> |TTS Stream| EL[ElevenLabs]
+        E["/api/ai/voices"] --> |Get Voices| EL
+        F["/api/ai/speech-to-text"] --> |STT| EL
     end
-    
-    MW[my-whiteboard] --> A
-    MW --> B
-    MW --> C
-    MW --> D
-    MW --> E
 ```
 
-### Features Available by Using `@excalidraw/excalidraw`
+| Endpoint | Method | Description | API Provider |
+|----------|--------|-------------|--------------|
+| `/api/ai/generate-diagram` | POST | Generate Mermaid diagrams from prompts | HuggingFace (Kimi-K2) |
+| `/api/ai/generate-image` | POST | AI image generation | HuggingFace (SDXL) |
+| `/api/ai/ocr` | POST | Extract text from images | PaddleOCR |
+| `/api/ai/text-to-speech` | POST | Convert text to audio | ElevenLabs |
+| `/api/ai/voices` | GET | Get available TTS voices | ElevenLabs |
+| `/api/ai/speech-to-text` | POST | Transcribe audio (disabled) | ElevenLabs |
+| `/` | GET | Health check | - |
 
-| Feature | Library Source | Import & Use |
-|---------|----------------|--------------|
-| **All Drawing Tools** | `@excalidraw/excalidraw` | ✅ Use `<Excalidraw />` component |
-| **Frame Tool** | `@excalidraw/element` | ✅ `frame.ts` (26KB) |
-| **Element Bindings** | `@excalidraw/element` | ✅ `binding.ts` (81KB) |
-| **Elbow Arrows** | `@excalidraw/element` | ✅ `elbowArrow.ts` (64KB) |
-| **Flowcharts** | `@excalidraw/element` | ✅ `flowchart.ts` (19KB) |
-| **Groups** | `@excalidraw/element` | ✅ `groups.ts` (14KB) |
-| **Text Wrapping** | `@excalidraw/element` | ✅ `textWrapping.ts` |
-| **Collision Detection** | `@excalidraw/element` | ✅ `collision.ts` (20KB) |
-| **Bounds Calculation** | `@excalidraw/element` | ✅ `bounds.ts` (33KB) |
+### Socket.IO Events
 
-### Features Available by Using `@excalidraw/math`
-
-| Feature | Function | Import |
-|---------|----------|--------|
-| Point operations | `point.ts` (6KB) | ✅ Ready to use |
-| Vector math | `vector.ts` (4KB) | ✅ Ready to use |
-| Curve calculations | `curve.ts` (12KB) | ✅ Ready to use |
-| Ellipse math | `ellipse.ts` (6KB) | ✅ Ready to use |
-| Polygon operations | `polygon.ts` (2KB) | ✅ Ready to use |
-| Segment handling | `segment.ts` (4KB) | ✅ Ready to use |
-| Angle utilities | `angle.ts` (1.8KB) | ✅ Ready to use |
-
-### Features Available by Using `@excalidraw/utils`
-
-| Feature | Function | Import |
-|---------|----------|--------|
-| Bounding box | `bbox.ts` | ✅ Ready to use |
-| Shape utilities | `shape.ts` (15KB) | ✅ Ready to use |
-| Export helpers | `export.ts` (5.8KB) | ✅ Ready to use |
-| Within bounds check | `withinBounds.ts` (5.7KB) | ✅ Ready to use |
-
-### Features Available by Using `@excalidraw/common`
-
-| Feature | Function | Import |
-|---------|----------|--------|
-| Color palette | `colors.ts` (9.5KB) | ✅ Ready to use |
-| Keyboard keys | `keys.ts` (3.9KB) | ✅ Ready to use |
-| Constants | `constants.ts` (14KB) | ✅ Ready to use |
-| Utility functions | `utils.ts` (34KB) | ✅ Ready to use |
-| Event emitter | `emitter.ts` | ✅ Ready to use |
-| Font metadata | `font-metadata.ts` (4.7KB) | ✅ Ready to use |
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `join-room` | Client → Server | Join collaboration room |
+| `room-user-change` | Server → Client | User list updated |
+| `server-broadcast` | Client → Server | Reliable scene updates |
+| `client-broadcast` | Server → Client | Broadcast to room |
+| `server-volatile-broadcast` | Client → Server | Cursor positions (droppable) |
+| `user-follow` | Bidirectional | Follow mode updates |
+| `new-user` | Server → Client | Request scene from peers |
 
 ---
 
-### Current Implementation Status (Custom Code)
+## 4. Frontend Components
 
-My-whiteboard currently has **custom implementations** instead of using libraries:
+### AIToolsDialog.tsx (1,122 lines)
 
-| Feature | Current | Better Approach |
-|---------|---------|-----------------|
-| Drawing tools | ✅ Custom (968 lines) | Use `<Excalidraw />` component |
-| Element types | ✅ Custom (136 lines) | Import from `@excalidraw/element` |
-| Math utils | ✅ Custom (189 lines) | Import from `@excalidraw/math` |
-| Color palette | ✅ Custom (31 colors) | Import from `@excalidraw/common` |
-| Renderer | ✅ Custom (414 lines) | Use Excalidraw's optimized renderer |
+The main AI features hub with 4 tabs:
 
-### What's Actually Missing (Even with Libraries)
+| Tab | Feature | Key Functions |
+|-----|---------|---------------|
+| **Diagram** | AI Mermaid generation | `generateDiagram()`, `insertDiagram()` |
+| **Image** | AI image creation | `generateImage()`, `insertImage()` |
+| **OCR** | Text extraction | `performOCR()`, `renderOCRAsImage()` |
+| **TTS** | Text-to-speech | `speakText()`, `fetchVoices()` |
 
-These require **custom implementation** even when using Excalidraw libraries:
+### App.tsx (388 lines)
 
-| Feature | Why Custom Needed |
-|---------|-------------------|
-| **Backend Collaboration** | Firebase/WebSocket setup is app-specific |
-| **Authentication** | User auth is app-specific |
-| **Cloud Storage** | File storage integration is custom |
-| **Custom Branding** | Theme/styling customization |
-| **Analytics** | Optional, app-specific tracking |
+Main application with:
+- Custom toolbar menu
+- AI tools dropdown
+- Collaboration controls
+- Auto-save status display
 
----
+### useAutoSave.ts Hook
 
-## 3. Code Architecture Comparison
-
-### Main Component Size
-
-```mermaid
-pie title Main Component Comparison (Lines of Code)
-    "My-Whiteboard WhiteboardCanvas" : 968
-    "Excalidraw App.tsx" : 12179
+```typescript
+interface SaveStatus {
+    status: 'idle' | 'saving' | 'saved' | 'error';
+    lastSaved: Date | null;
+}
 ```
 
-### Rendering Pipeline
-
-| Stage | My-Whiteboard | Excalidraw |
-|-------|---------------|------------|
-| **renderScene** | 1 file (414 lines) | Multiple files + caching |
-| **Element Rendering** | Direct draw | Shape caching, generators |
-| **Selection Rendering** | Basic box + handles | Advanced transforms |
-| **Grid Rendering** | Simple lines | Optimized tiles |
-
-### State Management
-
-| Aspect | My-Whiteboard | Excalidraw |
-|--------|---------------|------------|
-| **Store** | Single Jotai store | Multiple stores + Context |
-| **Atoms** | 8 atoms | 30+ atoms |
-| **Derived State** | 3 derived atoms | Many computed values |
-| **History** | Simple array | Fractional indexing |
+Features:
+- Debounced saves (30s intervals)
+- Visual save indicator
+- Restore on mount
+- Error handling
 
 ---
 
-## 4. File-by-File Analysis
+## 5. Environment Configuration
 
-### packages/whiteboard/src/
+### Required API Keys (.env)
 
-| File | Lines | Purpose | Completeness |
-|------|-------|---------|--------------|
-| `index.tsx` | 968 | Main component | Core complete, missing many interactions |
-| `renderer/renderScene.ts` | 414 | Canvas rendering | Basic rendering, no optimization |
-| `state/atoms.ts` | 115 | State atoms | Complete for current features |
-| `state/history.ts` | 140 | Undo/redo | Basic implementation |
+```env
+# HuggingFace (Diagram + Image Generation)
+HF_TOKEN=your_huggingface_token
 
-### packages/element/src/
+# PaddleOCR (OCR)
+PADDLEOCR_SERVER_URL=https://api.paddlepaddle.org.cn/paddleocr/v1/layout-parsing
+PADDLEOCR_ACCESS_TOKEN=your_paddleocr_token
 
-| File | Lines | Purpose | Completeness |
-|------|-------|---------|--------------|
-| `types.ts` | 136 | Type definitions | Good coverage |
-| `elementFactory.ts` | 222 | Element creation | Basic, missing many utilities |
-| `textMeasurements.ts` | 6072B | Text measuring | Complete |
-| `textWrapping.ts` | 12203B | Text wrapping | Complete |
+# ElevenLabs (TTS)
+ELEVENLABS_API_KEY=your_elevenlabs_key
 
-### packages/common/src/
-
-| File | Lines | Purpose | Completeness |
-|------|-------|---------|--------------|
-| `index.ts` | 227 | Utilities & constants | Fair coverage |
-
-### packages/math/src/
-
-| File | Lines | Purpose | Completeness |
-|------|-------|---------|--------------|
-| `index.ts` | 189 | Math utilities | Good for basic ops |
-
-### packages/utils/src/
-
-| File | Lines | Purpose | Completeness |
-|------|-------|---------|--------------|
-| `index.ts` | 123 | Export/clipboard/storage | Stubs mostly |
+# Server
+PORT=3002
+```
 
 ---
 
-## 5. Implementation Roadmap
+## 6. What's Changed Since Last Report
 
-### Phase 1: Core Stability (Priority: High)
+### New Features Added ✅
 
-- [ ] Implement eraser tool functionality
-- [ ] Add element rotation UI (rotation handles)
-- [ ] Implement copy/paste operations
-- [ ] Add keyboard shortcut Ctrl+Z/Y for undo/redo
-- [ ] Fix image element support
+| Feature | Date | Description |
+|---------|------|-------------|
+| **TTS (Text-to-Speech)** | 2026-02-04 | ElevenLabs integration with voice selection |
+| **Dynamic Voice Fetching** | 2026-02-04 | Fetch available voices from API |
+| **Clipboard Auto-read** | 2026-02-04 | TTS auto-populates from clipboard |
 
-### Phase 2: Enhanced Drawing (Priority: Medium)
+### Features Removed ❌
 
-- [ ] Element groups (Ctrl+G to group)
-- [ ] Element locking UI
-- [ ] Frame tool for organizing
-- [ ] Better arrow/line connections (bindings)
-- [ ] Context menu (right-click)
+| Feature | Date | Reason |
+|---------|------|--------|
+| **Speech-to-Text Tab** | 2026-02-04 | Removed per user request |
 
-### Phase 3: Export/Import (Priority: Medium)
+### Bug Fixes 🔧
 
-- [ ] Full PNG export with options
-- [ ] Proper SVG export
-- [ ] JSON import/export with validation
-- [ ] Element library system
-
-### Phase 4: Collaboration (Priority: Low for MVP)
-
-- [ ] WebSocket/Firebase integration
-- [ ] Live cursor display
-- [ ] User presence indicators
-- [ ] Room management
-
-### Phase 5: Polish (Priority: Low)
-
-- [ ] Mobile/touch support
-- [ ] Accessibility (ARIA)
-- [ ] i18n support
-- [ ] PWA/offline mode
-- [ ] Command palette
+| Fix | Date |
+|-----|------|
+| TTS API method corrected (`stream` vs `convert`) | 2026-02-04 |
+| Voices API method corrected (`getAll` vs `search`) | 2026-02-04 |
+| SDK parameter names fixed (`modelId`, `outputFormat`) | 2026-02-04 |
 
 ---
 
-## 6. Technical Debt & Improvements
+## 7. Code Metrics
 
-### Current Issues
+| Component | Files | Lines | Size |
+|-----------|-------|-------|------|
+| **Frontend (whiteboard-app/src)** | 12 | ~3,000 | ~100KB |
+| **Server** | 1 | 515 | 17KB |
+| **AIToolsDialog** | 1 | 1,122 | 52KB |
+| **Collaboration** | 4 | ~500 | 15KB |
+| **Hooks/Utils** | 2 | ~200 | 5KB |
 
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| No action system | Medium | All logic in main component |
-| No element caching | Low | Re-renders everything |
-| No input validation | Low | JSON import not validated |
-| Console.log statements | Low | Debug statements in code |
-| Eraser tool stub | Medium | Button exists, no function |
-
-### Recommended Refactoring
-
-1. **Extract Actions** - Move tool handlers to separate action files
-2. **Add Element Cache** - Cache RoughJS drawings for performance
-3. **Modularize Rendering** - Separate render functions by element type
-4. **Add Tests** - Currently minimal test coverage
-5. **Remove Debug Logs** - Clean up console.log statements
+### Total Custom Code: ~4,300 lines
 
 ---
 
-## 7. Metrics Summary
+## 8. Deployment Status
 
-| Metric | My-Whiteboard | Excalidraw | Coverage |
-|--------|---------------|------------|----------|
-| **Total Source Files** | ~14 | ~900+ | ~1.5% |
-| **Total Lines of Code** | ~2,400 | ~150,000+ | ~1.6% |
-| **Element Types** | 7 | 10+ | ~70% |
-| **Tools** | 10 | 15+ | ~67% |
-| **Actions** | 0 (inline) | 44 files | 0% |
-| **Components** | 4 | 242 | ~1.7% |
-| **Test Files** | ~5 | 66+ | ~7.5% |
-| **Languages** | 1 (EN) | 58 | ~1.7% |
+| Target | Status | URL |
+|--------|--------|-----|
+| Backend (Render) | ✅ Deployed | https://your-app.onrender.com |
+| Frontend (Vercel) | 🔧 Ready | Needs deployment |
+| Android APK | ✅ Built | Via Capacitor |
+| iOS | ⏳ Not started | Needs Xcode |
 
 ---
 
-## 8. Conclusion
+## 9. Recommended Next Features
 
-My-Whiteboard successfully implements the **core drawing experience** of a whiteboard application:
+Based on impact and effort:
 
-### ✅ Working Well
-- Basic shape drawing (rectangle, ellipse, diamond, line, arrow, freedraw, text)
-- Element selection, resize, and drag operations
-- Canvas zoom and pan
-- Undo/redo
-- Dark mode
-- Properties panel
+| Priority | Feature | Effort | Value |
+|----------|---------|--------|-------|
+| 1 | **Local Data Persistence** | 2-3h | High - Already started |
+| 2 | **Sketch-to-Image (ControlNet)** | 4-5h | Very High |
+| 3 | **Voice Commands** | 3-4h | High |
+| 4 | **Background Removal** | 2-3h | Medium |
+| 5 | **Image Upscaling** | 2h | Medium |
 
-### ⚠️ Partially Implemented
-- Export (PNG basic, SVG stub)
-- Eraser tool (UI only)
-- Rotation (data only)
+### Quick Wins (< 1 hour)
 
-### ❌ Not Implemented
-- Real-time collaboration
-- Element bindings/connections
-- Image/embeddable support
-- Frames and groups (UI)
-- Library system
-- Mobile support
-- i18n
-
-**Estimated Effort to Feature Parity:** 6-12 months of development for a single developer, or 2-4 months for a small team.
+- Export as PDF
+- Keyboard shortcuts help dialog
+- Undo/Redo buttons in UI
+- Scene statistics display
 
 ---
 
-*This report was generated by analyzing the my-whiteboard codebase against the parent Excalidraw repository.*
+## 10. Conclusion
+
+My-Whiteboard has evolved from a minimal implementation to a **fully-featured whiteboard application**:
+
+### ✅ What Works Well
+- Full Excalidraw drawing experience
+- AI-powered diagram generation (Mermaid)
+- AI image generation (Stable Diffusion)
+- OCR with LaTeX support (PaddleOCR)
+- Text-to-Speech with voice selection (ElevenLabs)
+- Real-time collaboration (Socket.IO)
+- Android mobile app (Capacitor)
+- Auto-save to localStorage
+
+### 🚧 In Progress
+- TTS voice API integration (needs API key testing)
+- iOS app build
+
+### 📋 Future Roadmap
+- Local persistence improvements
+- Sketch-to-image (ControlNet)
+- Voice commands
+- Background removal
+- User presence sidebar
+
+---
+
+*Report generated from codebase analysis. Last updated: 2026-02-04*
