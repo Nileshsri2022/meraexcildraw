@@ -20,6 +20,199 @@ interface AIToolsDialogProps {
 
 const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
 
+// ─── Reusable Icon Components (module-scope to avoid re-render remounts) ───
+
+const IconProps = { fill: "none" as const, stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+const IconDiagram = ({ size = 16 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 17.5h7M17.5 14v7" /></svg>
+);
+
+const IconImage = ({ size = 16 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+);
+
+const IconSketch = ({ size = 16 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+);
+
+const IconOCR = ({ size = 16 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+);
+
+const IconTTS = ({ size = 16 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 010 7.07" /><path d="M19.07 4.93a10 10 0 010 14.14" /></svg>
+);
+
+const IconSparkle = ({ size = 16 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" /></svg>
+);
+
+const IconHistory = ({ size = 16 }: { size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="12 8 12 12 14 14" /><path d="M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" /></svg>
+);
+
+// ─── Reusable Form Components (module-scope to preserve focus across re-renders) ───
+
+const FormLabel = ({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) => (
+    <label htmlFor={htmlFor} style={{
+        display: "block",
+        marginBottom: "6px",
+        color: "#e4e4e7",
+        fontSize: "13px",
+        fontWeight: 500,
+    }}>
+        {children}
+    </label>
+);
+
+const FormTextarea = ({ value, onChange, placeholder }: {
+    value: string;
+    onChange: (val: string) => void;
+    placeholder: string;
+}) => (
+    <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+            width: "100%",
+            maxWidth: "480px",
+            minHeight: "70px",
+            padding: "10px 12px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            backgroundColor: "rgba(255, 255, 255, 0.05)",
+            color: "#e4e4e7",
+            fontSize: "13px",
+            lineHeight: "1.5",
+            resize: "vertical",
+            boxSizing: "border-box",
+            outline: "none",
+            fontFamily: "inherit",
+            transition: "border-color 0.2s ease",
+        }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = "#6366f1"; }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)"; }}
+    />
+);
+
+const FormSelect = ({ value, onChange, children }: {
+    value: string;
+    onChange: (val: string) => void;
+    children: React.ReactNode;
+}) => (
+    <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+            width: "100%",
+            maxWidth: "480px",
+            padding: "8px 12px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            backgroundColor: "#2d2d35",
+            color: "#e4e4e7",
+            fontSize: "13px",
+            cursor: "pointer",
+            outline: "none",
+            boxSizing: "border-box",
+        }}
+    >
+        {children}
+    </select>
+);
+
+const FormSlider = ({ label, value, onChange, min, max, step, accentColor = "#6366f1", hint }: {
+    label: string;
+    value: number;
+    onChange: (val: number) => void;
+    min: number;
+    max: number;
+    step: number;
+    accentColor?: string;
+    hint?: string;
+}) => (
+    <div style={{ marginBottom: "12px" }}>
+        <label style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "6px",
+            color: "#e4e4e7",
+            fontSize: "12px",
+            fontWeight: 500,
+        }}>
+            <span>{label}</span>
+            <span style={{ color: accentColor }}>{value}{label.toLowerCase().includes("resolution") || label.toLowerCase().includes("height") || label.toLowerCase().includes("width") ? "px" : ""}</span>
+        </label>
+        <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={(e) => onChange(Number(e.target.value))}
+            style={{ width: "100%", maxWidth: "480px", accentColor }}
+        />
+        {hint && <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>{hint}</div>}
+    </div>
+);
+
+const FormInput = ({ type = "text", value, onChange, disabled, ...rest }: {
+    type?: string;
+    value: string | number;
+    onChange: (val: string) => void;
+    disabled?: boolean;
+    min?: number;
+    max?: number;
+    placeholder?: string;
+}) => (
+    <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        min={rest.min}
+        max={rest.max}
+        placeholder={rest.placeholder}
+        style={{
+            width: "100%",
+            maxWidth: "480px",
+            padding: "8px 12px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            backgroundColor: disabled ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.05)",
+            color: disabled ? "#6b7280" : "#e4e4e7",
+            fontSize: "13px",
+            outline: "none",
+            boxSizing: "border-box" as const,
+            transition: "all 0.2s ease",
+            cursor: disabled ? "not-allowed" : "text",
+        }}
+    />
+);
+
+const InfoBanner = ({ color, children }: { color: "indigo" | "amber"; children: React.ReactNode }) => {
+    const colors = color === "amber"
+        ? { bg: "rgba(234, 179, 8, 0.1)", border: "rgba(234, 179, 8, 0.2)", text: "#fbbf24" }
+        : { bg: "rgba(99, 102, 241, 0.1)", border: "rgba(99, 102, 241, 0.2)", text: "#a5b4fc" };
+    return (
+        <div style={{
+            padding: "10px 12px",
+            borderRadius: "8px",
+            backgroundColor: colors.bg,
+            border: `1px solid ${colors.border}`,
+            marginBottom: "14px",
+            fontSize: "12px",
+            color: colors.text,
+            lineHeight: "1.5",
+            maxWidth: "480px",
+        }}>
+            {children}
+        </div>
+    );
+};
+
 export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     isOpen,
     onClose,
@@ -688,198 +881,32 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     // Sidebar toggle state
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
-    // ─── Reusable Icon Components ───
 
-    const IconProps = { fill: "none" as const, stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+    // ─── Block Excalidraw keyboard shortcuts while dialog is open ───
+    // Excalidraw uses capture-phase document listeners, so we need our own
+    // capture-phase listener registered BEFORE theirs to intercept events.
+    useEffect(() => {
+        if (!isOpen) return;
 
-    const IconDiagram = ({ size = 16 }: { size?: number }) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 17.5h7M17.5 14v7" /></svg>
-    );
+        const blockKeyboard = (e: KeyboardEvent) => {
+            // Allow Escape to close the dialog
+            if (e.key === "Escape") return;
+            // Stop ALL other handlers from seeing this event
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+        };
 
-    const IconImage = ({ size = 16 }: { size?: number }) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
-    );
+        // Register on capture phase so it fires before Excalidraw's handlers
+        document.addEventListener("keydown", blockKeyboard, true);
+        document.addEventListener("keyup", blockKeyboard, true);
+        document.addEventListener("keypress", blockKeyboard, true);
 
-    const IconSketch = ({ size = 16 }: { size?: number }) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-    );
-
-    const IconOCR = ({ size = 16 }: { size?: number }) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-    );
-
-    const IconTTS = ({ size = 16 }: { size?: number }) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 010 7.07" /><path d="M19.07 4.93a10 10 0 010 14.14" /></svg>
-    );
-
-    const IconSparkle = ({ size = 16 }: { size?: number }) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" /></svg>
-    );
-
-    const IconHistory = ({ size = 16 }: { size?: number }) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="12 8 12 12 14 14" /><path d="M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" /></svg>
-    );
-
-    // ─── Reusable Form Components ───
-
-    const FormLabel = ({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) => (
-        <label htmlFor={htmlFor} style={{
-            display: "block",
-            marginBottom: "6px",
-            color: "#e4e4e7",
-            fontSize: "13px",
-            fontWeight: 500,
-        }}>
-            {children}
-        </label>
-    );
-
-    const FormTextarea = ({ value, onChange, placeholder }: {
-        value: string;
-        onChange: (val: string) => void;
-        placeholder: string;
-    }) => (
-        <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            style={{
-                width: "100%",
-                maxWidth: "480px",
-                minHeight: "70px",
-                padding: "10px 12px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.15)",
-                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                color: "#e4e4e7",
-                fontSize: "13px",
-                lineHeight: "1.5",
-                resize: "vertical",
-                boxSizing: "border-box",
-                outline: "none",
-                fontFamily: "inherit",
-                transition: "border-color 0.2s ease",
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#6366f1"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)"; }}
-        />
-    );
-
-    const FormSelect = ({ value, onChange, children }: {
-        value: string;
-        onChange: (val: string) => void;
-        children: React.ReactNode;
-    }) => (
-        <select
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-                width: "100%",
-                maxWidth: "480px",
-                padding: "8px 12px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.15)",
-                backgroundColor: "#2d2d35",
-                color: "#e4e4e7",
-                fontSize: "13px",
-                cursor: "pointer",
-                outline: "none",
-                boxSizing: "border-box",
-            }}
-        >
-            {children}
-        </select>
-    );
-
-    const FormSlider = ({ label, value, onChange, min, max, step, accentColor = "#6366f1", hint }: {
-        label: string;
-        value: number;
-        onChange: (val: number) => void;
-        min: number;
-        max: number;
-        step: number;
-        accentColor?: string;
-        hint?: string;
-    }) => (
-        <div style={{ marginBottom: "12px" }}>
-            <label style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "6px",
-                color: "#e4e4e7",
-                fontSize: "12px",
-                fontWeight: 500,
-            }}>
-                <span>{label}</span>
-                <span style={{ color: accentColor }}>{value}{label.toLowerCase().includes("resolution") || label.toLowerCase().includes("height") || label.toLowerCase().includes("width") ? "px" : ""}</span>
-            </label>
-            <input
-                type="range"
-                min={min}
-                max={max}
-                step={step}
-                value={value}
-                onChange={(e) => onChange(Number(e.target.value))}
-                style={{ width: "100%", maxWidth: "480px", accentColor }}
-            />
-            {hint && <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>{hint}</div>}
-        </div>
-    );
-
-    const FormInput = ({ type = "text", value, onChange, disabled, ...rest }: {
-        type?: string;
-        value: string | number;
-        onChange: (val: string) => void;
-        disabled?: boolean;
-        min?: number;
-        max?: number;
-        placeholder?: string;
-    }) => (
-        <input
-            type={type}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={disabled}
-            min={rest.min}
-            max={rest.max}
-            placeholder={rest.placeholder}
-            style={{
-                width: "100%",
-                maxWidth: "480px",
-                padding: "8px 12px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.15)",
-                backgroundColor: disabled ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.05)",
-                color: disabled ? "#6b7280" : "#e4e4e7",
-                fontSize: "13px",
-                outline: "none",
-                boxSizing: "border-box" as const,
-                transition: "all 0.2s ease",
-                cursor: disabled ? "not-allowed" : "text",
-            }}
-        />
-    );
-
-    const InfoBanner = ({ color, children }: { color: "indigo" | "amber"; children: React.ReactNode }) => {
-        const colors = color === "amber"
-            ? { bg: "rgba(234, 179, 8, 0.1)", border: "rgba(234, 179, 8, 0.2)", text: "#fbbf24" }
-            : { bg: "rgba(99, 102, 241, 0.1)", border: "rgba(99, 102, 241, 0.2)", text: "#a5b4fc" };
-        return (
-            <div style={{
-                padding: "10px 12px",
-                borderRadius: "8px",
-                backgroundColor: colors.bg,
-                border: `1px solid ${colors.border}`,
-                marginBottom: "14px",
-                fontSize: "12px",
-                color: colors.text,
-                lineHeight: "1.5",
-                maxWidth: "480px",
-            }}>
-                {children}
-            </div>
-        );
-    };
+        return () => {
+            document.removeEventListener("keydown", blockKeyboard, true);
+            document.removeEventListener("keyup", blockKeyboard, true);
+            document.removeEventListener("keypress", blockKeyboard, true);
+        };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -898,8 +925,6 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 zIndex: 9999,
             }}
             onClick={onClose}
-            onKeyDown={(e) => e.nativeEvent.stopImmediatePropagation()}
-            onKeyUp={(e) => e.nativeEvent.stopImmediatePropagation()}
         >
             <style>{`
                 @keyframes spin { to { transform: rotate(360deg); } }
