@@ -7,7 +7,7 @@ import {
 } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawImperativeAPI, BinaryFileData, AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCollaboration } from "./collab";
 import { AIToolsDialog } from "./components/AIToolsDialog";
@@ -54,13 +54,18 @@ const App: React.FC = () => {
                 if (savedData && savedData.elements.length > 0) {
                     // Add files first before updating scene
                     if (savedData.files && Object.keys(savedData.files).length > 0) {
+                        // Files are stored as plain objects; cast through BinaryFileData[]
+                        // since branded types (FileId, DataURL) lose brands in IndexedDB
                         excalidrawAPI.addFiles(
-                            Object.values(savedData.files) as any[]
+                            Object.values(savedData.files) as unknown as BinaryFileData[]
                         );
                     }
                     excalidrawAPI.updateScene({
                         elements: savedData.elements as OrderedExcalidrawElement[],
-                        appState: savedData.appState as any,
+                        // Excalidraw updateScene expects full AppState but we only persist
+                        // a subset (viewBackgroundColor, zoom, scroll, theme). The cast
+                        // is safe because Excalidraw merges partial state internally.
+                        appState: savedData.appState as unknown as AppState,
                     });
                     console.log('[App] Restored saved scene with files');
                 }
@@ -81,12 +86,12 @@ const App: React.FC = () => {
 
     // Handle scene changes - sync collab and trigger auto-save
     const handleChange = useCallback(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (elements: readonly OrderedExcalidrawElement[], appState: any, files: any) => {
+        (elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
             onSceneChange(elements);
             // Trigger auto-save (debounced) - only when not collaborating
             if (initialDataLoaded && !isCollaborating) {
-                triggerSave(elements, appState, files || {});
+                // Cast: AppState → Record for generic persistence layer
+                triggerSave(elements, appState as unknown as Record<string, unknown>, files as unknown as Record<string, unknown>);
             }
         },
         [onSceneChange, triggerSave, initialDataLoaded, isCollaborating]
