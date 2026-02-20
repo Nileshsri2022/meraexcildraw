@@ -6,8 +6,8 @@ import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../utils/mathJaxParser";
 import { addImageToCanvas } from "../utils/addImageToCanvas";
 import { saveAIResult } from "../data/LocalStorage";
-
-const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
+import { apiFetch, getErrorMessage } from "../utils/apiClient";
+import type { SketchToImageResponse, DiagramResponse, ImageResponse, OCRResponse } from "../utils/apiClient";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -135,9 +135,8 @@ export function useAIGeneration(
 
             const imageBase64 = croppedCanvas.toDataURL("image/png");
 
-            const response = await fetch(`${AI_SERVER_URL}/api/ai/sketch-to-image`, {
+            const data = await apiFetch<SketchToImageResponse>("/api/ai/sketch-to-image", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     prompt, imageBase64, width: 512, height: 512,
                     pipeline: sketchPipeline, image_resolution: sketchResolution,
@@ -145,13 +144,6 @@ export function useAIGeneration(
                     seed: sketchSeed, preprocessor_name: sketchPreprocessor,
                 }),
             });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.message || data.error || `Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
 
             if (data.imageUrl) {
                 const imgW = data.width || 512;
@@ -171,7 +163,7 @@ export function useAIGeneration(
             setPrompt("");
         } catch (err) {
             console.error("Sketch-to-image generation error:", err);
-            setError(err instanceof Error ? err.message : "Failed to generate image from sketch");
+            setError(getErrorMessage(err, "Failed to generate image from sketch"));
         } finally {
             setLoading(false);
         }
@@ -186,19 +178,13 @@ export function useAIGeneration(
         setError(null);
 
         try {
-            const response = await fetch(`${AI_SERVER_URL}/api/ai/generate-diagram`, {
+            const data = await apiFetch<DiagramResponse>("/api/ai/generate-diagram", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ prompt, style }),
             });
 
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.message || data.error || `Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
             const diagramCode = data.code || data.mermaid;
+            if (!diagramCode) throw new Error("Server returned no diagram code");
 
             const { elements: skeletonElements } = await parseMermaidToExcalidraw(diagramCode);
             const excalidrawElements = convertToExcalidrawElements(skeletonElements);
@@ -214,7 +200,7 @@ export function useAIGeneration(
             setPrompt("");
         } catch (err) {
             console.error("Diagram generation error:", err);
-            setError(err instanceof Error ? err.message : "Failed to generate diagram");
+            setError(getErrorMessage(err, "Failed to generate diagram"));
         } finally {
             setLoading(false);
         }
@@ -229,21 +215,13 @@ export function useAIGeneration(
         setError(null);
 
         try {
-            const response = await fetch(`${AI_SERVER_URL}/api/ai/generate-image`, {
+            const data = await apiFetch<ImageResponse>("/api/ai/generate-image", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     prompt, width: imgWidth, height: imgHeight,
                     num_inference_steps: imgSteps, seed: imgSeed, randomize_seed: imgRandomSeed,
                 }),
             });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.message || data.error || `Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
 
             if (excalidrawAPI && data.imageUrl) {
                 await addImageToCanvas(excalidrawAPI, data.imageUrl, {
@@ -260,7 +238,7 @@ export function useAIGeneration(
             setPrompt("");
         } catch (err) {
             console.error("Image generation error:", err);
-            setError(err instanceof Error ? err.message : "Failed to generate image");
+            setError(getErrorMessage(err, "Failed to generate image"));
         } finally {
             setLoading(false);
         }
@@ -298,18 +276,11 @@ export function useAIGeneration(
         setError(null);
 
         try {
-            const response = await fetch(`${AI_SERVER_URL}/api/ai/ocr`, {
+            const data = await apiFetch<OCRResponse>("/api/ai/ocr", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ imageBase64: ocrImage }),
             });
 
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.message || data.error || `Server error: ${response.status}`);
-            }
-
-            const data = await response.json();
             let processedText = data.text || "No text detected";
             processedText = normalizeLatexWithMathJax(processedText);
             setOcrResult(processedText);
@@ -317,7 +288,7 @@ export function useAIGeneration(
             saveAIResult({ type: "ocr", prompt: "Canvas / Uploaded Image", result: processedText, thumbnail: ocrImage ?? undefined }).catch(() => { });
         } catch (err) {
             console.error("OCR error:", err);
-            setError(err instanceof Error ? err.message : "Failed to perform OCR");
+            setError(getErrorMessage(err, "Failed to perform OCR"));
         } finally {
             setLoading(false);
         }

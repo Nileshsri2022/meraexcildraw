@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { saveAIResult } from "../data/LocalStorage";
-
-const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
+import { apiFetch, getErrorMessage } from "../utils/apiClient";
+import type { VoicesResponse } from "../utils/apiClient";
 
 interface Voice {
     id: string;
@@ -34,13 +34,12 @@ export function useTTS(
         let cancelled = false;
         setLoadingVoices(true);
 
-        fetch(`${AI_SERVER_URL}/api/ai/voices`)
-            .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+        apiFetch<VoicesResponse>("/api/ai/voices")
             .then((data) => {
                 if (cancelled) return;
-                setVoices(data.voices);
+                setVoices(data.voices.map(v => ({ id: v.voice_id, name: v.name, category: v.category })));
                 if (data.voices.length > 0 && !voice) {
-                    setVoice(data.voices[0].id);
+                    setVoice(data.voices[0].voice_id);
                 }
             })
             .catch(() => { /* silently fail – voices not critical */ })
@@ -68,18 +67,11 @@ export function useTTS(
         setAudio(null);
 
         try {
-            const res = await fetch(`${AI_SERVER_URL}/api/ai/text-to-speech`, {
+            const data = await apiFetch<{ audio: string }>("/api/ai/text-to-speech", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text, voiceId: voice }),
             });
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.message || "Failed to generate speech");
-            }
-
-            const data = await res.json();
             setAudio(data.audio);
 
             // Save to history
@@ -91,7 +83,7 @@ export function useTTS(
                 audioRef.current.play();
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to generate speech");
+            setError(getErrorMessage(err, "Failed to generate speech"));
         } finally {
             setLoading(false);
         }
