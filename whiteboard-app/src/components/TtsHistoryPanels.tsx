@@ -22,7 +22,6 @@ interface TtsTabPanelProps {
 
 export const TtsTabPanel = ({ tts, loading }: TtsTabPanelProps) => (
     <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
-        {/* Hidden audio element for playback */}
         <audio ref={tts.audioRef} style={{ display: "none" }} />
 
         <InfoBanner color="indigo">
@@ -54,53 +53,19 @@ export const TtsTabPanel = ({ tts, loading }: TtsTabPanelProps) => (
         </div>
 
         <button
+            className={`ai-speak-btn${loading ? " ai-generate-btn--loading" : ""}`}
             onClick={tts.speak}
             disabled={loading || !tts.text.trim()}
-            style={{
-                marginTop: "14px",
-                width: "100%",
-                padding: "12px 20px",
-                borderRadius: "8px",
-                border: "none",
-                backgroundColor: (loading || !tts.text.trim()) ? "#4b5563" : "#10b981",
-                color: "#ffffff",
-                cursor: (loading || !tts.text.trim()) ? "not-allowed" : "pointer",
-                fontSize: "14px",
-                fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-            }}
+            style={{ marginTop: "14px" }}
         >
-            {loading ? (
-                <>
-                    <span style={{
-                        width: "14px", height: "14px",
-                        border: "2px solid transparent", borderTopColor: "#fff",
-                        borderRadius: "50%", animation: "spin 0.8s linear infinite",
-                    }} />
-                    Generating speech...
-                </>
-            ) : "🔊 Speak Text"}
+            {loading ? "Generating speech..." : "🔊 Speak Text"}
         </button>
 
         {tts.audio && (
-            <div style={{ marginTop: "16px" }}>
-                <label style={{
-                    display: "block", marginBottom: "8px",
-                    color: "#10b981", fontSize: "13px", fontWeight: 500,
-                }}>✅ Audio Generated:</label>
-                <audio controls src={tts.audio} style={{ width: "100%", borderRadius: "8px" }} />
-                <button
-                    onClick={tts.reset}
-                    style={{
-                        marginTop: "8px", padding: "8px 14px", borderRadius: "6px",
-                        border: "1px solid rgba(255,255,255,0.2)",
-                        backgroundColor: "transparent", color: "#9ca3af",
-                        cursor: "pointer", fontSize: "12px",
-                    }}
-                >
+            <div className="ai-audio-result">
+                <label>✅ Audio Generated:</label>
+                <audio controls src={tts.audio} />
+                <button className="ai-btn-secondary" onClick={tts.reset} style={{ marginTop: "8px" }}>
                     🔄 New
                 </button>
             </div>
@@ -136,24 +101,18 @@ export const HistoryTabPanel = ({
 }: HistoryTabPanelProps) => (
     <div style={{ maxWidth: "560px" }}>
         {/* Filter bar */}
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+        <div className="ai-filter-bar">
             {FILTERS.map(f => (
-                <button key={f} onClick={() => setHistoryFilter(f)} style={{
-                    padding: "4px 12px", borderRadius: "20px", border: "none", cursor: "pointer",
-                    fontSize: "11px", fontWeight: 500,
-                    backgroundColor: historyFilter === f ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.06)",
-                    color: historyFilter === f ? "#a5b4fc" : "#9ca3af",
-                    transition: "all 0.15s ease",
-                }}>
+                <button
+                    key={f}
+                    className={`ai-filter-pill${historyFilter === f ? " ai-filter-pill--active" : ""}`}
+                    onClick={() => setHistoryFilter(f)}
+                >
                     {f === "all" ? "All" : TYPE_META[f].label}
                 </button>
             ))}
             {allHistory.length > 0 && (
-                <button onClick={clearAll} style={{
-                    marginLeft: "auto", padding: "4px 12px", borderRadius: "20px",
-                    border: "1px solid rgba(239,68,68,0.3)", cursor: "pointer",
-                    fontSize: "11px", backgroundColor: "transparent", color: "#f87171",
-                }}>
+                <button className="ai-filter-pill ai-filter-pill--danger" onClick={clearAll}>
                     Clear all
                 </button>
             )}
@@ -161,15 +120,15 @@ export const HistoryTabPanel = ({
 
         {/* Empty state */}
         {filteredHistory.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#6b7280" }}>
-                <div style={{ fontSize: "36px", marginBottom: "10px" }}>🕐</div>
-                <div style={{ fontSize: "13px" }}>No history yet.</div>
-                <div style={{ fontSize: "12px", marginTop: "4px" }}>Generated content will appear here.</div>
+            <div className="ai-empty-state">
+                <div className="emoji">🕐</div>
+                <div className="title">No history yet.</div>
+                <div className="subtitle">Generated content will appear here.</div>
             </div>
         )}
 
         {/* History list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div className="ai-history-list">
             {filteredHistory.map(entry => {
                 const meta = TYPE_META[entry.type];
                 const date = new Date(entry.timestamp);
@@ -177,33 +136,22 @@ export const HistoryTabPanel = ({
                 const dateStr = date.toLocaleDateString([], { month: "short", day: "numeric" });
 
                 return (
-                    <div key={entry.id} style={{
-                        display: "flex", alignItems: "center", gap: "10px",
-                        padding: "8px 10px", borderRadius: "8px",
-                        backgroundColor: "rgba(255,255,255,0.03)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                    }}>
-                        <span style={{
-                            fontSize: "10px", fontWeight: 600, padding: "2px 8px",
-                            borderRadius: "10px", backgroundColor: `${meta.color}22`,
-                            color: meta.color, flexShrink: 0, whiteSpace: "nowrap",
-                        }}>
+                    <div key={entry.id} className="ai-history-card">
+                        <span
+                            className="ai-history-badge"
+                            style={{ backgroundColor: `${meta.color}22`, color: meta.color }}
+                        >
                             {meta.label}
                         </span>
-                        <span style={{
-                            flex: 1, minWidth: 0, fontSize: "12px", color: "#d1d5db",
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        }}>
-                            {entry.prompt}
-                        </span>
-                        <span style={{ fontSize: "10px", color: "#6b7280", flexShrink: 0, whiteSpace: "nowrap" }}>
-                            {dateStr} {timeStr}
-                        </span>
-                        <button title="Delete" onClick={() => deleteEntry(entry.id)} style={{
-                            padding: "2px 6px", borderRadius: "4px", border: "none", cursor: "pointer",
-                            fontSize: "11px", backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171",
-                            flexShrink: 0, lineHeight: 1,
-                        }}>✕</button>
+                        <span className="ai-history-prompt">{entry.prompt}</span>
+                        <span className="ai-history-time">{dateStr} {timeStr}</span>
+                        <button
+                            className="ai-history-delete"
+                            title="Delete"
+                            onClick={() => deleteEntry(entry.id)}
+                        >
+                            ✕
+                        </button>
                     </div>
                 );
             })}
