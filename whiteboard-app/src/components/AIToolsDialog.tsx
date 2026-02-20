@@ -657,6 +657,16 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
     if (!isOpen) return null;
 
+    // Tab accent color mapping
+    const tabAccent = {
+        diagram: { primary: "#818cf8", bg: "rgba(129, 140, 248, 0.12)", border: "rgba(129, 140, 248, 0.4)" },
+        image: { primary: "#fbbf24", bg: "rgba(251, 191, 36, 0.12)", border: "rgba(251, 191, 36, 0.4)" },
+        sketch: { primary: "#34d399", bg: "rgba(52, 211, 153, 0.12)", border: "rgba(52, 211, 153, 0.4)" },
+        ocr: { primary: "#22d3ee", bg: "rgba(34, 211, 238, 0.12)", border: "rgba(34, 211, 238, 0.4)" },
+        tts: { primary: "#f472b6", bg: "rgba(244, 114, 182, 0.12)", border: "rgba(244, 114, 182, 0.4)" },
+    };
+    const accent = tabAccent[activeTab];
+
     return (
         <div
             style={{
@@ -665,170 +675,132 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.6)",
+                backgroundColor: "rgba(0, 0, 0, 0.55)",
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 zIndex: 9999,
+                animation: "fadeIn 0.2s ease-out",
             }}
             onClick={onClose}
         >
+            <style>{`
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes slideUp { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+                .ai-dialog-scrollbar::-webkit-scrollbar { width: 6px; }
+                .ai-dialog-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .ai-dialog-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+                .ai-dialog-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+            `}</style>
             <div
+                className="ai-dialog-scrollbar"
                 style={{
-                    backgroundColor: "#232329",
-                    padding: "20px",
-                    borderRadius: "12px",
-                    width: "400px",
+                    backgroundColor: "#1a1a22",
+                    padding: "24px",
+                    borderRadius: "16px",
+                    width: "420px",
                     maxHeight: "90vh",
                     overflowY: "auto",
-                    boxShadow: "0 12px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+                    boxShadow: `0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 80px -20px ${accent.primary}22`,
+                    animation: "slideUp 0.3s ease-out",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <h2 style={{
-                    margin: "0 0 16px 0",
-                    color: "#e4e4e7",
-                    fontSize: "18px",
-                    fontWeight: 600,
+                {/* Header */}
+                <div style={{
                     display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
-                    gap: "8px"
+                    marginBottom: "18px",
                 }}>
-                    <span>✨</span> AI Generation Tools
-                </h2>
+                    <h2 style={{
+                        margin: 0,
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        background: `linear-gradient(135deg, ${accent.primary}, #e4e4e7)`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        backgroundClip: "text",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                    }}>
+                        <span style={{ WebkitTextFillColor: "initial" }}>✨</span> AI Tools
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            width: "28px",
+                            height: "28px",
+                            borderRadius: "8px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            backgroundColor: "transparent",
+                            color: "#6b7280",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#e4e4e7"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
+                    >
+                        ✕
+                    </button>
+                </div>
 
                 {/* Tabs */}
-                <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-                    <button
-                        onClick={() => { setActiveTab("diagram"); setError(null); }}
-                        style={{
-                            flex: 1,
-                            padding: "10px 14px",
-                            borderRadius: "8px",
-                            border: activeTab === "diagram"
-                                ? "2px solid #6366f1"
-                                : "1px solid rgba(255, 255, 255, 0.15)",
-                            backgroundColor: activeTab === "diagram"
-                                ? "rgba(99, 102, 241, 0.15)"
-                                : "transparent",
-                            color: activeTab === "diagram" ? "#a5b4fc" : "#9ca3af",
-                            cursor: "pointer",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            transition: "all 0.2s ease",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "6px",
-                        }}
-                    >
-                        <span style={{ fontSize: "14px" }}></span> Diagram
-                    </button>
-                    <button
-                        onClick={() => { setActiveTab("image"); setError(null); }}
-                        style={{
-                            flex: 1,
-                            padding: "10px 14px",
-                            borderRadius: "8px",
-                            border: activeTab === "image"
-                                ? "2px solid #6366f1"
-                                : "1px solid rgba(255, 255, 255, 0.15)",
-                            backgroundColor: activeTab === "image"
-                                ? "rgba(99, 102, 241, 0.15)"
-                                : "transparent",
-                            color: activeTab === "image" ? "#a5b4fc" : "#9ca3af",
-                            cursor: "pointer",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            transition: "all 0.2s ease",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "6px",
-                        }}
-                    >
-                        <span style={{ fontSize: "14px" }}></span> Image
-                    </button>
-                    <button
-                        onClick={() => {
-                            setActiveTab("sketch");
-                            setError(null);
-                        }}
-                        style={{
-                            flex: 1,
-                            padding: "10px 14px",
-                            borderRadius: "8px",
-                            border:
-                                activeTab === "sketch"
-                                    ? "2px solid #6366f1"
-                                    : "1px solid rgba(255, 255, 255, 0.15)",
-                            backgroundColor:
-                                activeTab === "sketch"
-                                    ? "rgba(99, 102, 241, 0.15)"
-                                    : "transparent",
-                            color: activeTab === "sketch" ? "#a5b4fc" : "#9ca3af",
-                            cursor: "pointer",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            transition: "all 0.2s ease",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "6px",
-                        }}
-                    >
-                        <span style={{ fontSize: "14px" }}>✏️</span> Sketch
-                    </button>
-                    <button
-                        onClick={() => { setActiveTab("ocr"); setError(null); }}
-                        style={{
-                            flex: 1,
-                            padding: "10px 14px",
-                            borderRadius: "8px",
-                            border: activeTab === "ocr"
-                                ? "2px solid #6366f1"
-                                : "1px solid rgba(255, 255, 255, 0.15)",
-                            backgroundColor: activeTab === "ocr"
-                                ? "rgba(99, 102, 241, 0.15)"
-                                : "transparent",
-                            color: activeTab === "ocr" ? "#a5b4fc" : "#9ca3af",
-                            cursor: "pointer",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            transition: "all 0.2s ease",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "6px",
-                        }}
-                    >
-                        <span style={{ fontSize: "14px" }}>📝</span> OCR
-                    </button>
-                    <button
-                        onClick={() => { setActiveTab("tts"); setError(null); }}
-                        style={{
-                            flex: 1,
-                            padding: "10px 14px",
-                            borderRadius: "8px",
-                            border: activeTab === "tts"
-                                ? "2px solid #6366f1"
-                                : "1px solid rgba(255, 255, 255, 0.15)",
-                            backgroundColor: activeTab === "tts"
-                                ? "rgba(99, 102, 241, 0.15)"
-                                : "transparent",
-                            color: activeTab === "tts" ? "#a5b4fc" : "#9ca3af",
-                            cursor: "pointer",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            transition: "all 0.2s ease",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "6px",
-                        }}
-                    >
-                        <span style={{ fontSize: "14px" }}>🔊</span> TTS
-                    </button>
+                <div style={{ display: "flex", gap: "6px", marginBottom: "18px", padding: "4px", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    {([
+                        { id: "diagram" as const, icon: "📊", label: "Diagram", color: tabAccent.diagram },
+                        { id: "image" as const,   icon: "🖼️", label: "Image",   color: tabAccent.image },
+                        { id: "sketch" as const,  icon: "✏️",  label: "Sketch",  color: tabAccent.sketch },
+                        { id: "ocr" as const,     icon: "📝",  label: "OCR",     color: tabAccent.ocr },
+                        { id: "tts" as const,     icon: "🔊",  label: "TTS",     color: tabAccent.tts },
+                    ]).map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => { setActiveTab(tab.id); setError(null); }}
+                            style={{
+                                flex: 1,
+                                padding: "8px 6px",
+                                borderRadius: "8px",
+                                border: "none",
+                                backgroundColor: activeTab === tab.id ? tab.color.bg : "transparent",
+                                color: activeTab === tab.id ? tab.color.primary : "#6b7280",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                fontWeight: activeTab === tab.id ? 600 : 500,
+                                transition: "all 0.2s ease",
+                                display: "flex",
+                                flexDirection: "column" as const,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "4px",
+                                position: "relative" as const,
+                                overflow: "hidden" as const,
+                            }}
+                        >
+                            {activeTab === tab.id && (
+                                <div style={{
+                                    position: "absolute",
+                                    bottom: 0,
+                                    left: "20%",
+                                    right: "20%",
+                                    height: "2px",
+                                    borderRadius: "1px",
+                                    backgroundColor: tab.color.primary,
+                                }} />
+                            )}
+                            <span style={{ fontSize: "16px" }}>{tab.icon}</span>
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
                 {(activeTab === "diagram" || activeTab === "image" || activeTab === "sketch") && (
@@ -843,7 +815,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                             {activeTab === "diagram"
                                 ? "Describe your diagram:"
                                 : activeTab === "image"
-                                    ? "Describe the image:"
+                                    ? "✨ Your Prompt:"
                                     : "Describe the final image style:"}
                         </label>
                         <textarea
@@ -1676,53 +1648,67 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
                 {/* Action Buttons - Not shown for tts tab */}
                 {activeTab !== "tts" && (
-                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                    <div style={{ display: "flex", gap: "10px" }}>
                         <button
                             onClick={handleGenerate}
                             disabled={loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())}
                             style={{
-                                padding: "10px 18px",
-                                borderRadius: "8px",
+                                flex: 1,
+                                padding: "12px 18px",
+                                borderRadius: "10px",
                                 border: "none",
-                                backgroundColor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
-                                    ? "rgba(99, 102, 241, 0.3)"
-                                    : "#6366f1",
-                                color: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "#9ca3af" : "#ffffff",
+                                background: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
+                                    ? "rgba(255, 255, 255, 0.06)"
+                                    : `linear-gradient(135deg, ${accent.primary}, ${accent.primary}cc)`,
+                                color: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "#6b7280" : "#ffffff",
                                 cursor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "not-allowed" : "pointer",
-                                fontSize: "13px",
-                                fontWeight: 500,
+                                fontSize: "14px",
+                                fontWeight: 600,
                                 display: "flex",
                                 alignItems: "center",
-                                gap: "6px",
-                                transition: "all 0.2s ease",
+                                justifyContent: "center",
+                                gap: "8px",
+                                transition: "all 0.25s ease",
+                                boxShadow: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
+                                    ? "none"
+                                    : `0 4px 20px ${accent.primary}44`,
+                                letterSpacing: "0.3px",
                             }}
                             onMouseEnter={(e) => {
                                 const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
                                 if (!loading && !isDisabled) {
-                                    e.currentTarget.style.backgroundColor = "#4f46e5";
+                                    e.currentTarget.style.transform = "translateY(-1px)";
+                                    e.currentTarget.style.boxShadow = `0 6px 28px ${accent.primary}55`;
                                 }
                             }}
                             onMouseLeave={(e) => {
                                 const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
                                 if (!loading && !isDisabled) {
-                                    e.currentTarget.style.backgroundColor = "#6366f1";
+                                    e.currentTarget.style.transform = "translateY(0)";
+                                    e.currentTarget.style.boxShadow = `0 4px 20px ${accent.primary}44`;
                                 }
                             }}
                         >
                             {loading ? (
                                 <>
-                                    <span className="spinner" style={{
-                                        width: "14px",
-                                        height: "14px",
+                                    <span style={{
+                                        width: "16px",
+                                        height: "16px",
                                         border: "2px solid transparent",
-                                        borderTopColor: "#9ca3af",
+                                        borderTopColor: "currentColor",
                                         borderRadius: "50%",
                                         animation: "spin 0.8s linear infinite",
-                                    }}></span>
+                                        display: "inline-block",
+                                    }} />
                                     {activeTab === "ocr" ? "Extracting..." : "Generating..."}
                                 </>
                             ) : (
-                                <>{activeTab === "ocr" ? "📝 Extract Text" : "✨ Generate"}</>
+                                <>
+                                    {activeTab === "diagram" && "� Generate Diagram"}
+                                    {activeTab === "image" && "🚀 Generate Image"}
+                                    {activeTab === "sketch" && "✏️ Generate from Sketch"}
+                                    {activeTab === "ocr" && "📝 Extract Text"}
+                                </>
                             )}
                         </button>
                     </div>
@@ -1730,17 +1716,20 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
                 {/* Footer */}
                 <div style={{
-                    marginTop: "20px",
-                    fontSize: "12px",
-                    color: "#6b7280",
-                    textAlign: "center"
+                    marginTop: "16px",
+                    padding: "8px 12px",
+                    borderRadius: "8px",
+                    backgroundColor: "rgba(255,255,255,0.02)",
+                    fontSize: "11px",
+                    color: "#4b5563",
+                    textAlign: "center",
+                    letterSpacing: "0.2px",
                 }}>
-                    {activeTab === "diagram"
-                        ? "Powered by Mermaid-to-Excalidraw"
-                        : activeTab === "sketch"
-                            ? "Powered by ControlNet v1.1 Scribble • May take 30-60 seconds"
-                            : "Powered by Stable Diffusion XL • May take 10-30 seconds"
-                    }
+                    {activeTab === "diagram" && "Powered by Kimi-K2 + Mermaid-to-Excalidraw"}
+                    {activeTab === "image" && "Powered by Z-Image-Turbo • Ultra-fast generation"}
+                    {activeTab === "sketch" && "Powered by ControlNet v1.1 • May take 30-60s on cold start"}
+                    {activeTab === "ocr" && "Powered by PaddleOCR-VL"}
+                    {activeTab === "tts" && "Powered by ElevenLabs Text-to-Speech"}
                 </div>
             </div>
         </div>
