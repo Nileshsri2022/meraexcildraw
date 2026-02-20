@@ -13,6 +13,17 @@ import { PromptSection, ImageSettings, SketchSettings, DiagramSettings } from ".
 import { TtsTabPanel, HistoryTabPanel } from "./TtsHistoryPanels";
 import { OcrTabPanel } from "./OcrTabPanel";
 
+// ─── Hoisted Constants (rendering-hoist-jsx) ───
+
+/** Sidebar tab definitions — hoisted to avoid re-creating on each render */
+const SIDEBAR_TABS = [
+    { id: "diagram" as const, label: "Diagram", icon: <IconDiagram /> },
+    { id: "image" as const, label: "Image", icon: <IconImage /> },
+    { id: "sketch" as const, label: "Sketch", icon: <IconSketch /> },
+    { id: "ocr" as const, label: "OCR", icon: <IconOCR /> },
+    { id: "tts" as const, label: "TTS", icon: <IconTTS /> },
+] as const;
+
 export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     isOpen,
     onClose,
@@ -133,13 +144,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                         </div>
 
                         <nav style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "0 8px" }}>
-                            {([
-                                { id: "diagram" as const, label: "Diagram", icon: <IconDiagram /> },
-                                { id: "image" as const, label: "Image", icon: <IconImage /> },
-                                { id: "sketch" as const, label: "Sketch", icon: <IconSketch /> },
-                                { id: "ocr" as const, label: "OCR", icon: <IconOCR /> },
-                                { id: "tts" as const, label: "TTS", icon: <IconTTS /> },
-                            ]).map(tab => (
+                            {SIDEBAR_TABS.map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => { setActiveTab(tab.id); gen.setError(null); }}

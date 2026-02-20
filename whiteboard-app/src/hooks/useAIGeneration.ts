@@ -19,6 +19,28 @@ interface ExcalidrawElementBounds {
     isDeleted: boolean;
 }
 
+// ─── Hoisted Helpers (rendering-hoist-jsx / js-cache-function-results) ───────
+
+/** Word-wrap a line of text at `maxWidth` characters (pure function) */
+function wrapText(text: string, maxWidth: number): string[] {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let cur = '';
+    for (const word of words) {
+        if ((cur + ' ' + word).trim().length <= maxWidth) {
+            cur = (cur + ' ' + word).trim();
+        } else {
+            if (cur) lines.push(cur);
+            cur = word;
+        }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+}
+
+const OCR_MAX_LINE_WIDTH = 60;
+const OCR_FONT_SIZE = 16;
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 /**
@@ -153,9 +175,7 @@ export function useAIGeneration(
                     idPrefix: "sketch-image",
                 });
                 excalidrawAPI.scrollToContent(undefined, { fitToContent: true });
-            }
-
-            if (data.imageUrl) {
+                // Fire-and-forget history save (async-defer-await)
                 saveAIResult({ type: "sketch", prompt, result: data.imageUrl, thumbnail: data.imageUrl, metadata: { pipeline: sketchPipeline, resolution: sketchResolution } }).catch(() => { });
             }
 
@@ -334,37 +354,20 @@ export function useAIGeneration(
 
         const processedText = extractTextFromOCRWithMathJax(ocrResult);
 
-        const wrapText = (text: string, maxWidth: number): string[] => {
-            const words = text.split(' ');
-            const lines: string[] = [];
-            let cur = '';
-            for (const word of words) {
-                if ((cur + ' ' + word).trim().length <= maxWidth) {
-                    cur = (cur + ' ' + word).trim();
-                } else {
-                    if (cur) lines.push(cur);
-                    cur = word;
-                }
-            }
-            if (cur) lines.push(cur);
-            return lines;
-        };
-
         const rawLines = processedText.split('\n');
         const allLines: string[] = [];
         for (const line of rawLines) {
             if (!line.trim()) continue;
-            allLines.push(...(line.length > 60 ? wrapText(line.trim(), 60) : [line.trim()]));
+            allLines.push(...(line.length > OCR_MAX_LINE_WIDTH ? wrapText(line.trim(), OCR_MAX_LINE_WIDTH) : [line.trim()]));
         }
 
-        const fontSize = 16;
-        const lineSpacing = fontSize * 1.5;
+        const lineSpacing = OCR_FONT_SIZE * 1.5;
         const groupId = `ocr-group-${Date.now()}`;
 
         const textElements = allLines.map((line, index) =>
             convertToExcalidrawElements([{
                 type: "text", x: 100, y: 100 + (index * lineSpacing),
-                text: line, fontSize, fontFamily: 1,
+                text: line, fontSize: OCR_FONT_SIZE, fontFamily: 1,
             }])
         ).flat().map(el => ({ ...el, groupIds: [groupId] }));
 

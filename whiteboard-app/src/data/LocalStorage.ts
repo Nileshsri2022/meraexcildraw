@@ -206,7 +206,7 @@ export async function getAIHistoryByType(type: AIHistoryType): Promise<AIHistory
     try {
         const db = await getDB();
         const all = await db.getAllFromIndex('ai-history', 'by-type', type);
-        return all.sort((a, b) => b.timestamp - a.timestamp);
+        return all.toSorted((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
         console.error('[AI History] Failed to load history by type:', error);
         return [];
