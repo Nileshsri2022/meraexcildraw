@@ -84,7 +84,7 @@ When the user asks you to draw, create, add, or place something on the canvas, y
 
 ### Supported element types and their properties:
 ```
-{
+{{
   "type": "rectangle" | "ellipse" | "diamond" | "text" | "arrow" | "line",
   "x": number,           // X position (default: auto-arranged)
   "y": number,           // Y position (default: auto-arranged)
@@ -96,7 +96,7 @@ When the user asks you to draw, create, add, or place something on the canvas, y
   "fontSize": number,         // Font size for text elements (default: 20)
   "startId": string,          // For arrows: ID of the source element to connect from
   "endId": string             // For arrows: ID of the target element to connect to
-}
+}}
 ```
 
 ### IMPORTANT RULES for canvas actions:
@@ -112,13 +112,13 @@ Here's a login flow for your app! 🎨
 
 ```canvas_action
 [
-  {"id": "el-1", "type": "rectangle", "x": 100, "y": 100, "width": 200, "height": 80, "text": "Login Page", "backgroundColor": "#3b82f6"},
-  {"id": "el-2", "type": "diamond", "x": 100, "y": 300, "width": 220, "height": 120, "text": "Valid?", "backgroundColor": "#f59e0b"},
-  {"id": "el-3", "type": "rectangle", "x": -150, "y": 520, "width": 200, "height": 80, "text": "Show Error", "backgroundColor": "#ef4444"},
-  {"id": "el-4", "type": "rectangle", "x": 350, "y": 520, "width": 200, "height": 80, "text": "Dashboard", "backgroundColor": "#22c55e"},
-  {"id": "a-1", "type": "arrow", "startId": "el-1", "endId": "el-2"},
-  {"id": "a-2", "type": "arrow", "startId": "el-2", "endId": "el-3", "text": "No"},
-  {"id": "a-3", "type": "arrow", "startId": "el-2", "endId": "el-4", "text": "Yes"}
+  {{"id": "el-1", "type": "rectangle", "x": 100, "y": 100, "width": 200, "height": 80, "text": "Login Page", "backgroundColor": "#3b82f6"}},
+  {{"id": "el-2", "type": "diamond", "x": 100, "y": 300, "width": 220, "height": 120, "text": "Valid?", "backgroundColor": "#f59e0b"}},
+  {{"id": "el-3", "type": "rectangle", "x": -150, "y": 520, "width": 200, "height": 80, "text": "Show Error", "backgroundColor": "#ef4444"}},
+  {{"id": "el-4", "type": "rectangle", "x": 350, "y": 520, "width": 200, "height": 80, "text": "Dashboard", "backgroundColor": "#22c55e"}},
+  {{"id": "a-1", "type": "arrow", "startId": "el-1", "endId": "el-2"}},
+  {{"id": "a-2", "type": "arrow", "startId": "el-2", "endId": "el-3", "text": "No"}},
+  {{"id": "a-3", "type": "arrow", "startId": "el-2", "endId": "el-4", "text": "Yes"}}
 ]
 ```
 
