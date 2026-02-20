@@ -29,6 +29,7 @@ import { IconDiagram, IconImage, IconSketch, IconOCR, IconTTS, IconSparkle, Icon
 import { FormLabel, FormTextarea, FormSelect, FormSlider, FormInput, InfoBanner } from "./FormComponents";
 import { PromptSection, ImageSettings, SketchSettings, DiagramSettings } from "./TabPanels";
 import { TtsTabPanel, HistoryTabPanel } from "./TtsHistoryPanels";
+import { OcrTabPanel } from "./OcrTabPanel";
 
 export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     isOpen,
@@ -452,6 +453,52 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         }
     }, [ocrResult, excalidrawAPI, onClose]);
 
+    // Add OCR result as text elements to canvas
+    const addOcrAsText = useCallback(() => {
+        if (!ocrResult || !excalidrawAPI) return;
+
+        const processedText = extractTextFromOCRWithMathJax(ocrResult);
+
+        const wrapText = (text: string, maxWidth: number): string[] => {
+            const words = text.split(' ');
+            const lines: string[] = [];
+            let cur = '';
+            for (const word of words) {
+                if ((cur + ' ' + word).trim().length <= maxWidth) {
+                    cur = (cur + ' ' + word).trim();
+                } else {
+                    if (cur) lines.push(cur);
+                    cur = word;
+                }
+            }
+            if (cur) lines.push(cur);
+            return lines;
+        };
+
+        const rawLines = processedText.split('\n');
+        const allLines: string[] = [];
+        for (const line of rawLines) {
+            if (!line.trim()) continue;
+            allLines.push(...(line.length > 60 ? wrapText(line.trim(), 60) : [line.trim()]));
+        }
+
+        const fontSize = 16;
+        const lineSpacing = fontSize * 1.5;
+        const groupId = `ocr-group-${Date.now()}`;
+
+        const textElements = allLines.map((line, index) =>
+            convertToExcalidrawElements([{
+                type: "text", x: 100, y: 100 + (index * lineSpacing),
+                text: line, fontSize, fontFamily: 1,
+            }])
+        ).flat().map(el => ({ ...el, groupIds: [groupId] }));
+
+        const currentElements = excalidrawAPI.getSceneElements();
+        excalidrawAPI.updateScene({ elements: [...currentElements, ...textElements] });
+        excalidrawAPI.scrollToContent(textElements, { fitToContent: true });
+        onClose();
+    }, [ocrResult, excalidrawAPI, onClose]);
+
     const handleGenerate =
         activeTab === "diagram"
             ? generateDiagram
@@ -687,219 +734,17 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                         />
                     )}
 
-                    {/* OCR Tab Content */}
                     {activeTab === "ocr" && (
-                        <div style={{ maxWidth: "480px" }}>
-                            {/* Image Source Options */}
-                            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-                                <label
-                                    style={{
-                                        flex: 1,
-                                        padding: "10px 14px",
-                                        borderRadius: "8px",
-                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                        backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                        color: "#e4e4e7",
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                        textAlign: "center",
-                                        transition: "all 0.2s ease",
-                                    }}
-                                >
-                                    📁 Upload Image
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleOcrImageUpload}
-                                        style={{ display: "none" }}
-                                    />
-                                </label>
-                                <button
-                                    onClick={captureCanvas}
-                                    style={{
-                                        flex: 1,
-                                        padding: "10px 14px",
-                                        borderRadius: "8px",
-                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                        backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                        color: "#e4e4e7",
-                                        cursor: "pointer",
-                                        fontSize: "13px",
-                                    }}
-                                >
-                                    📷 Capture Canvas
-                                </button>
-                            </div>
-
-                            {/* Image Preview */}
-                            {ocrImage && (
-                                <div style={{ marginBottom: "14px" }}>
-                                    <img
-                                        src={ocrImage}
-                                        alt="OCR preview"
-                                        style={{
-                                            width: "100%",
-                                            maxHeight: "150px",
-                                            objectFit: "contain",
-                                            borderRadius: "8px",
-                                            border: "1px solid rgba(255, 255, 255, 0.15)",
-                                        }}
-                                    />
-                                </div>
-                            )}
-
-                            {/* OCR Result */}
-                            {ocrResult && (
-                                <div style={{ marginBottom: "14px" }}>
-                                    <label style={{
-                                        display: "block",
-                                        marginBottom: "6px",
-                                        color: "#e4e4e7",
-                                        fontSize: "13px",
-                                        fontWeight: 500
-                                    }}>
-                                        Extracted Text:
-                                    </label>
-                                    <div
-                                        ref={ocrMarkdownRef}
-                                        style={{
-                                            padding: "12px 14px",
-                                            borderRadius: "8px",
-                                            border: "1px solid rgba(255, 255, 255, 0.15)",
-                                            backgroundColor: "#ffffff",
-                                            color: "#1a1a1f",
-                                            fontSize: "14px",
-                                            maxHeight: "200px",
-                                            overflowY: "auto",
-                                            lineHeight: "1.6",
-                                            minWidth: "500px"
-                                        }}
-                                        className="ocr-markdown-result"
-                                    >
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkMath]}
-                                            rehypePlugins={[rehypeKatex]}
-                                        >
-                                            {ocrResult}
-                                        </ReactMarkdown>
-                                    </div>
-                                    <button
-                                        onClick={addTextToCanvas}
-                                        style={{
-                                            marginTop: "8px",
-                                            padding: "8px 14px",
-                                            borderRadius: "6px",
-                                            border: "none",
-                                            backgroundColor: "#10b981",
-                                            color: "#fff",
-                                            cursor: "pointer",
-                                            fontSize: "12px",
-                                            fontWeight: 500,
-                                            marginRight: "8px",
-                                        }}
-                                    >
-                                        📷 Add as Image
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (!ocrResult || !excalidrawAPI) return;
-
-                                            // Use MathJax parser to extract clean text
-                                            const processedText = extractTextFromOCRWithMathJax(ocrResult);
-
-                                            // Wrap long lines at ~60 characters
-                                            const wrapText = (text: string, maxWidth: number): string[] => {
-                                                const words = text.split(' ');
-                                                const wrappedLines: string[] = [];
-                                                let currentLine = '';
-
-                                                for (const word of words) {
-                                                    if ((currentLine + ' ' + word).trim().length <= maxWidth) {
-                                                        currentLine = (currentLine + ' ' + word).trim();
-                                                    } else {
-                                                        if (currentLine) wrappedLines.push(currentLine);
-                                                        currentLine = word;
-                                                    }
-                                                }
-                                                if (currentLine) wrappedLines.push(currentLine);
-                                                return wrappedLines;
-                                            };
-
-                                            // Split by existing newlines, then wrap each long line
-                                            const rawLines = processedText.split('\n');
-                                            const allLines: string[] = [];
-                                            for (const line of rawLines) {
-                                                if (line.trim().length === 0) continue;
-                                                if (line.length > 60) {
-                                                    allLines.push(...wrapText(line.trim(), 60));
-                                                } else {
-                                                    allLines.push(line.trim());
-                                                }
-                                            }
-
-                                            const fontSize = 16;
-                                            const lineSpacing = fontSize * 1.5;
-                                            const groupId = `ocr-group-${Date.now()}`;
-
-                                            const textElements = allLines.map((line, index) =>
-                                                convertToExcalidrawElements([{
-                                                    type: "text",
-                                                    x: 100,
-                                                    y: 100 + (index * lineSpacing),
-                                                    text: line,
-                                                    fontSize: fontSize,
-                                                    fontFamily: 1,
-                                                }])
-                                            ).flat().map(el => ({
-                                                ...el,
-                                                groupIds: [groupId],
-                                            }));
-
-                                            const currentElements = excalidrawAPI.getSceneElements();
-                                            excalidrawAPI.updateScene({
-                                                elements: [...currentElements, ...textElements],
-                                            });
-                                            excalidrawAPI.scrollToContent(textElements, { fitToContent: true });
-                                            onClose();
-                                        }}
-                                        style={{
-                                            marginTop: "8px",
-                                            padding: "8px 14px",
-                                            borderRadius: "6px",
-                                            border: "1px solid rgba(255,255,255,0.2)",
-                                            backgroundColor: "transparent",
-                                            color: "#e4e4e7",
-                                            cursor: "pointer",
-                                            fontSize: "12px",
-                                            fontWeight: 500,
-                                        }}
-                                    >
-                                        📝 Add as Text
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setOcrImage(null);
-                                            setOcrResult(null);
-                                            setError(null);
-                                        }}
-                                        style={{
-                                            marginTop: "8px",
-                                            marginLeft: "8px",
-                                            padding: "8px 14px",
-                                            borderRadius: "6px",
-                                            border: "none",
-                                            backgroundColor: "#ef4444",
-                                            color: "#fff",
-                                            cursor: "pointer",
-                                            fontSize: "12px",
-                                            fontWeight: 500,
-                                        }}
-                                    >
-                                        🗑️ Clear
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        <OcrTabPanel
+                            ocrImage={ocrImage}
+                            ocrResult={ocrResult}
+                            ocrMarkdownRef={ocrMarkdownRef}
+                            onUpload={handleOcrImageUpload}
+                            onCapture={captureCanvas}
+                            onAddAsImage={addTextToCanvas}
+                            onAddAsText={addOcrAsText}
+                            onClear={() => { setOcrImage(null); setOcrResult(null); setError(null); }}
+                        />
                     )}
 
                     {activeTab === "tts" && (
