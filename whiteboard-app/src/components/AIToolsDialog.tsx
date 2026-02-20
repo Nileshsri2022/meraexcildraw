@@ -41,6 +41,13 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     const [sketchSeed, setSketchSeed] = useState(0);
     const [sketchPreprocessor, setSketchPreprocessor] = useState("HED");
 
+    // Image Generation (Z-Image-Turbo) state
+    const [imgWidth, setImgWidth] = useState(1024);
+    const [imgHeight, setImgHeight] = useState(1024);
+    const [imgSteps, setImgSteps] = useState(9);
+    const [imgSeed, setImgSeed] = useState(42);
+    const [imgRandomSeed, setImgRandomSeed] = useState(true);
+
     // Text-to-Speech state
     const [ttsText, setTtsText] = useState<string>("");
     const [ttsAudio, setTtsAudio] = useState<string | null>(null);
@@ -315,7 +322,14 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             const response = await fetch(`${AI_SERVER_URL}/api/ai/generate-image`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt, width: 512, height: 512 }),
+                body: JSON.stringify({
+                    prompt,
+                    width: imgWidth,
+                    height: imgHeight,
+                    num_inference_steps: imgSteps,
+                    seed: imgSeed,
+                    randomize_seed: imgRandomSeed,
+                }),
             });
 
             if (!response.ok) {
@@ -340,8 +354,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     id: `ai-image-element-${Date.now()}`,
                     x: 100,
                     y: 100,
-                    width: data.width || 512,
-                    height: data.height || 512,
+                    width: data.width || imgWidth,
+                    height: data.height || imgHeight,
                     angle: 0,
                     strokeColor: "transparent",
                     backgroundColor: "transparent",
@@ -382,7 +396,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         } finally {
             setLoading(false);
         }
-    }, [prompt, excalidrawAPI, onClose]);
+    }, [prompt, excalidrawAPI, onClose, imgWidth, imgHeight, imgSteps, imgSeed, imgRandomSeed]);
 
     // Handle OCR image upload
     const handleOcrImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -865,6 +879,155 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                 e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
                             }}
                         />
+                    </div>
+                )}
+
+                {/* Z-Image-Turbo Advanced Settings */}
+                {activeTab === "image" && (
+                    <div style={{ marginBottom: "14px" }}>
+                        {/* Info Banner */}
+                        <div style={{
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            backgroundColor: "rgba(234, 179, 8, 0.1)",
+                            border: "1px solid rgba(234, 179, 8, 0.2)",
+                            marginBottom: "14px",
+                            fontSize: "12px",
+                            color: "#fbbf24",
+                            lineHeight: "1.5",
+                        }}>
+                            ⚡ <strong>Z-Image-Turbo</strong> — Ultra-fast AI image generation. Generate stunning images in just 8 steps.
+                        </div>
+
+                        {/* Height & Width in a row */}
+                        <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    marginBottom: "6px",
+                                    color: "#e4e4e7",
+                                    fontSize: "12px",
+                                    fontWeight: 500
+                                }}>
+                                    <span>Height</span>
+                                    <span style={{ color: "#fbbf24" }}>{imgHeight}px</span>
+                                </label>
+                                <input
+                                    type="range"
+                                    min={512}
+                                    max={2048}
+                                    step={64}
+                                    value={imgHeight}
+                                    onChange={(e) => setImgHeight(Number(e.target.value))}
+                                    style={{ width: "100%", accentColor: "#eab308" }}
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    marginBottom: "6px",
+                                    color: "#e4e4e7",
+                                    fontSize: "12px",
+                                    fontWeight: 500
+                                }}>
+                                    <span>Width</span>
+                                    <span style={{ color: "#fbbf24" }}>{imgWidth}px</span>
+                                </label>
+                                <input
+                                    type="range"
+                                    min={512}
+                                    max={2048}
+                                    step={64}
+                                    value={imgWidth}
+                                    onChange={(e) => setImgWidth(Number(e.target.value))}
+                                    style={{ width: "100%", accentColor: "#eab308" }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Inference Steps */}
+                        <div style={{ marginBottom: "12px" }}>
+                            <label style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                marginBottom: "6px",
+                                color: "#e4e4e7",
+                                fontSize: "12px",
+                                fontWeight: 500
+                            }}>
+                                <span>Inference Steps</span>
+                                <span style={{ color: "#fbbf24" }}>{imgSteps}</span>
+                            </label>
+                            <input
+                                type="range"
+                                min={1}
+                                max={20}
+                                step={1}
+                                value={imgSteps}
+                                onChange={(e) => setImgSteps(Number(e.target.value))}
+                                style={{ width: "100%", accentColor: "#eab308" }}
+                            />
+                            <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>
+                                9 steps = 8 DiT forwards (recommended)
+                            </div>
+                        </div>
+
+                        {/* Seed + Random Seed */}
+                        <div style={{ marginBottom: "4px" }}>
+                            <div style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                marginBottom: "6px",
+                            }}>
+                                <label style={{
+                                    color: "#e4e4e7",
+                                    fontSize: "12px",
+                                    fontWeight: 500
+                                }}>
+                                    Seed
+                                </label>
+                                <label style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    cursor: "pointer",
+                                    fontSize: "12px",
+                                    color: "#9ca3af",
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={imgRandomSeed}
+                                        onChange={(e) => setImgRandomSeed(e.target.checked)}
+                                        style={{ accentColor: "#eab308", cursor: "pointer" }}
+                                    />
+                                    🎲 Random Seed
+                                </label>
+                            </div>
+                            <input
+                                type="number"
+                                min={0}
+                                max={2147483647}
+                                value={imgSeed}
+                                onChange={(e) => setImgSeed(Number(e.target.value))}
+                                disabled={imgRandomSeed}
+                                style={{
+                                    width: "100%",
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    backgroundColor: imgRandomSeed ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.05)",
+                                    color: imgRandomSeed ? "#6b7280" : "#e4e4e7",
+                                    fontSize: "13px",
+                                    outline: "none",
+                                    boxSizing: "border-box" as const,
+                                    transition: "all 0.2s ease",
+                                    cursor: imgRandomSeed ? "not-allowed" : "text",
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
 

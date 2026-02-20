@@ -173,43 +173,74 @@ OUTPUT (Mermaid code only):`;
 });
 
 // ==== AI Image Generation Endpoint ====
-// Using Stable Diffusion XL
-const IMAGE_MODEL = "stabilityai/stable-diffusion-xl-base-1.0";
+// Using Z-Image-Turbo (fast turbo model via Gradio)
+const IMAGE_SPACE = process.env.IMAGE_SPACE || "mrfakename/Z-Image-Turbo";
 
 app.post("/api/ai/generate-image", async (req, res) => {
     try {
-        const { prompt, width = 512, height = 512 } = req.body;
+        const {
+            prompt,
+            width = 1024,
+            height = 1024,
+            num_inference_steps = 9,
+            seed = 42,
+            randomize_seed = true,
+        } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        if (!process.env.HF_TOKEN) {
-            return res.status(500).json({ error: "HF_TOKEN not configured" });
-        }
-
-        console.log(`[AI Image] Generating image with ${IMAGE_MODEL}...`);
+        console.log(`[AI Image] Generating image with Z-Image-Turbo...`);
         console.log(`[AI Image] Prompt: "${prompt}"`);
+        console.log(`[AI Image] Settings: ${width}x${height}, steps=${num_inference_steps}, seed=${seed}, randomize=${randomize_seed}`);
 
-        // Generate image using Stable Diffusion (free tier)
-        const imageBlob = await hf.textToImage({
-            model: IMAGE_MODEL,
-            inputs: prompt,
-            provider: "hf-inference",
+        // Connect to the Z-Image-Turbo Gradio Space
+        const { Client } = await import("@gradio/client");
+        const client = await Client.connect(IMAGE_SPACE, {
+            hf_token: process.env.HF_TOKEN || undefined,
         });
 
-        // Convert blob to base64
-        const arrayBuffer = await imageBlob.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString("base64");
-        const dataUrl = `data:image/png;base64,${base64}`;
+        const result = await client.predict("/generate_image", {
+            prompt: prompt,
+            height: height,
+            width: width,
+            num_inference_steps: num_inference_steps,
+            seed: seed,
+            randomize_seed: randomize_seed,
+        });
 
-        console.log(`[AI Image] Successfully generated image (${base64.length} bytes)`);
+        // result.data = [imageUrl, seedUsed]
+        const imageInfo = result.data?.[0];
+        const seedUsed = result.data?.[1];
+        const imageUrl = imageInfo?.url || imageInfo;
+
+        if (!imageUrl || typeof imageUrl !== "string") {
+            console.error("[AI Image] Unexpected result format:", JSON.stringify(result.data));
+            throw new Error("Could not extract image URL from result");
+        }
+
+        console.log(`[AI Image] Fetching generated image (seed=${seedUsed})...`);
+
+        // Fetch the generated image and convert to base64 data URL
+        const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+            throw new Error(`Failed to fetch generated image: ${imageResponse.status}`);
+        }
+
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString("base64");
+        const contentType = imageResponse.headers.get("content-type") || "image/png";
+        const dataUrl = `data:${contentType};base64,${base64}`;
+
+        console.log(`[AI Image] Successfully generated image (${Math.round(base64.length / 1024)} KB)`);
 
         res.json({
             success: true,
             imageUrl: dataUrl,
             width: width,
             height: height,
+            seed: seedUsed,
             prompt: prompt,
         });
     } catch (error) {
