@@ -8,13 +8,7 @@
  */
 import { useState, useRef, useCallback } from "react";
 import { apiFetch, getErrorMessage } from "../utils/apiClient";
-import type { VoiceCommandResponse } from "../utils/apiClient";
-
-/** STT API response */
-interface STTResponse {
-    success: boolean;
-    text: string;
-}
+import type { VoiceCommandResponse, STTResponse } from "../utils/apiClient";
 
 type VoiceCommandPhase =
     | "idle"

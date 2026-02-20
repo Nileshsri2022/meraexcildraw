@@ -52,6 +52,12 @@ export interface VoiceCommandResponse {
     style?: string;
 }
 
+/** Speech-to-Text API response */
+export interface STTResponse {
+    success: boolean;
+    text: string;
+}
+
 /** TTS voices API response */
 export interface VoicesResponse {
     voices: Array<{ voice_id: string; name: string; category: string }>;

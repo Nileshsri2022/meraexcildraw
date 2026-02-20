@@ -25,6 +25,15 @@ const SIDEBAR_TABS = [
     { id: "tts" as const, label: "TTS", icon: <IconTTS /> },
 ] as const;
 
+/** Voice command tool → AI tab mapping (hoisted per rendering-hoist-jsx) */
+const TOOL_TO_TAB: Record<string, AITab> = {
+    image: "image",
+    diagram: "diagram",
+    sketch: "sketch",
+    tts: "tts",
+    ocr: "ocr",
+};
+
 export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     isOpen,
     onClose,
@@ -53,44 +62,39 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         onError: handleVoiceError,
     });
 
-    // ─── Incoming Voice Command (from App.tsx) ────────────────────────
-    // Ref to always access the latest gen functions (avoids stale closures)
-    const genRef = useRef(gen);
-    genRef.current = gen;
-
-    // Text-to-Speech — must be initialized before voice command effect
+    // Text-to-Speech
     const tts = useTTS(activeTab === "tts" && isOpen, gen.setLoading, gen.setError);
+
+    // ─── Incoming Voice Command (from App.tsx) ────────────────────────
+    // Refs to always access the latest gen/tts functions (avoids stale closures).
+    // Updated via useEffect (not during render) per react-best-practices.
+    const genRef = useRef(gen);
     const ttsRef = useRef(tts);
-    ttsRef.current = tts;
+
+    useEffect(() => { genRef.current = gen; });
+    useEffect(() => { ttsRef.current = tts; });
 
     useEffect(() => {
         if (!voiceCommand) return;
 
         // Step 1: Switch to the correct tab
-        const tabMap: Record<string, AITab> = {
-            image: "image",
-            diagram: "diagram",
-            sketch: "sketch",
-            tts: "tts",
-            ocr: "ocr",
-        };
-        const targetTab = tabMap[voiceCommand.tool] || "image";
+        const targetTab = TOOL_TO_TAB[voiceCommand.tool] || "image";
         setActiveTab(targetTab);
 
         // Step 2: Set the prompt (for non-TTS tools)
         if (voiceCommand.tool === "tts") {
             // TTS has its own separate text state
-            tts.setText(voiceCommand.prompt || "");
+            ttsRef.current.setText(voiceCommand.prompt || "");
         } else if (voiceCommand.prompt) {
-            gen.setPrompt(voiceCommand.prompt);
+            genRef.current.setPrompt(voiceCommand.prompt);
         }
 
         // Step 3: Set diagram style if applicable
         if (voiceCommand.tool === "diagram" && voiceCommand.style) {
-            gen.setStyle(voiceCommand.style);
+            genRef.current.setStyle(voiceCommand.style);
         }
 
-        gen.setError(null);
+        genRef.current.setError(null);
 
         // Step 4: Auto-execute after state settles
         // TTS needs a longer delay because voices may need to load
@@ -116,7 +120,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         }, delay);
 
         return () => clearTimeout(timer);
-    }, [voiceCommand]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [voiceCommand, onVoiceCommandDone]);
+
 
     const handleGenerate =
         activeTab === "diagram"

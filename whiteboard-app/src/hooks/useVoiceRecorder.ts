@@ -11,12 +11,7 @@
  */
 import { useState, useRef, useCallback } from "react";
 import { apiFetch, getErrorMessage } from "../utils/apiClient";
-
-/** STT API response */
-interface STTResponse {
-    success: boolean;
-    text: string;
-}
+import type { STTResponse } from "../utils/apiClient";
 
 interface UseVoiceRecorderOptions {
     /** Called with the transcribed text when STT completes */

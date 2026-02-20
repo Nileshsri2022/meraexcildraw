@@ -54,7 +54,6 @@ export function useTTS(
             setError("Please enter or paste text to speak");
             return;
         }
-
         setLoading(true);
         setError(null);
         setAudio(null);
