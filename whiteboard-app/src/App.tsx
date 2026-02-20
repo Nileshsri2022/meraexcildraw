@@ -100,179 +100,78 @@ const App: React.FC = () => {
     // Render custom dropdown in top right area
     const renderTopRightUI = () => (
         <div ref={dropdownRef} style={{ position: "relative" }}>
-            {/* Main Button */}
+            {/* Sparkle Button */}
             <button
+                className={`sparkle-btn${isDropdownOpen ? " sparkle-btn--active" : ""}`}
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 title="More Options"
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "8px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: isDropdownOpen ? "rgba(99, 102, 241, 0.1)" : "transparent",
-                    color: "var(--text-primary-color)",
-                    cursor: "pointer",
-                    fontSize: "18px",
-                    transition: "all 0.2s ease",
-                    width: "36px",
-                    height: "36px",
-                }}
-                onMouseEnter={(e) => {
-                    if (!isDropdownOpen) {
-                        e.currentTarget.style.backgroundColor = "rgba(99, 102, 241, 0.1)";
-                    }
-                }}
-                onMouseLeave={(e) => {
-                    if (!isDropdownOpen) {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                    }
-                }}
             >
                 ✨
             </button>
 
-            {/* Dropdown Menu - Excalidraw Style */}
+            {/* Dropdown Menu */}
             {isDropdownOpen && (
-                <div
-                    style={{
-                        position: "absolute",
-                        top: "calc(100% + 8px)",
-                        right: 0,
-                        backgroundColor: "#232329",
-                        borderRadius: "12px",
-                        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08)",
-                        minWidth: "220px",
-                        zIndex: 9999,
-                        overflow: "hidden",
-                        padding: "8px 0",
-                    }}
-                >
-                    {/* AI Tools Option */}
+                <div className="cosmic-dropdown">
+                    {/* AI Tools */}
                     <button
+                        className="cosmic-dropdown-item"
                         onClick={() => {
                             setIsAIToolsOpen(true);
                             setIsDropdownOpen(false);
                         }}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "12px",
-                            width: "100%",
-                            padding: "10px 16px",
-                            border: "none",
-                            backgroundColor: "transparent",
-                            color: "#e4e4e7",
-                            cursor: "pointer",
-                            fontSize: "14px",
-                            fontFamily: "inherit",
-                            textAlign: "left",
-                            transition: "background-color 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "transparent";
-                        }}
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                            <path d="M2 17l10 5 10-5" />
-                            <path d="M2 12l10 5 10-5" />
-                        </svg>
-                        <span>AI Tools</span>
+                        <span className="item-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                                <path d="M2 17l10 5 10-5" />
+                                <path d="M2 12l10 5 10-5" />
+                            </svg>
+                        </span>
+                        AI Tools
                     </button>
 
-                    {/* Divider */}
-                    <div style={{
-                        height: "1px",
-                        backgroundColor: "rgba(255, 255, 255, 0.08)",
-                        margin: "8px 0"
-                    }} />
+                    <div className="cosmic-dropdown-divider" />
 
-                    {/* Collaboration Option */}
+                    {/* Collaboration */}
                     <button
+                        className="cosmic-dropdown-item"
                         onClick={toggleCollaboration}
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "12px",
-                            width: "100%",
-                            padding: "10px 16px",
-                            border: "none",
-                            backgroundColor: "transparent",
-                            color: "#e4e4e7",
-                            cursor: "pointer",
-                            fontSize: "14px",
-                            fontFamily: "inherit",
-                            textAlign: "left",
-                            transition: "background-color 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = "transparent";
-                        }}
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isCollaborating ? "#ef4444" : "#22c55e"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10" />
-                            <circle cx="12" cy="12" r="4" fill={isCollaborating ? "#ef4444" : "#22c55e"} />
-                        </svg>
-                        <span>{isCollaborating ? "Stop Collaboration" : "Start Collaboration"}</span>
+                        <span className="item-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isCollaborating ? "#ef4444" : "#22c55e"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <circle cx="12" cy="12" r="4" fill={isCollaborating ? "#ef4444" : "#22c55e"} />
+                            </svg>
+                        </span>
+                        {isCollaborating ? "Stop Collaboration" : "Start Collaboration"}
                     </button>
 
                     {/* Copy Room Link (when collaborating) */}
                     {isCollaborating && roomId && (
-                        <>
-                            <button
-                                onClick={() => {
-                                    navigator.clipboard.writeText(window.location.href);
-                                    alert("Link copied to clipboard!");
-                                    setIsDropdownOpen(false);
-                                }}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "12px",
-                                    width: "100%",
-                                    padding: "10px 16px",
-                                    border: "none",
-                                    backgroundColor: "transparent",
-                                    color: "#e4e4e7",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    fontFamily: "inherit",
-                                    textAlign: "left",
-                                    transition: "background-color 0.15s ease",
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = "transparent";
-                                }}
-                            >
+                        <button
+                            className="cosmic-dropdown-item"
+                            onClick={() => {
+                                navigator.clipboard.writeText(window.location.href);
+                                alert("Link copied to clipboard!");
+                                setIsDropdownOpen(false);
+                            }}
+                        >
+                            <span className="item-icon">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                                 </svg>
-                                <span>Copy Room Link</span>
-                            </button>
-                        </>
+                            </span>
+                            Copy Room Link
+                        </button>
                     )}
 
-                    {/* Clear Local Data Option */}
+                    {/* Clear Local Data */}
                     {!isCollaborating && (
                         <>
-                            <div style={{
-                                height: "1px",
-                                backgroundColor: "rgba(255, 255, 255, 0.08)",
-                                margin: "8px 0"
-                            }} />
+                            <div className="cosmic-dropdown-divider" />
                             <button
+                                className="cosmic-dropdown-item cosmic-dropdown-item--danger"
                                 onClick={async () => {
                                     if (confirm("Clear all locally saved data? This cannot be undone.")) {
                                         await clearSavedData();
@@ -280,40 +179,20 @@ const App: React.FC = () => {
                                     }
                                     setIsDropdownOpen(false);
                                 }}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "12px",
-                                    width: "100%",
-                                    padding: "10px 16px",
-                                    border: "none",
-                                    backgroundColor: "transparent",
-                                    color: "#ef4444",
-                                    cursor: "pointer",
-                                    fontSize: "14px",
-                                    fontFamily: "inherit",
-                                    textAlign: "left",
-                                    transition: "background-color 0.15s ease",
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = "transparent";
-                                }}
                             >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="3 6 5 6 21 6" />
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                </svg>
-                                <span>Clear Local Data</span>
+                                <span className="item-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    </svg>
+                                </span>
+                                Clear Local Data
                             </button>
                         </>
                     )}
                 </div>
             )}
         </div>
-
     );
 
     return (
@@ -360,15 +239,14 @@ const App: React.FC = () => {
                 </WelcomeScreen>
 
                 <Footer>
-                    <span style={{ fontSize: "12px", opacity: 0.7, display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span className="save-status save-status--idle" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         {isCollaborating ? (
                             <>🟢 {username} in room: {roomId}</>
                         ) : (
                             "Powered by Excalidraw"
                         )}
-                        {/* Save status indicator */}
                         {!isCollaborating && (
-                            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <span className={`save-status save-status--${saveStatus}`}>
                                 {saveStatus === 'saving' && '💾 Saving...'}
                                 {saveStatus === 'saved' && '✅ Saved'}
                                 {saveStatus === 'error' && '❌ Save failed'}
