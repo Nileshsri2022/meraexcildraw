@@ -13,7 +13,7 @@ interface AIToolsDialogProps {
     isOpen: boolean;
     onClose: () => void;
     excalidrawAPI: ExcalidrawImperativeAPI | null;
-    initialTab?: "diagram" | "image" | "ocr" | "tts";
+    initialTab?: "diagram" | "image" | "ocr" | "tts" | "sketch";
 }
 
 const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
@@ -24,7 +24,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     excalidrawAPI,
     initialTab = "diagram"
 }) => {
-    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "tts">(initialTab as any);
+    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "tts" | "sketch">(initialTab as any);
     const [prompt, setPrompt] = useState("");
     const [style, setStyle] = useState("flowchart");
     const [loading, setLoading] = useState(false);
@@ -33,6 +33,14 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     const [ocrResult, setOcrResult] = useState<string | null>(null);
     const ocrMarkdownRef = useRef<HTMLDivElement>(null);
 
+    // Sketch-to-Image (ControlNet) state
+    const [sketchPipeline, setSketchPipeline] = useState("scribble");
+    const [sketchResolution, setSketchResolution] = useState(512);
+    const [sketchSteps, setSketchSteps] = useState(20);
+    const [sketchGuidance, setSketchGuidance] = useState(9);
+    const [sketchSeed, setSketchSeed] = useState(0);
+    const [sketchPreprocessor, setSketchPreprocessor] = useState("HED");
+
     // Text-to-Speech state
     const [ttsText, setTtsText] = useState<string>("");
     const [ttsAudio, setTtsAudio] = useState<string | null>(null);
@@ -40,6 +48,212 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     const [ttsVoices, setTtsVoices] = useState<Array<{ id: string, name: string, category: string }>>([]);
     const [loadingVoices, setLoadingVoices] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    const generateSketchImage = useCallback(async () => {
+        if (!prompt.trim()) {
+            setError("Please enter a description");
+            return;
+        }
+
+        if (!excalidrawAPI) {
+            setError("Canvas not ready");
+            return;
+        }
+
+        const elements = excalidrawAPI.getSceneElements();
+        if (!elements || elements.length === 0) {
+            setError("Draw something on the canvas first!");
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            // ─── Step 1: Export clean sketch from Excalidraw ───
+            // Compute bounding box of all drawn elements
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const el of elements) {
+                if ((el as any).isDeleted) continue;
+                const ex = (el as any).x ?? 0;
+                const ey = (el as any).y ?? 0;
+                const ew = (el as any).width ?? 0;
+                const eh = (el as any).height ?? 0;
+                minX = Math.min(minX, ex);
+                minY = Math.min(minY, ey);
+                maxX = Math.max(maxX, ex + ew);
+                maxY = Math.max(maxY, ey + eh);
+            }
+
+            const padding = 40; // px padding around elements
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
+
+            const appState = excalidrawAPI.getAppState();
+            const zoom = appState.zoom?.value ?? 1;
+            const scrollX = appState.scrollX ?? 0;
+            const scrollY = appState.scrollY ?? 0;
+
+            // Get the DOM canvas
+            const rawCanvas = document.querySelector(".excalidraw__canvas") as HTMLCanvasElement
+                || document.querySelector(".excalidraw canvas") as HTMLCanvasElement;
+            if (!rawCanvas) throw new Error("Could not capture canvas");
+
+            // Convert scene coordinates to canvas pixel coordinates
+            const cropX = (minX + scrollX) * zoom;
+            const cropY = (minY + scrollY) * zoom;
+            const cropW = (maxX - minX) * zoom;
+            const cropH = (maxY - minY) * zoom;
+
+            // Create a cropped canvas scaled to fit within 512x512
+            const targetSize = 512;
+            const aspect = cropW / cropH;
+            let outW: number, outH: number;
+            if (aspect >= 1) {
+                outW = targetSize;
+                outH = Math.round(targetSize / aspect);
+            } else {
+                outH = targetSize;
+                outW = Math.round(targetSize * aspect);
+            }
+
+            const croppedCanvas = document.createElement("canvas");
+            croppedCanvas.width = outW;
+            croppedCanvas.height = outH;
+            const ctx = croppedCanvas.getContext("2d")!;
+
+            // White background
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, outW, outH);
+
+            // Draw the cropped region onto the output canvas
+            ctx.drawImage(
+                rawCanvas,
+                Math.max(0, cropX), Math.max(0, cropY), Math.max(1, cropW), Math.max(1, cropH),
+                0, 0, outW, outH,
+            );
+
+            // Detect if we're in dark mode by sampling corner pixels
+            const sampleData = ctx.getImageData(0, 0, 1, 1).data;
+            const cornerBrightness = (sampleData[0] + sampleData[1] + sampleData[2]) / 3;
+            const isDarkMode = cornerBrightness < 128;
+
+            // Binarize for ControlNet scribble (MUST be black lines on white background)
+            const imgData = ctx.getImageData(0, 0, outW, outH);
+            const dataArr = imgData.data;
+            for (let i = 0; i < dataArr.length; i += 4) {
+                const gray = (dataArr[i] + dataArr[i + 1] + dataArr[i + 2]) / 3;
+                let v: number;
+                if (isDarkMode) {
+                    // Dark mode: light pixels are strokes → make them BLACK, dark background → WHITE
+                    v = gray > 100 ? 0 : 255;
+                } else {
+                    // Light mode: dark pixels are strokes → keep them BLACK, light background → WHITE
+                    v = gray > 200 ? 255 : 0;
+                }
+                dataArr[i] = dataArr[i + 1] = dataArr[i + 2] = v;
+                dataArr[i + 3] = 255;
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            const imageBase64 = croppedCanvas.toDataURL("image/png");
+            console.log(`[Sketch] Cropped & binarized sketch: ${outW}x${outH}, darkMode=${isDarkMode}`);
+
+            // ─── Step 2: Send sketch + prompt to ControlNet ───
+            const response = await fetch(`${AI_SERVER_URL}/api/ai/sketch-to-image`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    prompt,
+                    imageBase64,
+                    width: 512,
+                    height: 512,
+                    pipeline: sketchPipeline,
+                    image_resolution: sketchResolution,
+                    num_steps: sketchSteps,
+                    guidance_scale: sketchGuidance,
+                    seed: sketchSeed,
+                    preprocessor_name: sketchPreprocessor,
+                }),
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.message || data.error || `Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // ─── Step 3: Add generated image to canvas (next to the sketch) ───
+            if (data.imageUrl) {
+                const fileId = `sketch-image-${Date.now()}`;
+                const imgW = data.width || 512;
+                const imgH = data.height || 512;
+
+                // Place the generated image to the RIGHT of the original sketch
+                const imageX = maxX + 50; // 50px gap to the right of sketch
+                const imageY = minY; // Align top with the sketch
+
+                await excalidrawAPI.addFiles([
+                    {
+                        id: fileId as any,
+                        dataURL: data.imageUrl as any,
+                        mimeType: "image/png",
+                        created: Date.now(),
+                    },
+                ]);
+
+                const imageElement = {
+                    type: "image" as const,
+                    id: `sketch-image-element-${Date.now()}`,
+                    x: imageX,
+                    y: imageY,
+                    width: imgW,
+                    height: imgH,
+                    angle: 0,
+                    strokeColor: "transparent",
+                    backgroundColor: "transparent",
+                    fillStyle: "solid" as const,
+                    strokeWidth: 0,
+                    strokeStyle: "solid" as const,
+                    roughness: 0,
+                    opacity: 100,
+                    groupIds: [] as string[],
+                    frameId: null,
+                    index: "a0" as any,
+                    roundness: null,
+                    seed: Math.floor(Math.random() * 100000),
+                    version: 1,
+                    versionNonce: Math.floor(Math.random() * 100000),
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: Date.now(),
+                    link: null,
+                    locked: false,
+                    fileId: fileId as any,
+                    status: "saved" as const,
+                    scale: [1, 1] as [number, number],
+                };
+
+                const currentElements = excalidrawAPI.getSceneElements();
+                excalidrawAPI.updateScene({
+                    elements: [...currentElements, imageElement as any],
+                });
+                // Scroll to show both the sketch AND the generated image
+                excalidrawAPI.scrollToContent(undefined, { fitToContent: true });
+            }
+
+            onClose();
+            setPrompt("");
+        } catch (err) {
+            console.error("Sketch-to-image generation error:", err);
+            setError(err instanceof Error ? err.message : "Failed to generate image from sketch");
+        } finally {
+            setLoading(false);
+        }
+    }, [prompt, excalidrawAPI, onClose, sketchPipeline, sketchResolution, sketchSteps, sketchGuidance, sketchSeed, sketchPreprocessor]);
 
     // Generate Diagram
     const generateDiagram = useCallback(async () => {
@@ -418,7 +632,14 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         }
     }, [ttsText, ttsVoice]);
 
-    const handleGenerate = activeTab === "diagram" ? generateDiagram : activeTab === "image" ? generateImage : performOcr;
+    const handleGenerate =
+        activeTab === "diagram"
+            ? generateDiagram
+            : activeTab === "image"
+                ? generateImage
+                : activeTab === "sketch"
+                    ? generateSketchImage
+                    : performOcr;
 
     if (!isOpen) return null;
 
@@ -515,6 +736,36 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                         <span style={{ fontSize: "14px" }}></span> Image
                     </button>
                     <button
+                        onClick={() => {
+                            setActiveTab("sketch");
+                            setError(null);
+                        }}
+                        style={{
+                            flex: 1,
+                            padding: "10px 14px",
+                            borderRadius: "8px",
+                            border:
+                                activeTab === "sketch"
+                                    ? "2px solid #6366f1"
+                                    : "1px solid rgba(255, 255, 255, 0.15)",
+                            backgroundColor:
+                                activeTab === "sketch"
+                                    ? "rgba(99, 102, 241, 0.15)"
+                                    : "transparent",
+                            color: activeTab === "sketch" ? "#a5b4fc" : "#9ca3af",
+                            cursor: "pointer",
+                            fontSize: "13px",
+                            fontWeight: 500,
+                            transition: "all 0.2s ease",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px",
+                        }}
+                    >
+                        <span style={{ fontSize: "14px" }}>✏️</span> Sketch
+                    </button>
+                    <button
                         onClick={() => { setActiveTab("ocr"); setError(null); }}
                         style={{
                             flex: 1,
@@ -566,8 +817,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     </button>
                 </div>
 
-                {/* Prompt Input - Only for diagram/image tabs */}
-                {(activeTab === "diagram" || activeTab === "image") && (
+                {(activeTab === "diagram" || activeTab === "image" || activeTab === "sketch") && (
                     <div style={{ marginBottom: "14px" }}>
                         <label style={{
                             display: "block",
@@ -576,14 +826,21 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                             fontSize: "13px",
                             fontWeight: 500
                         }}>
-                            {activeTab === "diagram" ? "Describe your diagram:" : "Describe the image:"}
+                            {activeTab === "diagram"
+                                ? "Describe your diagram:"
+                                : activeTab === "image"
+                                    ? "Describe the image:"
+                                    : "Describe the final image style:"}
                         </label>
                         <textarea
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
-                            placeholder={activeTab === "diagram"
-                                ? "e.g., User login authentication flow with error handling"
-                                : "e.g., A futuristic city skyline at sunset with flying cars"
+                            placeholder={
+                                activeTab === "diagram"
+                                    ? "e.g., User login authentication flow with error handling"
+                                    : activeTab === "image"
+                                        ? "e.g., A futuristic city skyline at sunset with flying cars"
+                                        : "e.g., High-quality anime style, vibrant colors, clean lines"
                             }
                             style={{
                                 width: "100%",
@@ -608,6 +865,212 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                 e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
                             }}
                         />
+                    </div>
+                )}
+
+                {/* ControlNet Sketch Controls */}
+                {activeTab === "sketch" && (
+                    <div style={{ marginBottom: "14px" }}>
+                        {/* Info Banner */}
+                        <div style={{
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            backgroundColor: "rgba(99, 102, 241, 0.1)",
+                            border: "1px solid rgba(99, 102, 241, 0.2)",
+                            marginBottom: "14px",
+                            fontSize: "12px",
+                            color: "#a5b4fc",
+                            lineHeight: "1.5",
+                        }}>
+                            💡 <strong>ControlNet</strong> — Draw a sketch on the canvas, choose a pipeline, then describe what you want. The AI preserves your sketch's structure.
+                        </div>
+
+                        {/* Pipeline Selector */}
+                        <div style={{ marginBottom: "12px" }}>
+                            <label style={{
+                                display: "block",
+                                marginBottom: "6px",
+                                color: "#e4e4e7",
+                                fontSize: "12px",
+                                fontWeight: 500
+                            }}>
+                                Pipeline:
+                            </label>
+                            <select
+                                value={sketchPipeline}
+                                onChange={(e) => setSketchPipeline(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    backgroundColor: "#2d2d35",
+                                    color: "#e4e4e7",
+                                    fontSize: "13px",
+                                    cursor: "pointer",
+                                    outline: "none",
+                                }}
+                            >
+                                <option value="scribble">✏️ Scribble (rough freehand sketches)</option>
+                                <option value="canny">🔲 Canny (clean edge outlines)</option>
+                                <option value="softedge">🌊 SoftEdge (smooth edges)</option>
+                                <option value="lineart">🖊️ Lineart (clean line drawings)</option>
+                                <option value="depth">📐 Depth (depth-based generation)</option>
+                                <option value="normal">🗺️ Normal Map</option>
+                                <option value="mlsd">📏 MLSD (straight lines / architecture)</option>
+                                <option value="segmentation">🎨 Segmentation (semantic maps)</option>
+                            </select>
+                        </div>
+
+                        {/* Preprocessor */}
+                        <div style={{ marginBottom: "12px" }}>
+                            <label style={{
+                                display: "block",
+                                marginBottom: "6px",
+                                color: "#e4e4e7",
+                                fontSize: "12px",
+                                fontWeight: 500
+                            }}>
+                                Preprocessor:
+                            </label>
+                            <select
+                                value={sketchPreprocessor}
+                                onChange={(e) => setSketchPreprocessor(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    backgroundColor: "#2d2d35",
+                                    color: "#e4e4e7",
+                                    fontSize: "13px",
+                                    cursor: "pointer",
+                                    outline: "none",
+                                }}
+                            >
+                                <option value="HED">HED (Soft edges — best for rough sketches)</option>
+                                <option value="None">None (Direct — best for clean line art)</option>
+                            </select>
+                        </div>
+
+                        {/* Resolution */}
+                        <div style={{ marginBottom: "12px" }}>
+                            <label style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                marginBottom: "6px",
+                                color: "#e4e4e7",
+                                fontSize: "12px",
+                                fontWeight: 500
+                            }}>
+                                <span>Image Resolution</span>
+                                <span style={{ color: "#a5b4fc" }}>{sketchResolution}px</span>
+                            </label>
+                            <input
+                                type="range"
+                                min={256}
+                                max={768}
+                                step={128}
+                                value={sketchResolution}
+                                onChange={(e) => setSketchResolution(Number(e.target.value))}
+                                style={{ width: "100%", accentColor: "#6366f1" }}
+                            />
+                        </div>
+
+                        {/* Steps & Guidance in a row */}
+                        <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    marginBottom: "6px",
+                                    color: "#e4e4e7",
+                                    fontSize: "12px",
+                                    fontWeight: 500
+                                }}>
+                                    <span>Steps</span>
+                                    <span style={{ color: "#a5b4fc" }}>{sketchSteps}</span>
+                                </label>
+                                <input
+                                    type="range"
+                                    min={10}
+                                    max={40}
+                                    step={5}
+                                    value={sketchSteps}
+                                    onChange={(e) => setSketchSteps(Number(e.target.value))}
+                                    style={{ width: "100%", accentColor: "#6366f1" }}
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    marginBottom: "6px",
+                                    color: "#e4e4e7",
+                                    fontSize: "12px",
+                                    fontWeight: 500
+                                }}>
+                                    <span>Guidance</span>
+                                    <span style={{ color: "#a5b4fc" }}>{sketchGuidance}</span>
+                                </label>
+                                <input
+                                    type="range"
+                                    min={1}
+                                    max={20}
+                                    step={0.5}
+                                    value={sketchGuidance}
+                                    onChange={(e) => setSketchGuidance(Number(e.target.value))}
+                                    style={{ width: "100%", accentColor: "#6366f1" }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Seed */}
+                        <div style={{ marginBottom: "4px" }}>
+                            <label style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                marginBottom: "6px",
+                                color: "#e4e4e7",
+                                fontSize: "12px",
+                                fontWeight: 500
+                            }}>
+                                <span>Seed</span>
+                                <button
+                                    onClick={() => setSketchSeed(Math.floor(Math.random() * 2147483647))}
+                                    style={{
+                                        padding: "2px 8px",
+                                        borderRadius: "4px",
+                                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                                        backgroundColor: "transparent",
+                                        color: "#9ca3af",
+                                        cursor: "pointer",
+                                        fontSize: "11px",
+                                    }}
+                                >
+                                    🎲 Random
+                                </button>
+                            </label>
+                            <input
+                                type="number"
+                                min={0}
+                                max={2147483647}
+                                value={sketchSeed}
+                                onChange={(e) => setSketchSeed(Number(e.target.value))}
+                                style={{
+                                    width: "100%",
+                                    padding: "8px 12px",
+                                    borderRadius: "8px",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                                    color: "#e4e4e7",
+                                    fontSize: "13px",
+                                    outline: "none",
+                                    boxSizing: "border-box",
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
 
@@ -1111,7 +1574,9 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 }}>
                     {activeTab === "diagram"
                         ? "Powered by Mermaid-to-Excalidraw"
-                        : "Powered by Stable Diffusion XL • May take 10-30 seconds"
+                        : activeTab === "sketch"
+                            ? "Powered by ControlNet v1.1 Scribble • May take 30-60 seconds"
+                            : "Powered by Stable Diffusion XL • May take 10-30 seconds"
                     }
                 </div>
             </div>

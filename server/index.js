@@ -221,6 +221,159 @@ app.post("/api/ai/generate-image", async (req, res) => {
     }
 });
 
+// ==== ControlNet v1.1 Sketch-to-Image Endpoint ====
+const CONTROLNET_SPACE = process.env.CONTROLNET_SPACE || "hysts/ControlNet-v1-1";
+
+app.post("/api/ai/sketch-to-image", async (req, res) => {
+    try {
+        const {
+            prompt,
+            imageBase64,
+            width = 512,
+            height = 512,
+            pipeline = "scribble",
+            image_resolution = 512,
+            num_steps = 20,
+            guidance_scale = 9,
+            seed = 0,
+            preprocessor_name = "HED",
+        } = req.body;
+
+        // Validate the pipeline
+        const VALID_PIPELINES = ["scribble", "canny", "softedge", "lineart", "depth", "normal", "mlsd", "segmentation"];
+        const selectedPipeline = VALID_PIPELINES.includes(pipeline) ? pipeline : "scribble";
+
+        if (!prompt) {
+            return res.status(400).json({ error: "Prompt is required" });
+        }
+
+        if (!imageBase64) {
+            return res.status(400).json({ error: "Sketch image is required" });
+        }
+
+        console.log(`[AI Sketch] Generating image with ControlNet /${selectedPipeline}...`);
+        console.log(`[AI Sketch] Prompt: "${prompt}"`);
+        console.log(`[AI Sketch] Settings: resolution=${image_resolution}, steps=${num_steps}, guidance=${guidance_scale}, seed=${seed}, preprocessor=${preprocessor_name}`);
+
+        // Convert base64 to a Blob for the Gradio client
+        const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+        const buffer = Buffer.from(base64Data, "base64");
+        const sketchBlob = new Blob([buffer], { type: "image/png" });
+
+        // Connect to the ControlNet v1.1 Gradio Space
+        const { Client } = await import("@gradio/client");
+        const client = await Client.connect(CONTROLNET_SPACE, {
+            hf_token: process.env.HF_TOKEN || undefined,
+        });
+
+        // Call the selected pipeline endpoint with all parameters
+        const endpoint = `/${selectedPipeline}`;
+        const result = await client.predict(endpoint, {
+            image: sketchBlob,
+            prompt: prompt,
+            additional_prompt: "best quality, extremely detailed",
+            negative_prompt: "longbody, lowres, bad anatomy, bad hands, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality",
+            num_images: 1,
+            image_resolution: image_resolution,
+            preprocess_resolution: 512,
+            num_steps: num_steps,
+            guidance_scale: guidance_scale,
+            seed: seed,
+            preprocessor_name: preprocessor_name,
+        });
+
+        // Log the full result structure so we can debug extraction
+        console.log(`[AI Sketch] ControlNet returned result. data length: ${result.data?.length}`);
+        for (let i = 0; i < (result.data?.length || 0); i++) {
+            const item = result.data[i];
+            if (Array.isArray(item)) {
+                console.log(`[AI Sketch]   data[${i}]: array of ${item.length} items`);
+                item.forEach((sub, j) => {
+                    const url = sub?.image?.url || sub?.url || (typeof sub === 'string' ? sub : '?');
+                    console.log(`[AI Sketch]     [${j}]: ${typeof sub === 'object' ? JSON.stringify(Object.keys(sub || {})) : typeof sub} → ${String(url).substring(0, 80)}`);
+                });
+            } else if (item && typeof item === 'object') {
+                const url = item?.image?.url || item?.url || '?';
+                console.log(`[AI Sketch]   data[${i}]: object keys=${JSON.stringify(Object.keys(item))} → ${String(url).substring(0, 80)}`);
+            } else {
+                console.log(`[AI Sketch]   data[${i}]: ${typeof item} = ${String(item).substring(0, 80)}`);
+            }
+        }
+
+        // ControlNet /scribble returns:
+        //   data[0] = gallery array: [preprocessed_scribble, ...generated_images]
+        //   OR data[0] = gallery, data[1] = preprocessed image separately
+        // We want the GENERATED image, not the preprocessed scribble.
+
+        let imageUrl = null;
+
+        const gallery = result.data?.[0];
+        if (Array.isArray(gallery) && gallery.length > 0) {
+            // Gallery with multiple items: last item(s) are generated, first is usually the preprocessed
+            // Take the LAST image in the gallery (the generated result)
+            const generatedItem = gallery.length > 1 ? gallery[gallery.length - 1] : gallery[0];
+            imageUrl = generatedItem?.image?.url || generatedItem?.url || generatedItem;
+        } else if (gallery && typeof gallery === 'object') {
+            // Single gallery item (as object, not array)
+            imageUrl = gallery?.image?.url || gallery?.url || gallery;
+        }
+
+        // If data[1] exists and looks like an image, it might be the generated result
+        // (some Gradio spaces put the preprocessed in data[0] and generated in data[1])
+        if (result.data?.length > 1) {
+            const altResult = result.data[1];
+            if (Array.isArray(altResult) && altResult.length > 0) {
+                // data[1] is also a gallery - use its last item
+                const altItem = altResult[altResult.length - 1];
+                const altUrl = altItem?.image?.url || altItem?.url || altItem;
+                if (altUrl && typeof altUrl === 'string' && altUrl.includes('/')) {
+                    console.log(`[AI Sketch] Found alternative result in data[1]`);
+                    imageUrl = altUrl;
+                }
+            } else if (altResult && typeof altResult === 'object') {
+                const altUrl = altResult?.image?.url || altResult?.url;
+                if (altUrl && typeof altUrl === 'string') {
+                    console.log(`[AI Sketch] Found alternative result in data[1] (object)`);
+                    imageUrl = altUrl;
+                }
+            }
+        }
+
+        if (!imageUrl || typeof imageUrl !== "string") {
+            console.error("[AI Sketch] Could not extract image URL. Full result:", JSON.stringify(result.data));
+            throw new Error("Could not extract image URL from ControlNet result");
+        }
+
+        // Fetch the generated image and convert to base64 data URL
+        console.log(`[AI Sketch] Fetching generated image from: ${imageUrl.substring(0, 120)}...`);
+        const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+            throw new Error(`Failed to fetch generated image: ${imageResponse.status}`);
+        }
+
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString("base64");
+        const contentType = imageResponse.headers.get("content-type") || "image/png";
+        const dataUrl = `data:${contentType};base64,${base64}`;
+
+        console.log(`[AI Sketch] Successfully generated image (${Math.round(base64.length / 1024)} KB)`);
+
+        res.json({
+            success: true,
+            imageUrl: dataUrl,
+            width: image_resolution,
+            height: image_resolution,
+            prompt,
+        });
+    } catch (error) {
+        console.error("[AI Sketch] Error generating image from sketch:", error);
+        res.status(500).json({
+            error: "Failed to generate image from sketch",
+            message: error.message,
+        });
+    }
+});
+
 // ==== PaddleOCR-VL OCR Endpoint ====
 const PADDLEOCR_SERVER = process.env.PADDLEOCR_SERVER_URL;
 const PADDLEOCR_TOKEN = process.env.PADDLEOCR_ACCESS_TOKEN;
