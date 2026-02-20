@@ -6,7 +6,11 @@
  * - Branded type helpers for Excalidraw interop
  * - Utility types for component props
  */
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawImperativeAPI, DataURL } from "@excalidraw/excalidraw/types";
+import type { FileId } from "@excalidraw/excalidraw/element/types";
+
+/** Excalidraw's fractional index type (branded string) */
+type FractionalIndex = string & { _brand: "FractionalIndex" };
 
 // ─── Tab System ──────────────────────────────────────────────────────────────
 
@@ -34,23 +38,23 @@ export const TAB_GENERATE_LABELS: Record<GeneratableTab, string> = {
  * Excalidraw uses `string & { _brand: "FileId" }` which prevents direct assignment.
  * This helper makes the intent explicit and centralizes the single cast.
  */
-export function toFileId(id: string): any {
-    return id;
+export function toFileId(id: string): FileId {
+    return id as unknown as FileId;
 }
 
 /**
  * Cast a data URL string to Excalidraw's branded `DataURL` type.
  * Excalidraw uses `string & { _brand: "DataURL" }` which prevents direct assignment.
  */
-export function toDataURL(url: string): any {
-    return url;
+export function toDataURL(url: string): DataURL {
+    return url as unknown as DataURL;
 }
 
 /**
  * Cast an index string for Excalidraw's fractional indexing system.
  */
-export function toFractionalIndex(index: string): any {
-    return index;
+export function toFractionalIndex(index: string): FractionalIndex {
+    return index as unknown as FractionalIndex;
 }
 
 // ─── Image Canvas Options ────────────────────────────────────────────────────
