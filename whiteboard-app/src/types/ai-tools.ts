@@ -110,6 +110,10 @@ export interface AIToolsDialogProps {
     onClose: () => void;
     excalidrawAPI: ExcalidrawImperativeAPI | null;
     initialTab?: InitialAITab;
+    /** Incoming voice command from App-level — triggers auto-execution */
+    voiceCommand?: { tool: string; prompt: string; style?: string } | null;
+    /** Called when the voice command has been consumed */
+    onVoiceCommandDone?: () => void;
 }
 
 // ─── History Types (re-export from data layer) ───────────────────────────────

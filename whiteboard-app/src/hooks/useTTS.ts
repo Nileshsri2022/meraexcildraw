@@ -48,13 +48,6 @@ export function useTTS(
         return () => { cancelled = true; };
     }, [isActive, voices.length, voice]);
 
-    // Auto-read clipboard when tab opens
-    useEffect(() => {
-        if (!isActive) return;
-        navigator.clipboard.readText()
-            .then((t) => { if (t?.trim()) setText(t); })
-            .catch(() => { /* clipboard may not be available */ });
-    }, [isActive]);
 
     const speak = useCallback(async () => {
         if (!text.trim()) {

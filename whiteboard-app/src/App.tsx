@@ -12,6 +12,8 @@ import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/ty
 import { useCollaboration } from "./collab";
 import { AIToolsDialog } from "./components/AIToolsDialog";
 import { useAutoSave, SaveStatus } from "./hooks/useAutoSave";
+import { useVoiceCommand } from "./hooks/useVoiceCommand";
+import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
 
 const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -19,6 +21,9 @@ const App: React.FC = () => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Voice command state: stores the classified command to pass to AIToolsDialog
+    const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommandResult | null>(null);
 
     // Auto-save hook
     const { saveStatus, lastSaved, triggerSave, clearSavedData, loadSavedData } = useAutoSave({
@@ -35,6 +40,29 @@ const App: React.FC = () => {
         onPointerUpdate,
         onSceneChange,
     } = useCollaboration({ excalidrawAPI });
+
+    // ─── Voice Command System ────────────────────────────────────────
+    const handleVoiceCommand = useCallback((result: VoiceCommandResult) => {
+        // Store the command and open the dialog — the dialog will auto-execute it
+        setPendingVoiceCommand(result);
+        setIsAIToolsOpen(true);
+        setIsDropdownOpen(false);
+    }, []);
+
+    const handleVoiceError = useCallback((msg: string) => {
+        console.error("[VoiceCommand]", msg);
+        // Could show a toast here in the future
+    }, []);
+
+    const voiceCmd = useVoiceCommand({
+        onCommand: handleVoiceCommand,
+        onError: handleVoiceError,
+    });
+
+    const handleVoiceCommandDone = useCallback(() => {
+        setPendingVoiceCommand(null);
+        voiceCmd.resetPhase();
+    }, [voiceCmd.resetPhase]);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -54,17 +82,12 @@ const App: React.FC = () => {
                 if (savedData && savedData.elements.length > 0) {
                     // Add files first before updating scene
                     if (savedData.files && Object.keys(savedData.files).length > 0) {
-                        // Files are stored as plain objects; cast through BinaryFileData[]
-                        // since branded types (FileId, DataURL) lose brands in IndexedDB
                         excalidrawAPI.addFiles(
                             Object.values(savedData.files) as unknown as BinaryFileData[]
                         );
                     }
                     excalidrawAPI.updateScene({
                         elements: savedData.elements as OrderedExcalidrawElement[],
-                        // Excalidraw updateScene expects full AppState but we only persist
-                        // a subset (viewBackgroundColor, zoom, scroll, theme). The cast
-                        // is safe because Excalidraw merges partial state internally.
                         appState: savedData.appState as unknown as AppState,
                     });
                     console.log('[App] Restored saved scene with files');
@@ -88,9 +111,7 @@ const App: React.FC = () => {
     const handleChange = useCallback(
         (elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
             onSceneChange(elements);
-            // Trigger auto-save (debounced) - only when not collaborating
             if (initialDataLoaded && !isCollaborating) {
-                // Cast: AppState → Record for generic persistence layer
                 triggerSave(elements, appState as unknown as Record<string, unknown>, files as unknown as Record<string, unknown>);
             }
         },
@@ -112,6 +133,9 @@ const App: React.FC = () => {
             {/* Dropdown Menu */}
             {isDropdownOpen && (
                 <div className="cosmic-dropdown">
+                    {/* ─── AI Section ─── */}
+                    <div className="cosmic-dropdown-label">AI</div>
+
                     {/* AI Tools */}
                     <button
                         className="cosmic-dropdown-item"
@@ -127,10 +151,64 @@ const App: React.FC = () => {
                                 <path d="M2 12l10 5 10-5" />
                             </svg>
                         </span>
-                        AI Tools
+                        <span>
+                            AI Tools
+                            <span className="item-desc">Image, diagram, sketch, OCR & TTS</span>
+                        </span>
+                    </button>
+
+                    {/* Voice Command — Hero item */}
+                    <button
+                        className={[
+                            "cosmic-dropdown-item",
+                            "cosmic-dropdown-item--voice",
+                            voiceCmd.isRecording && "cosmic-dropdown-item--recording",
+                            voiceCmd.isBusy && "cosmic-dropdown-item--busy",
+                        ].filter(Boolean).join(" ")}
+                        onClick={() => {
+                            if (voiceCmd.isRecording) {
+                                voiceCmd.stopListening();
+                            } else if (!voiceCmd.isBusy) {
+                                voiceCmd.startListening();
+                                setIsDropdownOpen(false);
+                            }
+                        }}
+                        disabled={voiceCmd.isBusy}
+                    >
+                        <span className="item-icon">
+                            {voiceCmd.isRecording ? (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="4" y="4" width="16" height="16" rx="3" />
+                                </svg>
+                            ) : (
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                    <line x1="12" y1="19" x2="12" y2="23" />
+                                    <line x1="8" y1="23" x2="16" y2="23" />
+                                </svg>
+                            )}
+                        </span>
+                        <span>
+                            {voiceCmd.isRecording
+                                ? `Listening… ${voiceCmd.duration}s`
+                                : voiceCmd.isBusy
+                                    ? voiceCmd.phaseLabel
+                                    : "Voice Command"}
+                            <span className="item-desc">
+                                {voiceCmd.isRecording
+                                    ? "Click to stop recording"
+                                    : voiceCmd.isBusy
+                                        ? "Processing your command…"
+                                        : "Speak to create anything"}
+                            </span>
+                        </span>
                     </button>
 
                     <div className="cosmic-dropdown-divider" />
+
+                    {/* ─── Workspace Section ─── */}
+                    <div className="cosmic-dropdown-label">Workspace</div>
 
                     {/* Collaboration */}
                     <button
@@ -143,7 +221,12 @@ const App: React.FC = () => {
                                 <circle cx="12" cy="12" r="4" fill={isCollaborating ? "#ef4444" : "#22c55e"} />
                             </svg>
                         </span>
-                        {isCollaborating ? "Stop Collaboration" : "Start Collaboration"}
+                        <span>
+                            {isCollaborating ? "Stop Collaboration" : "Start Collaboration"}
+                            <span className="item-desc">
+                                {isCollaborating ? "Disconnect from live session" : "Real-time editing with others"}
+                            </span>
+                        </span>
                     </button>
 
                     {/* Copy Room Link (when collaborating) */}
@@ -189,6 +272,27 @@ const App: React.FC = () => {
                                 Clear Local Data
                             </button>
                         </>
+                    )}
+                </div>
+            )}
+
+            {/* ─── Floating Voice Status Pill (visible when recording/processing) ─── */}
+            {!isDropdownOpen && !voiceCmd.isIdle && (
+                <div className="voice-status-pill">
+                    <div className={`voice-status-dot${voiceCmd.isRecording ? " voice-status-dot--recording" : " voice-status-dot--busy"}`} />
+                    <span className="voice-status-text">
+                        {voiceCmd.isRecording
+                            ? `Listening… ${voiceCmd.duration}s`
+                            : voiceCmd.phaseLabel}
+                    </span>
+                    {voiceCmd.isRecording && (
+                        <button
+                            className="voice-status-stop"
+                            onClick={voiceCmd.stopListening}
+                            title="Stop listening"
+                        >
+                            ■
+                        </button>
                     )}
                 </div>
             )}
@@ -262,6 +366,8 @@ const App: React.FC = () => {
                 isOpen={isAIToolsOpen}
                 onClose={() => setIsAIToolsOpen(false)}
                 excalidrawAPI={excalidrawAPI}
+                voiceCommand={pendingVoiceCommand}
+                onVoiceCommandDone={handleVoiceCommandDone}
             />
         </div>
     );

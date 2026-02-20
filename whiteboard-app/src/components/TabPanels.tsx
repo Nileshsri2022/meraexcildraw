@@ -1,6 +1,69 @@
 import React from "react";
-import { FormLabel, FormTextarea, FormSelect, FormSlider, FormInput, InfoBanner } from "./FormComponents";
+import { FormLabel, FormTextarea, FormSelect, FormSlider, FormInput } from "./FormComponents";
 import { LAYOUT } from "../constants/theme";
+
+// ─── Mic SVG Icons ───────────────────────────────────────────────────────────
+
+const MicIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+        <line x1="12" y1="19" x2="12" y2="23" />
+        <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+);
+
+const StopIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+    </svg>
+);
+
+const SpinnerIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+);
+
+// ─── Voice Mic Button ────────────────────────────────────────────────────────
+
+interface VoiceMicButtonProps {
+    isRecording: boolean;
+    isTranscribing: boolean;
+    duration: number;
+    onStart: () => void;
+    onStop: () => void;
+}
+
+const VoiceMicButton = ({ isRecording, isTranscribing, duration, onStart, onStop }: VoiceMicButtonProps) => {
+    const formatDuration = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+    const btnClass = [
+        "voice-mic-btn",
+        isRecording && "voice-mic-btn--recording",
+        isTranscribing && "voice-mic-btn--transcribing",
+    ].filter(Boolean).join(" ");
+
+    return (
+        <div className="voice-mic-container">
+            <button
+                className={btnClass}
+                onClick={isRecording ? onStop : onStart}
+                disabled={isTranscribing}
+                title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : "Voice input — speak your prompt"}
+                type="button"
+            >
+                {isTranscribing ? <SpinnerIcon /> : isRecording ? <StopIcon /> : <MicIcon />}
+            </button>
+            {isRecording && (
+                <span className="voice-mic-duration">{formatDuration(duration)}</span>
+            )}
+            {isTranscribing && (
+                <span className="voice-mic-status">Transcribing...</span>
+            )}
+        </div>
+    );
+};
 
 // ─── Shared Props ────────────────────────────────────────────────────────────
 
@@ -8,20 +71,40 @@ interface PromptSectionProps {
     activeTab: "diagram" | "image" | "sketch";
     prompt: string;
     setPrompt: (val: string) => void;
+    /** Voice recorder state (optional — mic hidden if not provided) */
+    voice?: {
+        isRecording: boolean;
+        isTranscribing: boolean;
+        duration: number;
+        startRecording: () => void;
+        stopRecording: () => void;
+    };
 }
 
 /**
  * Prompt textarea shared by Diagram, Image, and Sketch tabs.
+ * Includes an optional mic button for voice-to-prompt.
  */
-export const PromptSection = ({ activeTab, prompt, setPrompt }: PromptSectionProps) => (
+export const PromptSection = ({ activeTab, prompt, setPrompt, voice }: PromptSectionProps) => (
     <div style={{ marginBottom: "14px", maxWidth: LAYOUT.formMaxWidth }}>
-        <FormLabel>
-            {activeTab === "diagram"
-                ? "Describe your diagram:"
-                : activeTab === "image"
-                    ? "✨ Your Prompt:"
-                    : "Describe the final image style:"}
-        </FormLabel>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <FormLabel>
+                {activeTab === "diagram"
+                    ? "Describe your diagram:"
+                    : activeTab === "image"
+                        ? "✨ Your Prompt:"
+                        : "Describe the final image style:"}
+            </FormLabel>
+            {voice && (
+                <VoiceMicButton
+                    isRecording={voice.isRecording}
+                    isTranscribing={voice.isTranscribing}
+                    duration={voice.duration}
+                    onStart={voice.startRecording}
+                    onStop={voice.stopRecording}
+                />
+            )}
+        </div>
         <FormTextarea
             value={prompt}
             onChange={setPrompt}
@@ -52,9 +135,6 @@ export const ImageSettings = ({
     imgRandomSeed, setImgRandomSeed,
 }: ImageSettingsProps) => (
     <div style={{ marginBottom: "14px", maxWidth: LAYOUT.formMaxWidth }}>
-        <InfoBanner color="amber">
-            ⚡ <strong>Z-Image-Turbo</strong> — Ultra-fast AI image generation. Generate stunning images in just 8 steps.
-        </InfoBanner>
 
         <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
             <div style={{ flex: 1 }}>
@@ -105,9 +185,6 @@ export const SketchSettings = ({
     sketchSeed, setSketchSeed,
 }: SketchSettingsProps) => (
     <div style={{ marginBottom: "14px", maxWidth: LAYOUT.formMaxWidth }}>
-        <InfoBanner color="indigo">
-            💡 <strong>ControlNet</strong> — Draw a sketch on the canvas, choose a pipeline, then describe what you want. The AI preserves your sketch's structure.
-        </InfoBanner>
 
         <div style={{ marginBottom: "12px" }}>
             <FormLabel>Pipeline:</FormLabel>

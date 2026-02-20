@@ -44,6 +44,14 @@ export interface OCRResponse {
     text?: string;
 }
 
+/** Voice Command classification response */
+export interface VoiceCommandResponse {
+    success: boolean;
+    tool: "image" | "diagram" | "sketch" | "tts" | "ocr";
+    prompt: string;
+    style?: string;
+}
+
 /** TTS voices API response */
 export interface VoicesResponse {
     voices: Array<{ voice_id: string; name: string; category: string }>;
@@ -115,5 +123,7 @@ export type AIEndpoint =
     | "/api/ai/generate-diagram"
     | "/api/ai/generate-image"
     | "/api/ai/ocr"
+    | "/api/ai/speech-to-text"
+    | "/api/ai/voice-command"
     | "/api/ai/tts/voices"
     | "/api/ai/tts/speak";

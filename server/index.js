@@ -535,6 +535,118 @@ app.post("/api/ai/speech-to-text", async (req, res) => {
     }
 });
 
+// ==== AI Voice Command — Intent Classification ====
+app.post("/api/ai/voice-command", async (req, res) => {
+    try {
+        const { transcript } = req.body;
+
+        if (!transcript || !transcript.trim()) {
+            return res.status(400).json({ error: "Transcript is required" });
+        }
+
+        if (!process.env.HF_TOKEN) {
+            return res.status(500).json({ error: "HF_TOKEN not configured" });
+        }
+
+        console.log(`[Voice Command] Classifying: "${transcript}"`);
+
+        const classifyPrompt = `You are a voice command classifier for a whiteboard drawing application.
+
+The application has these AI tools:
+1. "image" — Generate an image from a text description. Use when the user wants to create, draw, generate, or make a picture/photo/illustration/image from scratch (no existing sketch needed).
+2. "diagram" — Generate a diagram (flowchart, sequence, class, mindmap). Use when the user wants to create a diagram, flowchart, chart, mind map, or any structured visual.
+3. "sketch" — Convert a hand-drawn sketch on the canvas into a realistic image using ControlNet. Use when the user mentions their sketch, drawing, or doodle on the canvas and wants to transform/convert/enhance it into a real image.
+4. "tts" — Text to speech. Use when the user wants to hear something spoken aloud, read text, or convert text to audio.
+5. "ocr" — Extract text from an image on the canvas. Use when the user wants to read, extract, or recognize text from the canvas.
+
+Given the user's voice command, respond with ONLY a JSON object (no markdown, no explanation):
+{
+  "tool": "image" | "diagram" | "sketch" | "tts" | "ocr",
+  "prompt": "the cleaned prompt to pass to the tool (remove command words like 'draw', 'create', 'generate', 'make')",
+  "style": "flowchart" | "sequence" | "class" | "mindmap" (only if tool is "diagram", pick the best type based on the request)
+}
+
+Examples:
+- "draw an apple" → {"tool":"image","prompt":"an apple"}
+- "generate a picture of a sunset" → {"tool":"image","prompt":"a sunset"}
+- "create a flowchart for login flow" → {"tool":"diagram","prompt":"login flow","style":"flowchart"}
+- "make a sequence diagram for API calls" → {"tool":"diagram","prompt":"API calls","style":"sequence"}
+- "convert my sketch to a real image of a cat" → {"tool":"sketch","prompt":"a cat"}
+- "transform this drawing into a realistic house" → {"tool":"sketch","prompt":"a realistic house"}
+- "turn my doodle into a landscape" → {"tool":"sketch","prompt":"a landscape"}
+- "enhance my sketch" → {"tool":"sketch","prompt":"enhanced realistic version"}
+- "read the text on screen" → {"tool":"ocr","prompt":""}
+- "say hello world" → {"tool":"tts","prompt":"hello world"}
+- "draw a class diagram for a shopping cart system" → {"tool":"diagram","prompt":"shopping cart system","style":"class"}
+- "create a mind map about machine learning" → {"tool":"diagram","prompt":"machine learning","style":"mindmap"}
+- "generate an image of a cyberpunk city" → {"tool":"image","prompt":"a cyberpunk city"}
+
+IMPORTANT: Respond with ONLY the JSON, nothing else.`;
+
+        const response = await hf.chatCompletion({
+            model: MODEL,
+            messages: [
+                { role: "system", content: classifyPrompt },
+                { role: "user", content: transcript.trim() },
+            ],
+            max_tokens: 200,
+            temperature: 0.1,
+        });
+
+        let rawContent = response.choices[0]?.message?.content?.trim() || "";
+
+        // Clean up — remove think tags and markdown code blocks
+        rawContent = rawContent
+            .replace(/<think>[\s\S]*?<\/think>/g, "")
+            .replace(/```json\n?/g, "")
+            .replace(/```\n?/g, "")
+            .trim();
+
+        console.log(`[Voice Command] Raw classification: ${rawContent}`);
+
+        let classification;
+        try {
+            classification = JSON.parse(rawContent);
+        } catch {
+            console.error(`[Voice Command] Failed to parse JSON: ${rawContent}`);
+            // Fallback: keyword-based classification
+            const lower = transcript.toLowerCase();
+            if (lower.includes("diagram") || lower.includes("flowchart") || lower.includes("chart") || lower.includes("mind map")) {
+                classification = { tool: "diagram", prompt: transcript, style: "flowchart" };
+            } else if (lower.includes("sketch") || lower.includes("doodle") || lower.includes("convert my drawing") || lower.includes("transform") || lower.includes("enhance my")) {
+                classification = { tool: "sketch", prompt: transcript };
+            } else if (lower.includes("read") || lower.includes("extract") || lower.includes("ocr") || lower.includes("recognize")) {
+                classification = { tool: "ocr", prompt: "" };
+            } else if (lower.includes("speak") || lower.includes("say") || lower.includes("read aloud") || lower.includes("text to speech")) {
+                classification = { tool: "tts", prompt: transcript };
+            } else {
+                classification = { tool: "image", prompt: transcript };
+            }
+        }
+
+        // Validate tool
+        const validTools = ["image", "diagram", "sketch", "tts", "ocr"];
+        if (!validTools.includes(classification.tool)) {
+            classification.tool = "image";
+        }
+
+        console.log(`[Voice Command] Result: tool=${classification.tool}, prompt="${classification.prompt}", style=${classification.style || "n/a"}`);
+
+        res.json({
+            success: true,
+            tool: classification.tool,
+            prompt: classification.prompt || "",
+            style: classification.style || "flowchart",
+        });
+    } catch (error) {
+        console.error("[Voice Command] Error:", error);
+        res.status(500).json({
+            error: "Failed to classify voice command",
+            message: error.message,
+        });
+    }
+});
+
 // ==== ElevenLabs Get Voices Endpoint ====
 app.get("/api/ai/voices", async (req, res) => {
     try {

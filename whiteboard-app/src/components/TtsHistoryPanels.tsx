@@ -1,5 +1,5 @@
 import React from "react";
-import { FormLabel, FormTextarea, FormSelect, InfoBanner } from "./FormComponents";
+import { FormLabel, FormTextarea, FormSelect } from "./FormComponents";
 import type { AIHistoryEntry, AIHistoryType } from "../types/ai-tools";
 
 // ─── TTS Tab Panel ───────────────────────────────────────────────────────────
@@ -23,10 +23,6 @@ interface TtsTabPanelProps {
 export const TtsTabPanel = ({ tts, loading }: TtsTabPanelProps) => (
     <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
         <audio ref={tts.audioRef} style={{ display: "none" }} />
-
-        <InfoBanner color="indigo">
-            💡 <strong>Tip:</strong> Copy text from canvas (Ctrl+C), then open this tab. Text will auto-fill.
-        </InfoBanner>
 
         <FormLabel>Text to speak:</FormLabel>
         <FormTextarea

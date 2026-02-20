@@ -1,14 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import "katex/dist/katex.min.css";
 import { useBlockExcalidrawKeys } from "../hooks/useBlockExcalidrawKeys";
 import { useAIHistory } from "../hooks/useAIHistory";
 import { useTTS } from "../hooks/useTTS";
 import { useAIGeneration } from "../hooks/useAIGeneration";
+import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import type { AITab, AIToolsDialogProps } from "../types/ai-tools";
 
 // ─── Extracted UI Components ───
 import { IconDiagram, IconImage, IconSketch, IconOCR, IconTTS, IconHistory } from "./Icons";
-import { FormLabel, FormTextarea, FormSelect, FormSlider, FormInput, InfoBanner } from "./FormComponents";
+import { FormLabel, FormTextarea, FormSelect, FormSlider, FormInput } from "./FormComponents";
 import { PromptSection, ImageSettings, SketchSettings, DiagramSettings } from "./TabPanels";
 import { TtsTabPanel, HistoryTabPanel } from "./TtsHistoryPanels";
 import { OcrTabPanel } from "./OcrTabPanel";
@@ -28,7 +29,9 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     isOpen,
     onClose,
     excalidrawAPI,
-    initialTab = "diagram"
+    initialTab = "diagram",
+    voiceCommand,
+    onVoiceCommandDone,
 }) => {
     const [activeTab, setActiveTab] = useState<AITab>(initialTab);
     const { history: filteredHistory, allHistory, filter: historyFilter, setFilter: setHistoryFilter, deleteEntry: deleteHistoryEntry, clearAll: clearAllHistory } = useAIHistory(activeTab === "history" && isOpen);
@@ -36,8 +39,84 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     // All generation logic extracted into a single hook
     const gen = useAIGeneration(excalidrawAPI, onClose);
 
-    // Text-to-Speech
+    // Per-tab voice-to-prompt (simple STT → fills textarea)
+    const handleTranscript = useCallback(
+        (text: string) => gen.setPrompt((prev: string) => prev ? `${prev} ${text}` : text),
+        [gen.setPrompt],
+    );
+    const handleVoiceError = useCallback(
+        (msg: string) => gen.setError(msg),
+        [gen.setError],
+    );
+    const voice = useVoiceRecorder({
+        onTranscript: handleTranscript,
+        onError: handleVoiceError,
+    });
+
+    // ─── Incoming Voice Command (from App.tsx) ────────────────────────
+    // Ref to always access the latest gen functions (avoids stale closures)
+    const genRef = useRef(gen);
+    genRef.current = gen;
+
+    // Text-to-Speech — must be initialized before voice command effect
     const tts = useTTS(activeTab === "tts" && isOpen, gen.setLoading, gen.setError);
+    const ttsRef = useRef(tts);
+    ttsRef.current = tts;
+
+    useEffect(() => {
+        if (!voiceCommand) return;
+
+        // Step 1: Switch to the correct tab
+        const tabMap: Record<string, AITab> = {
+            image: "image",
+            diagram: "diagram",
+            sketch: "sketch",
+            tts: "tts",
+            ocr: "ocr",
+        };
+        const targetTab = tabMap[voiceCommand.tool] || "image";
+        setActiveTab(targetTab);
+
+        // Step 2: Set the prompt (for non-TTS tools)
+        if (voiceCommand.tool === "tts") {
+            // TTS has its own separate text state
+            tts.setText(voiceCommand.prompt || "");
+        } else if (voiceCommand.prompt) {
+            gen.setPrompt(voiceCommand.prompt);
+        }
+
+        // Step 3: Set diagram style if applicable
+        if (voiceCommand.tool === "diagram" && voiceCommand.style) {
+            gen.setStyle(voiceCommand.style);
+        }
+
+        gen.setError(null);
+
+        // Step 4: Auto-execute after state settles
+        // TTS needs a longer delay because voices may need to load
+        const delay = voiceCommand.tool === "tts" ? 500 : 200;
+        const timer = setTimeout(() => {
+            const g = genRef.current;
+            const t = ttsRef.current;
+            const tool = voiceCommand.tool;
+
+            if (tool === "image") {
+                g.generateImage();
+            } else if (tool === "diagram") {
+                g.generateDiagram();
+            } else if (tool === "sketch") {
+                g.generateSketchImage();
+            } else if (tool === "ocr") {
+                g.performOcr();
+            } else if (tool === "tts") {
+                t.speak();
+            }
+
+            onVoiceCommandDone?.();
+        }, delay);
+
+        return () => clearTimeout(timer);
+    }, [voiceCommand]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleGenerate =
         activeTab === "diagram"
@@ -120,7 +199,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     </div>
 
                     {(activeTab === "diagram" || activeTab === "image" || activeTab === "sketch") && (
-                        <PromptSection activeTab={activeTab} prompt={gen.prompt} setPrompt={gen.setPrompt} />
+                        <PromptSection activeTab={activeTab} prompt={gen.prompt} setPrompt={gen.setPrompt} voice={voice} />
                     )}
 
                     {activeTab === "image" && (
@@ -215,4 +294,3 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
         </div>
     );
 };
-
