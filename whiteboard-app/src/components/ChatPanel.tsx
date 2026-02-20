@@ -75,7 +75,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     useEffect(() => {
         const lastMsg = chat.messages[chat.messages.length - 1];
         if (lastMsg?.role === "assistant" && lastMsg.html && !chat.isStreaming) {
-            const processedHtml = canvasActions.processMessage(lastMsg.id, lastMsg.html);
+            const processedHtml = canvasActions.processMessage(lastMsg.id, lastMsg.html, lastMsg.content);
             if (processedHtml !== lastMsg.html) {
                 // Update the message with processed HTML (canvas actions replaced by badge)
                 chat.updateMessageHtml(lastMsg.id, processedHtml);

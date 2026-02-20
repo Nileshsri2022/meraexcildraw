@@ -30,26 +30,53 @@ interface CanvasActionElement {
 
 // ─── Canvas Action Parser ────────────────────────────────────────────────────
 
-const CANVAS_ACTION_REGEX = /```canvas_action\s*\n([\s\S]*?)```/g;
+// Match raw markdown: ```canvas_action\n[...]\n```
+const RAW_REGEX = /```canvas_action\s*\n([\s\S]*?)```/g;
+
+// Match HTML rendered by Python's markdown lib: <pre><code class="language-canvas_action">...</code></pre>
+const HTML_REGEX = /<pre><code[^>]*class="[^"]*canvas_action[^"]*"[^>]*>([\s\S]*?)<\/code><\/pre>/g;
+
+// Match HTML entities that Python's markdown might escape
+function decodeHtmlEntities(text: string): string {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = text;
+    return textarea.value;
+}
 
 /**
  * Extract canvas_action JSON blocks from AI response text or HTML.
+ * Handles both raw markdown and rendered HTML formats.
  */
 export function parseCanvasActions(text: string): CanvasActionElement[][] {
     const actions: CanvasActionElement[][] = [];
+
+    // Try raw markdown format first
+    RAW_REGEX.lastIndex = 0;
     let match;
-
-    // Reset regex state
-    CANVAS_ACTION_REGEX.lastIndex = 0;
-
-    while ((match = CANVAS_ACTION_REGEX.exec(text)) !== null) {
+    while ((match = RAW_REGEX.exec(text)) !== null) {
         try {
             const parsed = JSON.parse(match[1]);
             if (Array.isArray(parsed)) {
                 actions.push(parsed);
             }
         } catch {
-            console.warn("[CanvasActions] Failed to parse action block:", match[1]);
+            console.warn("[CanvasActions] Failed to parse raw action block:", match[1]);
+        }
+    }
+
+    // Try HTML format (from Python markdown rendering)
+    if (actions.length === 0) {
+        HTML_REGEX.lastIndex = 0;
+        while ((match = HTML_REGEX.exec(text)) !== null) {
+            try {
+                const decoded = decodeHtmlEntities(match[1]);
+                const parsed = JSON.parse(decoded);
+                if (Array.isArray(parsed)) {
+                    actions.push(parsed);
+                }
+            } catch {
+                console.warn("[CanvasActions] Failed to parse HTML action block:", match[1]);
+            }
         }
     }
 
@@ -351,27 +378,33 @@ export function useCanvasActions(excalidrawAPI: any) {
 
     /**
      * Process a chat message — extract and execute any canvas actions.
-     * Returns the message text with canvas_action blocks removed for display.
+     * Returns the message HTML with canvas_action blocks replaced by a badge.
      */
-    const processMessage = useCallback((messageId: string, html: string): string => {
+    const processMessage = useCallback((messageId: string, html: string, rawContent?: string): string => {
         // Don't process the same message twice
         if (processedRef.current.has(messageId)) return html;
 
-        const actions = parseCanvasActions(html);
+        // Try parsing from raw content first (has original ```canvas_action blocks)
+        // Then fall back to HTML (has <pre><code class="language-canvas_action">)
+        const actions = rawContent
+            ? parseCanvasActions(rawContent)
+            : parseCanvasActions(html);
 
-        if (actions.length > 0) {
+        // If raw didn't find anything, try HTML
+        const finalActions = actions.length > 0 ? actions : parseCanvasActions(html);
+
+        if (finalActions.length > 0) {
             processedRef.current.add(messageId);
 
-            for (const actionGroup of actions) {
+            for (const actionGroup of finalActions) {
                 executeActions(actionGroup);
             }
 
             // Remove canvas_action blocks from displayed HTML
-            // They get rendered as <code> blocks in the HTML, so remove them
+            const badge = '<div class="canvas-action-badge">✅ Elements added to canvas!</div>';
             const cleaned = html
-                .replace(/```canvas_action\s*\n[\s\S]*?```/g, "")
-                .replace(/<pre><code class="language-canvas_action">[\s\S]*?<\/code><\/pre>/g,
-                    '<div class="canvas-action-badge">✅ Elements added to canvas!</div>');
+                .replace(/```canvas_action\s*\n[\s\S]*?```/g, badge)
+                .replace(/<pre><code[^>]*class="[^"]*canvas_action[^"]*"[^>]*>[\s\S]*?<\/code><\/pre>/g, badge);
 
             return cleaned;
         }
