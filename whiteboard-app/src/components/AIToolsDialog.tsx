@@ -8,6 +8,8 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../utils/mathJaxParser";
+import { saveAIResult, getAIHistory, deleteAIHistoryEntry, clearAIHistory } from "../data/LocalStorage";
+import type { AIHistoryEntry, AIHistoryType } from "../data/LocalStorage";
 
 interface AIToolsDialogProps {
     isOpen: boolean;
@@ -24,7 +26,9 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     excalidrawAPI,
     initialTab = "diagram"
 }) => {
-    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "tts" | "sketch">(initialTab as any);
+    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "tts" | "sketch" | "history">(initialTab as any);
+    const [history, setHistory] = useState<AIHistoryEntry[]>([]);
+    const [historyFilter, setHistoryFilter] = useState<AIHistoryType | "all">("all");
     const [prompt, setPrompt] = useState("");
     const [style, setStyle] = useState("flowchart");
     const [loading, setLoading] = useState(false);
@@ -252,6 +256,11 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 excalidrawAPI.scrollToContent(undefined, { fitToContent: true });
             }
 
+            // ── Save to history ──
+            if (data.imageUrl) {
+                saveAIResult({ type: "sketch", prompt, result: data.imageUrl, thumbnail: data.imageUrl, metadata: { pipeline: sketchPipeline, resolution: sketchResolution } }).catch(() => { });
+            }
+
             onClose();
             setPrompt("");
         } catch (err) {
@@ -297,6 +306,9 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 });
                 excalidrawAPI.scrollToContent(excalidrawElements, { fitToContent: true });
             }
+
+            // ── Save to history ──
+            saveAIResult({ type: "diagram", prompt, result: diagramCode, metadata: { style } }).catch(() => { });
 
             onClose();
             setPrompt("");
@@ -388,6 +400,11 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 excalidrawAPI.scrollToContent([imageElement as any], { fitToContent: true });
             }
 
+            // ── Save to history ──
+            if (data.imageUrl) {
+                saveAIResult({ type: "image", prompt, result: data.imageUrl, thumbnail: data.imageUrl, metadata: { width: imgWidth, height: imgHeight, steps: imgSteps, seed: data.seed } }).catch(() => { });
+            }
+
             onClose();
             setPrompt("");
         } catch (err) {
@@ -458,6 +475,9 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             processedText = normalizeLatexWithMathJax(processedText);
 
             setOcrResult(processedText);
+
+            // ── Save to history ──
+            saveAIResult({ type: "ocr", prompt: "Canvas / Uploaded Image", result: processedText, thumbnail: ocrImage ?? undefined }).catch(() => { });
         } catch (err) {
             console.error("OCR error:", err);
             setError(err instanceof Error ? err.message : "Failed to perform OCR");
@@ -633,6 +653,9 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             const data = await response.json();
             setTtsAudio(data.audio);
 
+            // ── Save to history ──
+            saveAIResult({ type: "tts", prompt: ttsText, result: data.audio, metadata: { voiceId: ttsVoice } }).catch(() => { });
+
             // Auto-play the audio
             if (audioRef.current) {
                 audioRef.current.src = data.audio;
@@ -654,6 +677,13 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 : activeTab === "sketch"
                     ? generateSketchImage
                     : performOcr;
+
+    // Load history when switching to history tab
+    useEffect(() => {
+        if (activeTab === "history" && isOpen) {
+            getAIHistory().then(setHistory).catch(() => setHistory([]));
+        }
+    }, [activeTab, isOpen]);
 
     // Sidebar toggle state
     const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -684,6 +714,10 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
     const IconSparkle = ({ size = 16 }: { size?: number }) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" /></svg>
+    );
+
+    const IconHistory = ({ size = 16 }: { size?: number }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polyline points="12 8 12 12 14 14" /><path d="M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" /></svg>
     );
 
     // ─── Reusable Form Components ───
@@ -864,6 +898,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 zIndex: 9999,
             }}
             onClick={onClose}
+            onKeyDown={(e) => e.nativeEvent.stopImmediatePropagation()}
+            onKeyUp={(e) => e.nativeEvent.stopImmediatePropagation()}
         >
             <style>{`
                 @keyframes spin { to { transform: rotate(360deg); } }
@@ -968,6 +1004,24 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                     {tab.label}
                                 </button>
                             ))}
+                            {/* Divider */}
+                            <div style={{ height: "1px", backgroundColor: "rgba(255,255,255,0.07)", margin: "6px 4px" }} />
+                            {/* History Tab */}
+                            <button
+                                onClick={() => { setActiveTab("history"); setError(null); }}
+                                style={{
+                                    display: "flex", alignItems: "center", gap: "10px",
+                                    padding: "8px 12px", borderRadius: "8px", border: "none",
+                                    backgroundColor: activeTab === "history" ? "rgba(99, 102, 241, 0.15)" : "transparent",
+                                    color: activeTab === "history" ? "#a5b4fc" : "#9ca3af",
+                                    cursor: "pointer", fontSize: "13px",
+                                    fontWeight: activeTab === "history" ? 600 : 400,
+                                    transition: "all 0.15s ease", width: "100%", textAlign: "left" as const,
+                                }}
+                            >
+                                <span style={{ display: "flex", alignItems: "center" }}><IconHistory /></span>
+                                History
+                            </button>
                         </nav>
                     </div>
                 )}
@@ -1511,6 +1565,104 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                         </div>
                     )}
 
+                    {/* History Tab Content */}
+                    {activeTab === "history" && (() => {
+                        const TYPE_META: Record<string, { label: string; color: string }> = {
+                            diagram: { label: "Diagram", color: "#818cf8" },
+                            image: { label: "Image", color: "#34d399" },
+                            sketch: { label: "Sketch", color: "#f472b6" },
+                            ocr: { label: "OCR", color: "#fbbf24" },
+                            tts: { label: "TTS", color: "#60a5fa" },
+                        };
+                        const filters: Array<AIHistoryType | "all"> = ["all", "diagram", "image", "sketch", "ocr", "tts"];
+                        const filtered = historyFilter === "all" ? history : history.filter(e => e.type === historyFilter);
+
+                        return (
+                            <div style={{ maxWidth: "560px" }}>
+                                {/* Filter bar */}
+                                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+                                    {filters.map(f => (
+                                        <button key={f} onClick={() => setHistoryFilter(f)} style={{
+                                            padding: "4px 12px", borderRadius: "20px", border: "none", cursor: "pointer",
+                                            fontSize: "11px", fontWeight: 500,
+                                            backgroundColor: historyFilter === f ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.06)",
+                                            color: historyFilter === f ? "#a5b4fc" : "#9ca3af",
+                                            transition: "all 0.15s ease",
+                                        }}>
+                                            {f === "all" ? "All" : TYPE_META[f].label}
+                                        </button>
+                                    ))}
+                                    {history.length > 0 && (
+                                        <button onClick={async () => { await clearAIHistory(); setHistory([]); }} style={{
+                                            marginLeft: "auto", padding: "4px 12px", borderRadius: "20px",
+                                            border: "1px solid rgba(239,68,68,0.3)", cursor: "pointer",
+                                            fontSize: "11px", backgroundColor: "transparent", color: "#f87171",
+                                        }}>
+                                            Clear all
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Empty state */}
+                                {filtered.length === 0 && (
+                                    <div style={{ textAlign: "center", padding: "40px 20px", color: "#6b7280" }}>
+                                        <div style={{ fontSize: "36px", marginBottom: "10px" }}>🕐</div>
+                                        <div style={{ fontSize: "13px" }}>No history yet.</div>
+                                        <div style={{ fontSize: "12px", marginTop: "4px" }}>Generated content will appear here.</div>
+                                    </div>
+                                )}
+
+                                {/* History list */}
+                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                    {filtered.map(entry => {
+                                        const meta = TYPE_META[entry.type];
+                                        const date = new Date(entry.timestamp);
+                                        const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                                        const dateStr = date.toLocaleDateString([], { month: "short", day: "numeric" });
+
+                                        return (
+                                            <div key={entry.id} style={{
+                                                display: "flex", alignItems: "center", gap: "10px",
+                                                padding: "8px 10px", borderRadius: "8px",
+                                                backgroundColor: "rgba(255,255,255,0.03)",
+                                                border: "1px solid rgba(255,255,255,0.06)",
+                                            }}>
+                                                {/* Type badge */}
+                                                <span style={{
+                                                    fontSize: "10px", fontWeight: 600, padding: "2px 8px",
+                                                    borderRadius: "10px", backgroundColor: `${meta.color}22`,
+                                                    color: meta.color, flexShrink: 0, whiteSpace: "nowrap",
+                                                }}>
+                                                    {meta.label}
+                                                </span>
+                                                {/* Prompt — truncated */}
+                                                <span style={{
+                                                    flex: 1, minWidth: 0, fontSize: "12px", color: "#d1d5db",
+                                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                                }}>
+                                                    {entry.prompt}
+                                                </span>
+                                                {/* Timestamp */}
+                                                <span style={{ fontSize: "10px", color: "#6b7280", flexShrink: 0, whiteSpace: "nowrap" }}>
+                                                    {dateStr} {timeStr}
+                                                </span>
+                                                {/* Delete */}
+                                                <button title="Delete" onClick={async () => {
+                                                    await deleteAIHistoryEntry(entry.id);
+                                                    setHistory(prev => prev.filter(e => e.id !== entry.id));
+                                                }} style={{
+                                                    padding: "2px 6px", borderRadius: "4px", border: "none", cursor: "pointer",
+                                                    fontSize: "11px", backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171",
+                                                    flexShrink: 0, lineHeight: 1,
+                                                }}>✕</button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
                     {/* Style selector (only for diagrams) */}
                     {activeTab === "diagram" && (
                         <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
@@ -1525,7 +1677,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     )}
 
                     {/* Error Display */}
-                    {error && (
+                    {activeTab !== "history" && error && (
                         <div style={{
                             padding: "10px 12px",
                             marginBottom: "14px",
@@ -1543,8 +1695,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                         </div>
                     )}
 
-                    {/* Action Buttons - Not shown for tts tab */}
-                    {activeTab !== "tts" && (
+                    {/* Action Buttons - Not shown for tts or history tabs */}
+                    {activeTab !== "tts" && activeTab !== "history" && (
                         <div style={{ display: "flex", gap: "10px", maxWidth: "480px" }}>
                             <button
                                 onClick={handleGenerate}
