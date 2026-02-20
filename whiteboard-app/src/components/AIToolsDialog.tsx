@@ -8,10 +8,12 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../utils/mathJaxParser";
+import { addImageToCanvas } from "../utils/addImageToCanvas";
 import { saveAIResult } from "../data/LocalStorage";
 import type { AIHistoryType } from "../data/LocalStorage";
 import { useBlockExcalidrawKeys } from "../hooks/useBlockExcalidrawKeys";
 import { useAIHistory } from "../hooks/useAIHistory";
+import { useTTS } from "../hooks/useTTS";
 
 interface AIToolsDialogProps {
     isOpen: boolean;
@@ -58,13 +60,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     const [imgSeed, setImgSeed] = useState(42);
     const [imgRandomSeed, setImgRandomSeed] = useState(true);
 
-    // Text-to-Speech state
-    const [ttsText, setTtsText] = useState<string>("");
-    const [ttsAudio, setTtsAudio] = useState<string | null>(null);
-    const [ttsVoice, setTtsVoice] = useState<string>(""); // Will be set after fetching voices
-    const [ttsVoices, setTtsVoices] = useState<Array<{ id: string, name: string, category: string }>>([]);
-    const [loadingVoices, setLoadingVoices] = useState(false);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
+    // Text-to-Speech (extracted hook)
+    const tts = useTTS(activeTab === "tts" && isOpen, setLoading, setError);
 
     const generateSketchImage = useCallback(async () => {
         if (!prompt.trim()) {
@@ -176,7 +173,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             ctx.putImageData(imgData, 0, 0);
 
             const imageBase64 = croppedCanvas.toDataURL("image/png");
-            console.log(`[Sketch] Cropped & binarized sketch: ${outW}x${outH}, darkMode=${isDarkMode}`);
+
 
             // ─── Step 2: Send sketch + prompt to ControlNet ───
             const response = await fetch(`${AI_SERVER_URL}/api/ai/sketch-to-image`, {
@@ -205,60 +202,17 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
             // ─── Step 3: Add generated image to canvas (next to the sketch) ───
             if (data.imageUrl) {
-                const fileId = `sketch-image-${Date.now()}`;
                 const imgW = data.width || 512;
                 const imgH = data.height || 512;
 
                 // Place the generated image to the RIGHT of the original sketch
-                const imageX = maxX + 50; // 50px gap to the right of sketch
-                const imageY = minY; // Align top with the sketch
-
-                await excalidrawAPI.addFiles([
-                    {
-                        id: fileId as any,
-                        dataURL: data.imageUrl as any,
-                        mimeType: "image/png",
-                        created: Date.now(),
-                    },
-                ]);
-
-                const imageElement = {
-                    type: "image" as const,
-                    id: `sketch-image-element-${Date.now()}`,
-                    x: imageX,
-                    y: imageY,
+                await addImageToCanvas(excalidrawAPI, data.imageUrl, {
+                    x: maxX + 50,
+                    y: minY,
                     width: imgW,
                     height: imgH,
-                    angle: 0,
-                    strokeColor: "transparent",
-                    backgroundColor: "transparent",
-                    fillStyle: "solid" as const,
-                    strokeWidth: 0,
-                    strokeStyle: "solid" as const,
-                    roughness: 0,
-                    opacity: 100,
-                    groupIds: [] as string[],
-                    frameId: null,
-                    index: "a0" as any,
-                    roundness: null,
-                    seed: Math.floor(Math.random() * 100000),
-                    version: 1,
-                    versionNonce: Math.floor(Math.random() * 100000),
-                    isDeleted: false,
-                    boundElements: null,
-                    updated: Date.now(),
-                    link: null,
-                    locked: false,
-                    fileId: fileId as any,
-                    status: "saved" as const,
-                    scale: [1, 1] as [number, number],
-                };
-
-                const currentElements = excalidrawAPI.getSceneElements();
-                excalidrawAPI.updateScene({
-                    elements: [...currentElements, imageElement as any],
+                    idPrefix: "sketch-image",
                 });
-                // Scroll to show both the sketch AND the generated image
                 excalidrawAPI.scrollToContent(undefined, { fitToContent: true });
             }
 
@@ -358,52 +312,11 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             const data = await response.json();
 
             if (excalidrawAPI && data.imageUrl) {
-                const fileId = `ai-image-${Date.now()}`;
-
-                await excalidrawAPI.addFiles([{
-                    id: fileId as any,
-                    dataURL: data.imageUrl as any,
-                    mimeType: "image/png",
-                    created: Date.now(),
-                }]);
-
-                const imageElement = {
-                    type: "image" as const,
-                    id: `ai-image-element-${Date.now()}`,
-                    x: 100,
-                    y: 100,
+                await addImageToCanvas(excalidrawAPI, data.imageUrl, {
                     width: data.width || imgWidth,
                     height: data.height || imgHeight,
-                    angle: 0,
-                    strokeColor: "transparent",
-                    backgroundColor: "transparent",
-                    fillStyle: "solid" as const,
-                    strokeWidth: 0,
-                    strokeStyle: "solid" as const,
-                    roughness: 0,
-                    opacity: 100,
-                    groupIds: [] as string[],
-                    frameId: null,
-                    index: "a0" as any,
-                    roundness: null,
-                    seed: Math.floor(Math.random() * 100000),
-                    version: 1,
-                    versionNonce: Math.floor(Math.random() * 100000),
-                    isDeleted: false,
-                    boundElements: null,
-                    updated: Date.now(),
-                    link: null,
-                    locked: false,
-                    fileId: fileId as any,
-                    status: "saved" as const,
-                    scale: [1, 1] as [number, number],
-                };
-
-                const currentElements = excalidrawAPI.getSceneElements();
-                excalidrawAPI.updateScene({
-                    elements: [...currentElements, imageElement as any],
+                    idPrefix: "ai-image",
                 });
-                excalidrawAPI.scrollToContent([imageElement as any], { fitToContent: true });
             }
 
             // ── Save to history ──
@@ -473,8 +386,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             const data = await response.json();
 
             // Debug: Check raw OCR output and line breaks
-            console.log('[OCR] Raw text:', JSON.stringify(data.text));
-            console.log('[OCR] Has newlines:', data.text?.includes('\n'));
+
 
             // Normalize LaTeX using MathJax-style normalization
             let processedText = data.text || "No text detected";
@@ -519,161 +431,25 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             element.style.maxHeight = originalMaxHeight;
             element.style.overflowY = originalOverflow;
 
+
             const dataUrl = canvas.toDataURL('image/png');
-            const fileId = `ocr-rendered-${Date.now()}`;
-
-            console.log(`[OCR] Adding file with ID: ${fileId}, canvas size: ${canvas.width}x${canvas.height}`);
-
-            // Add the image file first and wait for it to be registered
-            await excalidrawAPI.addFiles([{
-                id: fileId as any,
-                dataURL: dataUrl as any,
-                mimeType: "image/png",
-                created: Date.now(),
-            }]);
 
             // Small delay to ensure file is fully registered
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            console.log(`[OCR] File registered, creating element...`);
-
-            // Create image element - use simple object, not convertToExcalidrawElements
-            const imageElement = {
-                type: "image" as const,
-                id: `ocr-image-${Date.now()}`,
-                x: 100,
-                y: 100,
+            await addImageToCanvas(excalidrawAPI, dataUrl, {
                 width: canvas.width / 2, // Compensate for scale: 2
                 height: canvas.height / 2,
-                angle: 0,
-                strokeColor: "#000000",
-                backgroundColor: "transparent",
-                fillStyle: "solid" as const,
-                strokeWidth: 1,
-                strokeStyle: "solid" as const,
-                roughness: 0,
-                opacity: 100,
-                groupIds: [] as string[],
-                frameId: null,
-                index: "a0" as any,
-                roundness: null,
-                seed: Math.floor(Math.random() * 100000),
-                version: 1,
-                versionNonce: Math.floor(Math.random() * 100000),
-                isDeleted: false,
-                boundElements: null,
-                updated: Date.now(),
-                link: null,
-                locked: false,
-                fileId: fileId as any,
-                status: "saved" as const,
-                scale: [1, 1] as [number, number],
-            };
-
-            console.log(`[OCR] Element created:`, imageElement);
-
-            const currentElements = excalidrawAPI.getSceneElements();
-            excalidrawAPI.updateScene({
-                elements: [...currentElements, imageElement as any],
+                idPrefix: "ocr-rendered",
             });
-            excalidrawAPI.scrollToContent([imageElement as any], { fitToContent: true });
 
             onClose();
             setOcrImage(null);
             setOcrResult(null);
         } catch (err) {
-            console.error("Error rendering markdown to image:", err);
             setError("Failed to render markdown as image");
         }
     }, [ocrResult, excalidrawAPI, onClose]);
-
-    // ===== Text-to-Speech Functions =====
-
-    // Fetch available voices when TTS tab is opened
-    useEffect(() => {
-        const fetchVoices = async () => {
-            if (activeTab === "tts" && isOpen && ttsVoices.length === 0) {
-                setLoadingVoices(true);
-                try {
-                    const response = await fetch(`${AI_SERVER_URL}/api/ai/voices`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        setTtsVoices(data.voices);
-                        // Set default voice to first one
-                        if (data.voices.length > 0 && !ttsVoice) {
-                            setTtsVoice(data.voices[0].id);
-                        }
-                    }
-                } catch (err) {
-                    console.error("Failed to fetch voices:", err);
-                }
-                setLoadingVoices(false);
-            }
-        };
-        fetchVoices();
-    }, [activeTab, isOpen, ttsVoices.length, ttsVoice]);
-
-    // Auto-read clipboard when TTS tab is opened
-    useEffect(() => {
-        const readClipboard = async () => {
-            if (activeTab === "tts" && isOpen) {
-                try {
-                    const text = await navigator.clipboard.readText();
-                    if (text && text.trim()) {
-                        setTtsText(text);
-                    }
-                } catch (err) {
-                    console.log("Clipboard read not available:", err);
-                    // Clipboard API might not be available or permission denied
-                }
-            }
-        };
-        readClipboard();
-    }, [activeTab, isOpen]);
-
-    const speakText = useCallback(async () => {
-        if (!ttsText.trim()) {
-            setError("Please enter or paste text to speak");
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-        setTtsAudio(null);
-
-        try {
-            const response = await fetch(`${AI_SERVER_URL}/api/ai/text-to-speech`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    text: ttsText,
-                    voiceId: ttsVoice,
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to generate speech");
-            }
-
-            const data = await response.json();
-            setTtsAudio(data.audio);
-
-            // ── Save to history ──
-            saveAIResult({ type: "tts", prompt: ttsText, result: data.audio, metadata: { voiceId: ttsVoice } }).catch(() => { });
-
-            // Auto-play the audio
-            if (audioRef.current) {
-                audioRef.current.src = data.audio;
-                audioRef.current.play();
-            }
-        } catch (err) {
-            console.error("TTS error:", err);
-            setError(err instanceof Error ? err.message : "Failed to generate speech");
-        } finally {
-            setLoading(false);
-        }
-    }, [ttsText, ttsVoice]);
 
     const handleGenerate =
         activeTab === "diagram"
@@ -1129,7 +905,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     {activeTab === "tts" && (
                         <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
                             {/* Hidden audio element for playback */}
-                            <audio ref={audioRef} style={{ display: "none" }} />
+                            <audio ref={tts.audioRef} style={{ display: "none" }} />
 
                             {/* Instructions */}
                             <InfoBanner color="indigo">
@@ -1139,8 +915,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                             {/* Text Input */}
                             <FormLabel>Text to speak:</FormLabel>
                             <FormTextarea
-                                value={ttsText}
-                                onChange={(val) => setTtsText(val)}
+                                value={tts.text}
+                                onChange={tts.setText}
                                 placeholder="Enter or paste text here to convert to speech..."
                             />
 
@@ -1148,15 +924,15 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                             <div style={{ marginTop: "12px" }}>
                                 <FormLabel>Voice:</FormLabel>
                                 <FormSelect
-                                    value={ttsVoice}
-                                    onChange={(val) => setTtsVoice(val)}
+                                    value={tts.voice}
+                                    onChange={tts.setVoice}
                                 >
-                                    {loadingVoices ? (
+                                    {tts.loadingVoices ? (
                                         <option>Loading voices...</option>
-                                    ) : ttsVoices.length === 0 ? (
+                                    ) : tts.voices.length === 0 ? (
                                         <option>No voices available</option>
                                     ) : (
-                                        ttsVoices.map((voice) => (
+                                        tts.voices.map((voice: { id: string; name: string; category: string }) => (
                                             <option key={voice.id} value={voice.id}>
                                                 {voice.name} ({voice.category})
                                             </option>
@@ -1167,17 +943,17 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
                             {/* Speak Button */}
                             <button
-                                onClick={speakText}
-                                disabled={loading || !ttsText.trim()}
+                                onClick={tts.speak}
+                                disabled={loading || !tts.text.trim()}
                                 style={{
                                     marginTop: "14px",
                                     width: "100%",
                                     padding: "12px 20px",
                                     borderRadius: "8px",
                                     border: "none",
-                                    backgroundColor: (loading || !ttsText.trim()) ? "#4b5563" : "#10b981",
+                                    backgroundColor: (loading || !tts.text.trim()) ? "#4b5563" : "#10b981",
                                     color: "#ffffff",
-                                    cursor: (loading || !ttsText.trim()) ? "not-allowed" : "pointer",
+                                    cursor: (loading || !tts.text.trim()) ? "not-allowed" : "pointer",
                                     fontSize: "14px",
                                     fontWeight: 500,
                                     display: "flex",
@@ -1202,7 +978,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                             </button>
 
                             {/* Audio Player (visible after generation) */}
-                            {ttsAudio && (
+                            {tts.audio && (
                                 <div style={{ marginTop: "16px" }}>
                                     <label style={{
                                         display: "block",
@@ -1213,14 +989,11 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                     }}>✅ Audio Generated:</label>
                                     <audio
                                         controls
-                                        src={ttsAudio}
+                                        src={tts.audio}
                                         style={{ width: "100%", borderRadius: "8px" }}
                                     />
                                     <button
-                                        onClick={() => {
-                                            setTtsAudio(null);
-                                            setTtsText("");
-                                        }}
+                                        onClick={tts.reset}
                                         style={{
                                             marginTop: "8px",
                                             padding: "8px 14px",
