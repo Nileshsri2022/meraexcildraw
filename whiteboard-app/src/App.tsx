@@ -11,6 +11,7 @@ import type { ExcalidrawImperativeAPI, BinaryFileData, AppState, BinaryFiles } f
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCollaboration } from "./collab";
 import { AIToolsDialog } from "./components/AIToolsDialog";
+import { ChatPanel } from "./components/ChatPanel";
 import { useAutoSave, SaveStatus } from "./hooks/useAutoSave";
 import { useVoiceCommand } from "./hooks/useVoiceCommand";
 import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
@@ -19,6 +20,7 @@ const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
     const [isAIToolsOpen, setIsAIToolsOpen] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(false);
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -120,7 +122,18 @@ const App: React.FC = () => {
 
     // Render custom dropdown in top right area
     const renderTopRightUI = () => (
-        <div ref={dropdownRef} style={{ position: "relative" }}>
+        <div ref={dropdownRef} style={{ position: "relative", display: "flex", gap: "8px", alignItems: "center" }}>
+            {/* Chat Button */}
+            <button
+                className={`chat-trigger-btn${isChatOpen ? " chat-trigger-btn--active" : ""}`}
+                onClick={() => setIsChatOpen(prev => !prev)}
+                title="Canvas AI Chat"
+            >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+            </button>
+
             {/* Sparkle Button */}
             <button
                 className={`sparkle-btn${isDropdownOpen ? " sparkle-btn--active" : ""}`}
@@ -368,6 +381,13 @@ const App: React.FC = () => {
                 excalidrawAPI={excalidrawAPI}
                 voiceCommand={pendingVoiceCommand}
                 onVoiceCommandDone={handleVoiceCommandDone}
+            />
+
+            {/* AI Canvas Chat Assistant */}
+            <ChatPanel
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+                excalidrawAPI={excalidrawAPI}
             />
         </div>
     );
