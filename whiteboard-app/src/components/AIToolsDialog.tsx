@@ -655,17 +655,199 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     ? generateSketchImage
                     : performOcr;
 
-    if (!isOpen) return null;
+    // Sidebar toggle state
+    const [sidebarOpen, setSidebarOpen] = useState(true);
 
-    // Tab accent color mapping
-    const tabAccent = {
-        diagram: { primary: "#818cf8", bg: "rgba(129, 140, 248, 0.12)", border: "rgba(129, 140, 248, 0.4)" },
-        image: { primary: "#fbbf24", bg: "rgba(251, 191, 36, 0.12)", border: "rgba(251, 191, 36, 0.4)" },
-        sketch: { primary: "#34d399", bg: "rgba(52, 211, 153, 0.12)", border: "rgba(52, 211, 153, 0.4)" },
-        ocr: { primary: "#22d3ee", bg: "rgba(34, 211, 238, 0.12)", border: "rgba(34, 211, 238, 0.4)" },
-        tts: { primary: "#f472b6", bg: "rgba(244, 114, 182, 0.12)", border: "rgba(244, 114, 182, 0.4)" },
+    // ─── Reusable Icon Components ───
+
+    const IconProps = { fill: "none" as const, stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+    const IconDiagram = ({ size = 16 }: { size?: number }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 17.5h7M17.5 14v7" /></svg>
+    );
+
+    const IconImage = ({ size = 16 }: { size?: number }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+    );
+
+    const IconSketch = ({ size = 16 }: { size?: number }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+    );
+
+    const IconOCR = ({ size = 16 }: { size?: number }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+    );
+
+    const IconTTS = ({ size = 16 }: { size?: number }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" {...IconProps}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 010 7.07" /><path d="M19.07 4.93a10 10 0 010 14.14" /></svg>
+    );
+
+    const IconSparkle = ({ size = 16 }: { size?: number }) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" /></svg>
+    );
+
+    // ─── Reusable Form Components ───
+
+    const FormLabel = ({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) => (
+        <label htmlFor={htmlFor} style={{
+            display: "block",
+            marginBottom: "6px",
+            color: "#e4e4e7",
+            fontSize: "13px",
+            fontWeight: 500,
+        }}>
+            {children}
+        </label>
+    );
+
+    const FormTextarea = ({ value, onChange, placeholder }: {
+        value: string;
+        onChange: (val: string) => void;
+        placeholder: string;
+    }) => (
+        <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            style={{
+                width: "100%",
+                maxWidth: "480px",
+                minHeight: "70px",
+                padding: "10px 12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                backgroundColor: "rgba(255, 255, 255, 0.05)",
+                color: "#e4e4e7",
+                fontSize: "13px",
+                lineHeight: "1.5",
+                resize: "vertical",
+                boxSizing: "border-box",
+                outline: "none",
+                fontFamily: "inherit",
+                transition: "border-color 0.2s ease",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#6366f1"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.15)"; }}
+        />
+    );
+
+    const FormSelect = ({ value, onChange, children }: {
+        value: string;
+        onChange: (val: string) => void;
+        children: React.ReactNode;
+    }) => (
+        <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            style={{
+                width: "100%",
+                maxWidth: "480px",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                backgroundColor: "#2d2d35",
+                color: "#e4e4e7",
+                fontSize: "13px",
+                cursor: "pointer",
+                outline: "none",
+                boxSizing: "border-box",
+            }}
+        >
+            {children}
+        </select>
+    );
+
+    const FormSlider = ({ label, value, onChange, min, max, step, accentColor = "#6366f1", hint }: {
+        label: string;
+        value: number;
+        onChange: (val: number) => void;
+        min: number;
+        max: number;
+        step: number;
+        accentColor?: string;
+        hint?: string;
+    }) => (
+        <div style={{ marginBottom: "12px" }}>
+            <label style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "6px",
+                color: "#e4e4e7",
+                fontSize: "12px",
+                fontWeight: 500,
+            }}>
+                <span>{label}</span>
+                <span style={{ color: accentColor }}>{value}{label.toLowerCase().includes("resolution") || label.toLowerCase().includes("height") || label.toLowerCase().includes("width") ? "px" : ""}</span>
+            </label>
+            <input
+                type="range"
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                onChange={(e) => onChange(Number(e.target.value))}
+                style={{ width: "100%", maxWidth: "480px", accentColor }}
+            />
+            {hint && <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>{hint}</div>}
+        </div>
+    );
+
+    const FormInput = ({ type = "text", value, onChange, disabled, ...rest }: {
+        type?: string;
+        value: string | number;
+        onChange: (val: string) => void;
+        disabled?: boolean;
+        min?: number;
+        max?: number;
+        placeholder?: string;
+    }) => (
+        <input
+            type={type}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            min={rest.min}
+            max={rest.max}
+            placeholder={rest.placeholder}
+            style={{
+                width: "100%",
+                maxWidth: "480px",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                backgroundColor: disabled ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.05)",
+                color: disabled ? "#6b7280" : "#e4e4e7",
+                fontSize: "13px",
+                outline: "none",
+                boxSizing: "border-box" as const,
+                transition: "all 0.2s ease",
+                cursor: disabled ? "not-allowed" : "text",
+            }}
+        />
+    );
+
+    const InfoBanner = ({ color, children }: { color: "indigo" | "amber"; children: React.ReactNode }) => {
+        const colors = color === "amber"
+            ? { bg: "rgba(234, 179, 8, 0.1)", border: "rgba(234, 179, 8, 0.2)", text: "#fbbf24" }
+            : { bg: "rgba(99, 102, 241, 0.1)", border: "rgba(99, 102, 241, 0.2)", text: "#a5b4fc" };
+        return (
+            <div style={{
+                padding: "10px 12px",
+                borderRadius: "8px",
+                backgroundColor: colors.bg,
+                border: `1px solid ${colors.border}`,
+                marginBottom: "14px",
+                fontSize: "12px",
+                color: colors.text,
+                lineHeight: "1.5",
+                maxWidth: "480px",
+            }}>
+                {children}
+            </div>
+        );
     };
-    const accent = tabAccent[activeTab];
+
+    if (!isOpen) return null;
 
     return (
         <div
@@ -675,1061 +857,765 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.55)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
+                backgroundColor: "rgba(0, 0, 0, 0.6)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 zIndex: 9999,
-                animation: "fadeIn 0.2s ease-out",
             }}
             onClick={onClose}
         >
             <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                @keyframes slideUp { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
                 @keyframes spin { to { transform: rotate(360deg); } }
-                @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
                 .ai-dialog-scrollbar::-webkit-scrollbar { width: 6px; }
                 .ai-dialog-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .ai-dialog-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
                 .ai-dialog-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
             `}</style>
             <div
-                className="ai-dialog-scrollbar"
                 style={{
-                    backgroundColor: "#1a1a22",
-                    padding: "24px",
-                    borderRadius: "16px",
-                    width: "420px",
-                    maxHeight: "90vh",
-                    overflowY: "auto",
-                    boxShadow: `0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 80px -20px ${accent.primary}22`,
-                    animation: "slideUp 0.3s ease-out",
+                    backgroundColor: "#232329",
+                    borderRadius: "14px",
+                    width: "min(680px, 90vw)",
+                    height: "min(520px, 80vh)",
+                    display: "flex",
+                    boxShadow: "0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+                    overflow: "hidden",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
-                <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "18px",
-                }}>
-                    <h2 style={{
-                        margin: 0,
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        background: `linear-gradient(135deg, ${accent.primary}, #e4e4e7)`,
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text",
+                {/* ─── Left Sidebar ─── */}
+                {sidebarOpen && (
+                    <div style={{
+                        width: "180px",
+                        minWidth: "180px",
+                        backgroundColor: "#1e1e24",
+                        borderRight: "1px solid rgba(255, 255, 255, 0.08)",
+                        padding: "16px 0",
                         display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
+                        flexDirection: "column",
                     }}>
-                        <span style={{ WebkitTextFillColor: "initial" }}>✨</span> AI Tools
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            width: "28px",
-                            height: "28px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            backgroundColor: "transparent",
-                            color: "#6b7280",
-                            cursor: "pointer",
-                            fontSize: "14px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            transition: "all 0.2s ease",
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#e4e4e7"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
-                    >
-                        ✕
-                    </button>
-                </div>
-
-                {/* Tabs */}
-                <div style={{ display: "flex", gap: "6px", marginBottom: "18px", padding: "4px", backgroundColor: "rgba(255,255,255,0.03)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.06)" }}>
-                    {([
-                        { id: "diagram" as const, icon: "📊", label: "Diagram", color: tabAccent.diagram },
-                        { id: "image" as const,   icon: "🖼️", label: "Image",   color: tabAccent.image },
-                        { id: "sketch" as const,  icon: "✏️",  label: "Sketch",  color: tabAccent.sketch },
-                        { id: "ocr" as const,     icon: "📝",  label: "OCR",     color: tabAccent.ocr },
-                        { id: "tts" as const,     icon: "🔊",  label: "TTS",     color: tabAccent.tts },
-                    ]).map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => { setActiveTab(tab.id); setError(null); }}
-                            style={{
-                                flex: 1,
-                                padding: "8px 6px",
-                                borderRadius: "8px",
-                                border: "none",
-                                backgroundColor: activeTab === tab.id ? tab.color.bg : "transparent",
-                                color: activeTab === tab.id ? tab.color.primary : "#6b7280",
-                                cursor: "pointer",
-                                fontSize: "12px",
-                                fontWeight: activeTab === tab.id ? 600 : 500,
-                                transition: "all 0.2s ease",
-                                display: "flex",
-                                flexDirection: "column" as const,
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "4px",
-                                position: "relative" as const,
-                                overflow: "hidden" as const,
-                            }}
-                        >
-                            {activeTab === tab.id && (
-                                <div style={{
-                                    position: "absolute",
-                                    bottom: 0,
-                                    left: "20%",
-                                    right: "20%",
-                                    height: "2px",
-                                    borderRadius: "1px",
-                                    backgroundColor: tab.color.primary,
-                                }} />
-                            )}
-                            <span style={{ fontSize: "16px" }}>{tab.icon}</span>
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-
-                {(activeTab === "diagram" || activeTab === "image" || activeTab === "sketch") && (
-                    <div style={{ marginBottom: "14px" }}>
-                        <label style={{
-                            display: "block",
-                            marginBottom: "6px",
-                            color: "#e4e4e7",
-                            fontSize: "13px",
-                            fontWeight: 500
-                        }}>
-                            {activeTab === "diagram"
-                                ? "Describe your diagram:"
-                                : activeTab === "image"
-                                    ? "✨ Your Prompt:"
-                                    : "Describe the final image style:"}
-                        </label>
-                        <textarea
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            placeholder={
-                                activeTab === "diagram"
-                                    ? "e.g., User login authentication flow with error handling"
-                                    : activeTab === "image"
-                                        ? "e.g., A futuristic city skyline at sunset with flying cars"
-                                        : "e.g., High-quality anime style, vibrant colors, clean lines"
-                            }
-                            style={{
-                                width: "100%",
-                                minHeight: "70px",
-                                padding: "10px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid rgba(255, 255, 255, 0.15)",
-                                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                color: "#e4e4e7",
-                                fontSize: "13px",
-                                lineHeight: "1.5",
-                                resize: "vertical",
-                                boxSizing: "border-box",
-                                outline: "none",
-                                fontFamily: "inherit",
-                                transition: "border-color 0.2s ease",
-                            }}
-                            onFocus={(e) => {
-                                e.currentTarget.style.borderColor = "#6366f1";
-                            }}
-                            onBlur={(e) => {
-                                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
-                            }}
-                        />
-                    </div>
-                )}
-
-                {/* Z-Image-Turbo Advanced Settings */}
-                {activeTab === "image" && (
-                    <div style={{ marginBottom: "14px" }}>
-                        {/* Info Banner */}
                         <div style={{
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            backgroundColor: "rgba(234, 179, 8, 0.1)",
-                            border: "1px solid rgba(234, 179, 8, 0.2)",
-                            marginBottom: "14px",
-                            fontSize: "12px",
-                            color: "#fbbf24",
-                            lineHeight: "1.5",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            margin: "0 0 16px 0",
+                            padding: "0 16px",
                         }}>
-                            ⚡ <strong>Z-Image-Turbo</strong> — Ultra-fast AI image generation. Generate stunning images in just 8 steps.
-                        </div>
-
-                        {/* Height & Width in a row */}
-                        <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
-                            <div style={{ flex: 1 }}>
-                                <label style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    marginBottom: "6px",
-                                    color: "#e4e4e7",
-                                    fontSize: "12px",
-                                    fontWeight: 500
-                                }}>
-                                    <span>Height</span>
-                                    <span style={{ color: "#fbbf24" }}>{imgHeight}px</span>
-                                </label>
-                                <input
-                                    type="range"
-                                    min={512}
-                                    max={2048}
-                                    step={64}
-                                    value={imgHeight}
-                                    onChange={(e) => setImgHeight(Number(e.target.value))}
-                                    style={{ width: "100%", accentColor: "#eab308" }}
-                                />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    marginBottom: "6px",
-                                    color: "#e4e4e7",
-                                    fontSize: "12px",
-                                    fontWeight: 500
-                                }}>
-                                    <span>Width</span>
-                                    <span style={{ color: "#fbbf24" }}>{imgWidth}px</span>
-                                </label>
-                                <input
-                                    type="range"
-                                    min={512}
-                                    max={2048}
-                                    step={64}
-                                    value={imgWidth}
-                                    onChange={(e) => setImgWidth(Number(e.target.value))}
-                                    style={{ width: "100%", accentColor: "#eab308" }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Inference Steps */}
-                        <div style={{ marginBottom: "12px" }}>
-                            <label style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                marginBottom: "6px",
+                            <h2 style={{
+                                margin: 0,
+                                fontSize: "15px",
+                                fontWeight: 600,
                                 color: "#e4e4e7",
-                                fontSize: "12px",
-                                fontWeight: 500
-                            }}>
-                                <span>Inference Steps</span>
-                                <span style={{ color: "#fbbf24" }}>{imgSteps}</span>
-                            </label>
-                            <input
-                                type="range"
-                                min={1}
-                                max={20}
-                                step={1}
-                                value={imgSteps}
-                                onChange={(e) => setImgSteps(Number(e.target.value))}
-                                style={{ width: "100%", accentColor: "#eab308" }}
-                            />
-                            <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>
-                                9 steps = 8 DiT forwards (recommended)
-                            </div>
-                        </div>
-
-                        {/* Seed + Random Seed */}
-                        <div style={{ marginBottom: "4px" }}>
-                            <div style={{
                                 display: "flex",
-                                justifyContent: "space-between",
                                 alignItems: "center",
-                                marginBottom: "6px",
+                                gap: "8px",
                             }}>
-                                <label style={{
-                                    color: "#e4e4e7",
-                                    fontSize: "12px",
-                                    fontWeight: 500
-                                }}>
-                                    Seed
-                                </label>
-                                <label style={{
+                                <IconSparkle /> AI Tools
+                            </h2>
+                            <button
+                                onClick={() => setSidebarOpen(false)}
+                                style={{
+                                    width: "26px",
+                                    height: "26px",
+                                    borderRadius: "6px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    backgroundColor: "transparent",
+                                    color: "#6b7280",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
                                     display: "flex",
                                     alignItems: "center",
-                                    gap: "6px",
-                                    cursor: "pointer",
-                                    fontSize: "12px",
-                                    color: "#9ca3af",
-                                }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={imgRandomSeed}
-                                        onChange={(e) => setImgRandomSeed(e.target.checked)}
-                                        style={{ accentColor: "#eab308", cursor: "pointer" }}
-                                    />
-                                    🎲 Random Seed
-                                </label>
-                            </div>
-                            <input
-                                type="number"
-                                min={0}
-                                max={2147483647}
-                                value={imgSeed}
-                                onChange={(e) => setImgSeed(Number(e.target.value))}
-                                disabled={imgRandomSeed}
-                                style={{
-                                    width: "100%",
-                                    padding: "8px 12px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    backgroundColor: imgRandomSeed ? "rgba(255, 255, 255, 0.02)" : "rgba(255, 255, 255, 0.05)",
-                                    color: imgRandomSeed ? "#6b7280" : "#e4e4e7",
-                                    fontSize: "13px",
-                                    outline: "none",
-                                    boxSizing: "border-box" as const,
-                                    transition: "all 0.2s ease",
-                                    cursor: imgRandomSeed ? "not-allowed" : "text",
+                                    justifyContent: "center",
+                                    transition: "all 0.15s ease",
                                 }}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* ControlNet Sketch Controls */}
-                {activeTab === "sketch" && (
-                    <div style={{ marginBottom: "14px" }}>
-                        {/* Info Banner */}
-                        <div style={{
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            backgroundColor: "rgba(99, 102, 241, 0.1)",
-                            border: "1px solid rgba(99, 102, 241, 0.2)",
-                            marginBottom: "14px",
-                            fontSize: "12px",
-                            color: "#a5b4fc",
-                            lineHeight: "1.5",
-                        }}>
-                            💡 <strong>ControlNet</strong> — Draw a sketch on the canvas, choose a pipeline, then describe what you want. The AI preserves your sketch's structure.
-                        </div>
-
-                        {/* Pipeline Selector */}
-                        <div style={{ marginBottom: "12px" }}>
-                            <label style={{
-                                display: "block",
-                                marginBottom: "6px",
-                                color: "#e4e4e7",
-                                fontSize: "12px",
-                                fontWeight: 500
-                            }}>
-                                Pipeline:
-                            </label>
-                            <select
-                                value={sketchPipeline}
-                                onChange={(e) => setSketchPipeline(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    padding: "8px 12px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    backgroundColor: "#2d2d35",
-                                    color: "#e4e4e7",
-                                    fontSize: "13px",
-                                    cursor: "pointer",
-                                    outline: "none",
-                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#e4e4e7"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
                             >
-                                <option value="scribble">✏️ Scribble (rough freehand sketches)</option>
-                                <option value="canny">🔲 Canny (clean edge outlines)</option>
-                                <option value="softedge">🌊 SoftEdge (smooth edges)</option>
-                                <option value="lineart">🖊️ Lineart (clean line drawings)</option>
-                                <option value="depth">📐 Depth (depth-based generation)</option>
-                                <option value="normal">🗺️ Normal Map</option>
-                                <option value="mlsd">📏 MLSD (straight lines / architecture)</option>
-                                <option value="segmentation">🎨 Segmentation (semantic maps)</option>
-                            </select>
-                        </div>
-
-                        {/* Preprocessor */}
-                        <div style={{ marginBottom: "12px" }}>
-                            <label style={{
-                                display: "block",
-                                marginBottom: "6px",
-                                color: "#e4e4e7",
-                                fontSize: "12px",
-                                fontWeight: 500
-                            }}>
-                                Preprocessor:
-                            </label>
-                            <select
-                                value={sketchPreprocessor}
-                                onChange={(e) => setSketchPreprocessor(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    padding: "8px 12px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    backgroundColor: "#2d2d35",
-                                    color: "#e4e4e7",
-                                    fontSize: "13px",
-                                    cursor: "pointer",
-                                    outline: "none",
-                                }}
-                            >
-                                <option value="HED">HED (Soft edges — best for rough sketches)</option>
-                                <option value="None">None (Direct — best for clean line art)</option>
-                            </select>
-                        </div>
-
-                        {/* Resolution */}
-                        <div style={{ marginBottom: "12px" }}>
-                            <label style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                marginBottom: "6px",
-                                color: "#e4e4e7",
-                                fontSize: "12px",
-                                fontWeight: 500
-                            }}>
-                                <span>Image Resolution</span>
-                                <span style={{ color: "#a5b4fc" }}>{sketchResolution}px</span>
-                            </label>
-                            <input
-                                type="range"
-                                min={256}
-                                max={768}
-                                step={128}
-                                value={sketchResolution}
-                                onChange={(e) => setSketchResolution(Number(e.target.value))}
-                                style={{ width: "100%", accentColor: "#6366f1" }}
-                            />
-                        </div>
-
-                        {/* Steps & Guidance in a row */}
-                        <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
-                            <div style={{ flex: 1 }}>
-                                <label style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    marginBottom: "6px",
-                                    color: "#e4e4e7",
-                                    fontSize: "12px",
-                                    fontWeight: 500
-                                }}>
-                                    <span>Steps</span>
-                                    <span style={{ color: "#a5b4fc" }}>{sketchSteps}</span>
-                                </label>
-                                <input
-                                    type="range"
-                                    min={10}
-                                    max={40}
-                                    step={5}
-                                    value={sketchSteps}
-                                    onChange={(e) => setSketchSteps(Number(e.target.value))}
-                                    style={{ width: "100%", accentColor: "#6366f1" }}
-                                />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    marginBottom: "6px",
-                                    color: "#e4e4e7",
-                                    fontSize: "12px",
-                                    fontWeight: 500
-                                }}>
-                                    <span>Guidance</span>
-                                    <span style={{ color: "#a5b4fc" }}>{sketchGuidance}</span>
-                                </label>
-                                <input
-                                    type="range"
-                                    min={1}
-                                    max={20}
-                                    step={0.5}
-                                    value={sketchGuidance}
-                                    onChange={(e) => setSketchGuidance(Number(e.target.value))}
-                                    style={{ width: "100%", accentColor: "#6366f1" }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Seed */}
-                        <div style={{ marginBottom: "4px" }}>
-                            <label style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                marginBottom: "6px",
-                                color: "#e4e4e7",
-                                fontSize: "12px",
-                                fontWeight: 500
-                            }}>
-                                <span>Seed</span>
-                                <button
-                                    onClick={() => setSketchSeed(Math.floor(Math.random() * 2147483647))}
-                                    style={{
-                                        padding: "2px 8px",
-                                        borderRadius: "4px",
-                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                        backgroundColor: "transparent",
-                                        color: "#9ca3af",
-                                        cursor: "pointer",
-                                        fontSize: "11px",
-                                    }}
-                                >
-                                    🎲 Random
-                                </button>
-                            </label>
-                            <input
-                                type="number"
-                                min={0}
-                                max={2147483647}
-                                value={sketchSeed}
-                                onChange={(e) => setSketchSeed(Number(e.target.value))}
-                                style={{
-                                    width: "100%",
-                                    padding: "8px 12px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                    color: "#e4e4e7",
-                                    fontSize: "13px",
-                                    outline: "none",
-                                    boxSizing: "border-box",
-                                }}
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {/* OCR Tab Content */}
-                {activeTab === "ocr" && (
-                    <div>
-                        {/* Image Source Options */}
-                        <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-                            <label
-                                style={{
-                                    flex: 1,
-                                    padding: "10px 14px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                    color: "#e4e4e7",
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                    textAlign: "center",
-                                    transition: "all 0.2s ease",
-                                }}
-                            >
-                                📁 Upload Image
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleOcrImageUpload}
-                                    style={{ display: "none" }}
-                                />
-                            </label>
-                            <button
-                                onClick={captureCanvas}
-                                style={{
-                                    flex: 1,
-                                    padding: "10px 14px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                    color: "#e4e4e7",
-                                    cursor: "pointer",
-                                    fontSize: "13px",
-                                }}
-                            >
-                                📷 Capture Canvas
+                                ✕
                             </button>
                         </div>
 
-                        {/* Image Preview */}
-                        {ocrImage && (
-                            <div style={{ marginBottom: "14px" }}>
-                                <img
-                                    src={ocrImage}
-                                    alt="OCR preview"
+                        <nav style={{ display: "flex", flexDirection: "column", gap: "2px", padding: "0 8px" }}>
+                            {([
+                                { id: "diagram" as const, label: "Diagram", icon: <IconDiagram /> },
+                                { id: "image" as const, label: "Image", icon: <IconImage /> },
+                                { id: "sketch" as const, label: "Sketch", icon: <IconSketch /> },
+                                { id: "ocr" as const, label: "OCR", icon: <IconOCR /> },
+                                { id: "tts" as const, label: "TTS", icon: <IconTTS /> },
+                            ]).map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => { setActiveTab(tab.id); setError(null); }}
                                     style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "10px",
+                                        padding: "8px 12px",
+                                        borderRadius: "8px",
+                                        border: "none",
+                                        backgroundColor: activeTab === tab.id ? "rgba(99, 102, 241, 0.15)" : "transparent",
+                                        color: activeTab === tab.id ? "#a5b4fc" : "#9ca3af",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                        fontWeight: activeTab === tab.id ? 600 : 400,
+                                        transition: "all 0.15s ease",
                                         width: "100%",
-                                        maxHeight: "150px",
-                                        objectFit: "contain",
-                                        borderRadius: "8px",
-                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    }}
-                                />
-                            </div>
-                        )}
-
-                        {/* OCR Result */}
-                        {ocrResult && (
-                            <div style={{ marginBottom: "14px" }}>
-                                <label style={{
-                                    display: "block",
-                                    marginBottom: "6px",
-                                    color: "#e4e4e7",
-                                    fontSize: "13px",
-                                    fontWeight: 500
-                                }}>
-                                    Extracted Text:
-                                </label>
-                                <div
-                                    ref={ocrMarkdownRef}
-                                    style={{
-                                        padding: "12px 14px",
-                                        borderRadius: "8px",
-                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                        backgroundColor: "#ffffff",
-                                        color: "#1a1a1f",
-                                        fontSize: "14px",
-                                        maxHeight: "200px",
-                                        overflowY: "auto",
-                                        lineHeight: "1.6",
-                                        minWidth: "500px"
-                                    }}
-                                    className="ocr-markdown-result"
-                                >
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkMath]}
-                                        rehypePlugins={[rehypeKatex]}
-                                    >
-                                        {ocrResult}
-                                    </ReactMarkdown>
-                                </div>
-                                <button
-                                    onClick={addTextToCanvas}
-                                    style={{
-                                        marginTop: "8px",
-                                        padding: "8px 14px",
-                                        borderRadius: "6px",
-                                        border: "none",
-                                        backgroundColor: "#10b981",
-                                        color: "#fff",
-                                        cursor: "pointer",
-                                        fontSize: "12px",
-                                        fontWeight: 500,
-                                        marginRight: "8px",
+                                        textAlign: "left" as const,
                                     }}
                                 >
-                                    📷 Add as Image
+                                    <span style={{ display: "flex", alignItems: "center" }}>{tab.icon}</span>
+                                    {tab.label}
                                 </button>
-                                <button
-                                    onClick={() => {
-                                        if (!ocrResult || !excalidrawAPI) return;
-
-                                        // Use MathJax parser to extract clean text
-                                        const processedText = extractTextFromOCRWithMathJax(ocrResult);
-
-                                        // Wrap long lines at ~60 characters
-                                        const wrapText = (text: string, maxWidth: number): string[] => {
-                                            const words = text.split(' ');
-                                            const wrappedLines: string[] = [];
-                                            let currentLine = '';
-
-                                            for (const word of words) {
-                                                if ((currentLine + ' ' + word).trim().length <= maxWidth) {
-                                                    currentLine = (currentLine + ' ' + word).trim();
-                                                } else {
-                                                    if (currentLine) wrappedLines.push(currentLine);
-                                                    currentLine = word;
-                                                }
-                                            }
-                                            if (currentLine) wrappedLines.push(currentLine);
-                                            return wrappedLines;
-                                        };
-
-                                        // Split by existing newlines, then wrap each long line
-                                        const rawLines = processedText.split('\n');
-                                        const allLines: string[] = [];
-                                        for (const line of rawLines) {
-                                            if (line.trim().length === 0) continue;
-                                            if (line.length > 60) {
-                                                allLines.push(...wrapText(line.trim(), 60));
-                                            } else {
-                                                allLines.push(line.trim());
-                                            }
-                                        }
-
-                                        const fontSize = 16;
-                                        const lineSpacing = fontSize * 1.5;
-                                        const groupId = `ocr-group-${Date.now()}`;
-
-                                        const textElements = allLines.map((line, index) =>
-                                            convertToExcalidrawElements([{
-                                                type: "text",
-                                                x: 100,
-                                                y: 100 + (index * lineSpacing),
-                                                text: line,
-                                                fontSize: fontSize,
-                                                fontFamily: 1,
-                                            }])
-                                        ).flat().map(el => ({
-                                            ...el,
-                                            groupIds: [groupId],
-                                        }));
-
-                                        const currentElements = excalidrawAPI.getSceneElements();
-                                        excalidrawAPI.updateScene({
-                                            elements: [...currentElements, ...textElements],
-                                        });
-                                        excalidrawAPI.scrollToContent(textElements, { fitToContent: true });
-                                        onClose();
-                                    }}
-                                    style={{
-                                        marginTop: "8px",
-                                        padding: "8px 14px",
-                                        borderRadius: "6px",
-                                        border: "1px solid rgba(255,255,255,0.2)",
-                                        backgroundColor: "transparent",
-                                        color: "#e4e4e7",
-                                        cursor: "pointer",
-                                        fontSize: "12px",
-                                        fontWeight: 500,
-                                    }}
-                                >
-                                    📝 Add as Text
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setOcrImage(null);
-                                        setOcrResult(null);
-                                        setError(null);
-                                    }}
-                                    style={{
-                                        marginTop: "8px",
-                                        marginLeft: "8px",
-                                        padding: "8px 14px",
-                                        borderRadius: "6px",
-                                        border: "none",
-                                        backgroundColor: "#ef4444",
-                                        color: "#fff",
-                                        cursor: "pointer",
-                                        fontSize: "12px",
-                                        fontWeight: 500,
-                                    }}
-                                >
-                                    🗑️ Clear
-                                </button>
-                            </div>
-                        )}
+                            ))}
+                        </nav>
                     </div>
                 )}
 
-                {/* TTS Tab Content */}
-                {activeTab === "tts" && (
-                    <div style={{ marginBottom: "14px" }}>
-                        {/* Hidden audio element for playback */}
-                        <audio ref={audioRef} style={{ display: "none" }} />
-
-                        {/* Instructions */}
-                        <div style={{
-                            padding: "12px",
-                            borderRadius: "8px",
-                            backgroundColor: "rgba(99, 102, 241, 0.1)",
-                            border: "1px solid rgba(99, 102, 241, 0.3)",
-                            marginBottom: "14px",
-                        }}>
-                            <p style={{ margin: 0, color: "#a5b4fc", fontSize: "13px" }}>
-                                💡 <strong>Tip:</strong> Copy text from canvas (Ctrl+C), then open this tab. Text will auto-fill.
-                            </p>
-                        </div>
-
-                        {/* Text Input */}
-                        <label style={{
-                            display: "block",
-                            marginBottom: "6px",
-                            color: "#e4e4e7",
-                            fontSize: "13px",
-                            fontWeight: 500
-                        }}>
-                            Text to speak:
-                        </label>
-                        <textarea
-                            value={ttsText}
-                            onChange={(e) => setTtsText(e.target.value)}
-                            placeholder="Enter or paste text here to convert to speech..."
-                            style={{
-                                width: "100%",
-                                minHeight: "100px",
-                                padding: "10px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid rgba(255, 255, 255, 0.15)",
-                                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                color: "#e4e4e7",
-                                fontSize: "13px",
-                                lineHeight: "1.5",
-                                resize: "vertical",
-                                boxSizing: "border-box",
-                                outline: "none",
-                                fontFamily: "inherit",
-                            }}
-                        />
-
-                        {/* Voice Selector */}
-                        <div style={{ marginTop: "12px" }}>
-                            <label style={{
-                                display: "block",
-                                marginBottom: "6px",
-                                color: "#e4e4e7",
-                                fontSize: "13px",
-                                fontWeight: 500
-                            }}>
-                                Voice:
-                            </label>
-                            <select
-                                value={ttsVoice}
-                                onChange={(e) => setTtsVoice(e.target.value)}
-                                disabled={loadingVoices}
-                                style={{
-                                    width: "100%",
-                                    padding: "10px 12px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                    backgroundColor: "#2d2d35",
-                                    color: "#e4e4e7",
-                                    fontSize: "13px",
-                                    cursor: loadingVoices ? "wait" : "pointer",
-                                    outline: "none",
-                                }}
-                            >
-                                {loadingVoices ? (
-                                    <option>Loading voices...</option>
-                                ) : ttsVoices.length === 0 ? (
-                                    <option>No voices available</option>
-                                ) : (
-                                    ttsVoices.map((voice) => (
-                                        <option key={voice.id} value={voice.id}>
-                                            {voice.name} ({voice.category})
-                                        </option>
-                                    ))
-                                )}
-                            </select>
-                        </div>
-
-                        {/* Speak Button */}
-                        <button
-                            onClick={speakText}
-                            disabled={loading || !ttsText.trim()}
-                            style={{
-                                marginTop: "14px",
-                                width: "100%",
-                                padding: "12px 20px",
-                                borderRadius: "8px",
-                                border: "none",
-                                backgroundColor: (loading || !ttsText.trim()) ? "#4b5563" : "#10b981",
-                                color: "#ffffff",
-                                cursor: (loading || !ttsText.trim()) ? "not-allowed" : "pointer",
-                                fontSize: "14px",
-                                fontWeight: 500,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "8px",
-                            }}
-                        >
-                            {loading ? (
-                                <>
-                                    <span style={{
-                                        width: "14px",
-                                        height: "14px",
-                                        border: "2px solid transparent",
-                                        borderTopColor: "#fff",
-                                        borderRadius: "50%",
-                                        animation: "spin 0.8s linear infinite",
-                                    }}></span>
-                                    Generating speech...
-                                </>
-                            ) : "🔊 Speak Text"}
-                        </button>
-
-                        {/* Audio Player (visible after generation) */}
-                        {ttsAudio && (
-                            <div style={{ marginTop: "16px" }}>
-                                <label style={{
-                                    display: "block",
-                                    marginBottom: "8px",
-                                    color: "#10b981",
-                                    fontSize: "13px",
-                                    fontWeight: 500,
-                                }}>✅ Audio Generated:</label>
-                                <audio
-                                    controls
-                                    src={ttsAudio}
-                                    style={{ width: "100%", borderRadius: "8px" }}
-                                />
-                                <button
-                                    onClick={() => {
-                                        setTtsAudio(null);
-                                        setTtsText("");
-                                    }}
-                                    style={{
-                                        marginTop: "8px",
-                                        padding: "8px 14px",
-                                        borderRadius: "6px",
-                                        border: "1px solid rgba(255,255,255,0.2)",
-                                        backgroundColor: "transparent",
-                                        color: "#9ca3af",
-                                        cursor: "pointer",
-                                        fontSize: "12px",
-                                    }}
-                                >
-                                    🔄 New
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Style selector (only for diagrams) */}
-                {activeTab === "diagram" && (
-                    <div style={{ marginBottom: "14px" }}>
-                        <label style={{
-                            display: "block",
-                            marginBottom: "6px",
-                            color: "#e4e4e7",
-                            fontSize: "13px",
-                            fontWeight: 500
-                        }}>
-                            Diagram Type:
-                        </label>
-                        <select
-                            value={style}
-                            onChange={(e) => setStyle(e.target.value)}
-                            style={{
-                                width: "100%",
-                                padding: "10px 12px",
-                                borderRadius: "8px",
-                                border: "1px solid rgba(255, 255, 255, 0.15)",
-                                backgroundColor: "#2d2d35",
-                                color: "#e4e4e7",
-                                fontSize: "13px",
-                                cursor: "pointer",
-                                outline: "none",
-                                appearance: "none",
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                                backgroundRepeat: "no-repeat",
-                                backgroundPosition: "right 12px center",
-                            }}
-                        >
-                            <option value="flowchart">Flowchart</option>
-                            <option value="sequence">Sequence Diagram</option>
-                            <option value="class">Class Diagram</option>
-                            <option value="mindmap">Mind Map</option>
-                        </select>
-                    </div>
-                )}
-
-                {/* Error Display */}
-                {error && (
+                {/* ─── Right Content Panel ─── */}
+                <div
+                    className="ai-dialog-scrollbar"
+                    style={{
+                        flex: 1,
+                        padding: "24px 32px",
+                        overflowY: "auto",
+                    }}
+                >
+                    {/* Section header */}
                     <div style={{
-                        padding: "10px 12px",
-                        marginBottom: "14px",
-                        backgroundColor: "rgba(239, 68, 68, 0.15)",
-                        border: "1px solid rgba(239, 68, 68, 0.4)",
-                        borderRadius: "8px",
-                        color: "#fca5a5",
-                        fontSize: "12px",
                         display: "flex",
                         alignItems: "center",
-                        gap: "6px",
+                        gap: "12px",
+                        marginBottom: "20px",
                     }}>
-                        <span>⚠️</span> {error}
+                        {!sidebarOpen && (
+                            <button
+                                onClick={() => setSidebarOpen(true)}
+                                style={{
+                                    width: "28px",
+                                    height: "28px",
+                                    borderRadius: "6px",
+                                    border: "1px solid rgba(255,255,255,0.1)",
+                                    backgroundColor: "transparent",
+                                    color: "#9ca3af",
+                                    cursor: "pointer",
+                                    fontSize: "14px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    transition: "all 0.15s ease",
+                                    flexShrink: 0,
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#e4e4e7"; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#9ca3af"; }}
+                                title="Show sidebar"
+                            >
+                                ☰
+                            </button>
+                        )}
+                        <h3 style={{
+                            margin: 0,
+                            fontSize: "16px",
+                            fontWeight: 600,
+                            color: "#e4e4e7",
+                            textTransform: "capitalize" as const,
+                        }}>
+                            {activeTab === "ocr" ? "OCR" : activeTab === "tts" ? "Text to Speech" : activeTab}
+                        </h3>
                     </div>
-                )}
 
-                {/* Action Buttons - Not shown for tts tab */}
-                {activeTab !== "tts" && (
-                    <div style={{ display: "flex", gap: "10px" }}>
-                        <button
-                            onClick={handleGenerate}
-                            disabled={loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())}
-                            style={{
-                                flex: 1,
-                                padding: "12px 18px",
-                                borderRadius: "10px",
-                                border: "none",
-                                background: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
-                                    ? "rgba(255, 255, 255, 0.06)"
-                                    : `linear-gradient(135deg, ${accent.primary}, ${accent.primary}cc)`,
-                                color: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "#6b7280" : "#ffffff",
-                                cursor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "not-allowed" : "pointer",
-                                fontSize: "14px",
-                                fontWeight: 600,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "8px",
-                                transition: "all 0.25s ease",
-                                boxShadow: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
-                                    ? "none"
-                                    : `0 4px 20px ${accent.primary}44`,
-                                letterSpacing: "0.3px",
-                            }}
-                            onMouseEnter={(e) => {
-                                const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
-                                if (!loading && !isDisabled) {
-                                    e.currentTarget.style.transform = "translateY(-1px)";
-                                    e.currentTarget.style.boxShadow = `0 6px 28px ${accent.primary}55`;
+                    {(activeTab === "diagram" || activeTab === "image" || activeTab === "sketch") && (
+                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
+                            <FormLabel>
+                                {activeTab === "diagram"
+                                    ? "Describe your diagram:"
+                                    : activeTab === "image"
+                                        ? "✨ Your Prompt:"
+                                        : "Describe the final image style:"}
+                            </FormLabel>
+                            <FormTextarea
+                                value={prompt}
+                                onChange={setPrompt}
+                                placeholder={
+                                    activeTab === "diagram"
+                                        ? "e.g., User login authentication flow with error handling"
+                                        : activeTab === "image"
+                                            ? "e.g., A futuristic city skyline at sunset with flying cars"
+                                            : "e.g., High-quality anime style, vibrant colors, clean lines"
                                 }
-                            }}
-                            onMouseLeave={(e) => {
-                                const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
-                                if (!loading && !isDisabled) {
-                                    e.currentTarget.style.transform = "translateY(0)";
-                                    e.currentTarget.style.boxShadow = `0 4px 20px ${accent.primary}44`;
-                                }
-                            }}
-                        >
-                            {loading ? (
-                                <>
-                                    <span style={{
-                                        width: "16px",
-                                        height: "16px",
-                                        border: "2px solid transparent",
-                                        borderTopColor: "currentColor",
-                                        borderRadius: "50%",
-                                        animation: "spin 0.8s linear infinite",
-                                        display: "inline-block",
-                                    }} />
-                                    {activeTab === "ocr" ? "Extracting..." : "Generating..."}
-                                </>
-                            ) : (
-                                <>
-                                    {activeTab === "diagram" && "� Generate Diagram"}
-                                    {activeTab === "image" && "🚀 Generate Image"}
-                                    {activeTab === "sketch" && "✏️ Generate from Sketch"}
-                                    {activeTab === "ocr" && "📝 Extract Text"}
-                                </>
+                            />
+                        </div>
+                    )}
+
+                    {/* Z-Image-Turbo Advanced Settings */}
+                    {activeTab === "image" && (
+                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
+                            <InfoBanner color="amber">
+                                ⚡ <strong>Z-Image-Turbo</strong> — Ultra-fast AI image generation. Generate stunning images in just 8 steps.
+                            </InfoBanner>
+
+                            {/* Height & Width in a row */}
+                            <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                                <div style={{ flex: 1 }}>
+                                    <FormSlider label="Height" value={imgHeight} onChange={setImgHeight} min={512} max={2048} step={64} accentColor="#eab308" />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <FormSlider label="Width" value={imgWidth} onChange={setImgWidth} min={512} max={2048} step={64} accentColor="#eab308" />
+                                </div>
+                            </div>
+
+                            <FormSlider label="Inference Steps" value={imgSteps} onChange={setImgSteps} min={1} max={20} step={1} accentColor="#eab308" hint="9 steps = 8 DiT forwards (recommended)" />
+
+                            {/* Seed + Random Seed */}
+                            <div style={{ marginBottom: "4px" }}>
+                                <div style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "6px",
+                                }}>
+                                    <FormLabel>Seed</FormLabel>
+                                    <label style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        cursor: "pointer",
+                                        fontSize: "12px",
+                                        color: "#9ca3af",
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={imgRandomSeed}
+                                            onChange={(e) => setImgRandomSeed(e.target.checked)}
+                                            style={{ accentColor: "#eab308", cursor: "pointer" }}
+                                        />
+                                        🎲 Random Seed
+                                    </label>
+                                </div>
+                                <FormInput
+                                    type="number"
+                                    value={imgSeed}
+                                    onChange={(v) => setImgSeed(Number(v))}
+                                    disabled={imgRandomSeed}
+                                    min={0}
+                                    max={2147483647}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ControlNet Sketch Controls */}
+                    {activeTab === "sketch" && (
+                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
+                            <InfoBanner color="indigo">
+                                💡 <strong>ControlNet</strong> — Draw a sketch on the canvas, choose a pipeline, then describe what you want. The AI preserves your sketch's structure.
+                            </InfoBanner>
+
+                            {/* Pipeline */}
+                            <div style={{ marginBottom: "12px" }}>
+                                <FormLabel>Pipeline:</FormLabel>
+                                <FormSelect value={sketchPipeline} onChange={setSketchPipeline}>
+                                    <option value="scribble">✏️ Scribble (rough freehand sketches)</option>
+                                    <option value="canny">🔲 Canny (clean edge outlines)</option>
+                                    <option value="softedge">🌊 SoftEdge (smooth edges)</option>
+                                    <option value="lineart">🖊️ Lineart (clean line drawings)</option>
+                                    <option value="depth">📐 Depth (depth-based generation)</option>
+                                    <option value="normal">🗺️ Normal Map</option>
+                                    <option value="mlsd">📏 MLSD (straight lines / architecture)</option>
+                                    <option value="segmentation">🎨 Segmentation (semantic maps)</option>
+                                </FormSelect>
+                            </div>
+
+                            {/* Preprocessor */}
+                            <div style={{ marginBottom: "12px" }}>
+                                <FormLabel>Preprocessor:</FormLabel>
+                                <FormSelect value={sketchPreprocessor} onChange={setSketchPreprocessor}>
+                                    <option value="HED">HED (Soft edges — best for rough sketches)</option>
+                                    <option value="None">None (Direct — best for clean line art)</option>
+                                </FormSelect>
+                            </div>
+
+                            <FormSlider label="Image Resolution" value={sketchResolution} onChange={setSketchResolution} min={256} max={768} step={128} />
+
+                            {/* Steps & Guidance in a row */}
+                            <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                                <div style={{ flex: 1 }}>
+                                    <FormSlider label="Steps" value={sketchSteps} onChange={setSketchSteps} min={10} max={40} step={5} />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <FormSlider label="Guidance" value={sketchGuidance} onChange={setSketchGuidance} min={1} max={20} step={0.5} />
+                                </div>
+                            </div>
+
+                            {/* Seed */}
+                            <div style={{ marginBottom: "4px" }}>
+                                <div style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    marginBottom: "6px",
+                                }}>
+                                    <FormLabel>Seed</FormLabel>
+                                    <button
+                                        onClick={() => setSketchSeed(Math.floor(Math.random() * 2147483647))}
+                                        style={{
+                                            padding: "2px 8px",
+                                            borderRadius: "4px",
+                                            border: "1px solid rgba(255, 255, 255, 0.15)",
+                                            backgroundColor: "transparent",
+                                            color: "#9ca3af",
+                                            cursor: "pointer",
+                                            fontSize: "11px",
+                                        }}
+                                    >
+                                        🎲 Random
+                                    </button>
+                                </div>
+                                <FormInput
+                                    type="number"
+                                    value={sketchSeed}
+                                    onChange={(v) => setSketchSeed(Number(v))}
+                                    min={0}
+                                    max={2147483647}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* OCR Tab Content */}
+                    {activeTab === "ocr" && (
+                        <div style={{ maxWidth: "480px" }}>
+                            {/* Image Source Options */}
+                            <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+                                <label
+                                    style={{
+                                        flex: 1,
+                                        padding: "10px 14px",
+                                        borderRadius: "8px",
+                                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                                        backgroundColor: "rgba(255, 255, 255, 0.05)",
+                                        color: "#e4e4e7",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                        textAlign: "center",
+                                        transition: "all 0.2s ease",
+                                    }}
+                                >
+                                    📁 Upload Image
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleOcrImageUpload}
+                                        style={{ display: "none" }}
+                                    />
+                                </label>
+                                <button
+                                    onClick={captureCanvas}
+                                    style={{
+                                        flex: 1,
+                                        padding: "10px 14px",
+                                        borderRadius: "8px",
+                                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                                        backgroundColor: "rgba(255, 255, 255, 0.05)",
+                                        color: "#e4e4e7",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                    }}
+                                >
+                                    📷 Capture Canvas
+                                </button>
+                            </div>
+
+                            {/* Image Preview */}
+                            {ocrImage && (
+                                <div style={{ marginBottom: "14px" }}>
+                                    <img
+                                        src={ocrImage}
+                                        alt="OCR preview"
+                                        style={{
+                                            width: "100%",
+                                            maxHeight: "150px",
+                                            objectFit: "contain",
+                                            borderRadius: "8px",
+                                            border: "1px solid rgba(255, 255, 255, 0.15)",
+                                        }}
+                                    />
+                                </div>
                             )}
-                        </button>
-                    </div>
-                )}
 
-                {/* Footer */}
-                <div style={{
-                    marginTop: "16px",
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    backgroundColor: "rgba(255,255,255,0.02)",
-                    fontSize: "11px",
-                    color: "#4b5563",
-                    textAlign: "center",
-                    letterSpacing: "0.2px",
-                }}>
-                    {activeTab === "diagram" && "Powered by Kimi-K2 + Mermaid-to-Excalidraw"}
-                    {activeTab === "image" && "Powered by Z-Image-Turbo • Ultra-fast generation"}
-                    {activeTab === "sketch" && "Powered by ControlNet v1.1 • May take 30-60s on cold start"}
-                    {activeTab === "ocr" && "Powered by PaddleOCR-VL"}
-                    {activeTab === "tts" && "Powered by ElevenLabs Text-to-Speech"}
+                            {/* OCR Result */}
+                            {ocrResult && (
+                                <div style={{ marginBottom: "14px" }}>
+                                    <label style={{
+                                        display: "block",
+                                        marginBottom: "6px",
+                                        color: "#e4e4e7",
+                                        fontSize: "13px",
+                                        fontWeight: 500
+                                    }}>
+                                        Extracted Text:
+                                    </label>
+                                    <div
+                                        ref={ocrMarkdownRef}
+                                        style={{
+                                            padding: "12px 14px",
+                                            borderRadius: "8px",
+                                            border: "1px solid rgba(255, 255, 255, 0.15)",
+                                            backgroundColor: "#ffffff",
+                                            color: "#1a1a1f",
+                                            fontSize: "14px",
+                                            maxHeight: "200px",
+                                            overflowY: "auto",
+                                            lineHeight: "1.6",
+                                            minWidth: "500px"
+                                        }}
+                                        className="ocr-markdown-result"
+                                    >
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkMath]}
+                                            rehypePlugins={[rehypeKatex]}
+                                        >
+                                            {ocrResult}
+                                        </ReactMarkdown>
+                                    </div>
+                                    <button
+                                        onClick={addTextToCanvas}
+                                        style={{
+                                            marginTop: "8px",
+                                            padding: "8px 14px",
+                                            borderRadius: "6px",
+                                            border: "none",
+                                            backgroundColor: "#10b981",
+                                            color: "#fff",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            fontWeight: 500,
+                                            marginRight: "8px",
+                                        }}
+                                    >
+                                        📷 Add as Image
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (!ocrResult || !excalidrawAPI) return;
+
+                                            // Use MathJax parser to extract clean text
+                                            const processedText = extractTextFromOCRWithMathJax(ocrResult);
+
+                                            // Wrap long lines at ~60 characters
+                                            const wrapText = (text: string, maxWidth: number): string[] => {
+                                                const words = text.split(' ');
+                                                const wrappedLines: string[] = [];
+                                                let currentLine = '';
+
+                                                for (const word of words) {
+                                                    if ((currentLine + ' ' + word).trim().length <= maxWidth) {
+                                                        currentLine = (currentLine + ' ' + word).trim();
+                                                    } else {
+                                                        if (currentLine) wrappedLines.push(currentLine);
+                                                        currentLine = word;
+                                                    }
+                                                }
+                                                if (currentLine) wrappedLines.push(currentLine);
+                                                return wrappedLines;
+                                            };
+
+                                            // Split by existing newlines, then wrap each long line
+                                            const rawLines = processedText.split('\n');
+                                            const allLines: string[] = [];
+                                            for (const line of rawLines) {
+                                                if (line.trim().length === 0) continue;
+                                                if (line.length > 60) {
+                                                    allLines.push(...wrapText(line.trim(), 60));
+                                                } else {
+                                                    allLines.push(line.trim());
+                                                }
+                                            }
+
+                                            const fontSize = 16;
+                                            const lineSpacing = fontSize * 1.5;
+                                            const groupId = `ocr-group-${Date.now()}`;
+
+                                            const textElements = allLines.map((line, index) =>
+                                                convertToExcalidrawElements([{
+                                                    type: "text",
+                                                    x: 100,
+                                                    y: 100 + (index * lineSpacing),
+                                                    text: line,
+                                                    fontSize: fontSize,
+                                                    fontFamily: 1,
+                                                }])
+                                            ).flat().map(el => ({
+                                                ...el,
+                                                groupIds: [groupId],
+                                            }));
+
+                                            const currentElements = excalidrawAPI.getSceneElements();
+                                            excalidrawAPI.updateScene({
+                                                elements: [...currentElements, ...textElements],
+                                            });
+                                            excalidrawAPI.scrollToContent(textElements, { fitToContent: true });
+                                            onClose();
+                                        }}
+                                        style={{
+                                            marginTop: "8px",
+                                            padding: "8px 14px",
+                                            borderRadius: "6px",
+                                            border: "1px solid rgba(255,255,255,0.2)",
+                                            backgroundColor: "transparent",
+                                            color: "#e4e4e7",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        📝 Add as Text
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setOcrImage(null);
+                                            setOcrResult(null);
+                                            setError(null);
+                                        }}
+                                        style={{
+                                            marginTop: "8px",
+                                            marginLeft: "8px",
+                                            padding: "8px 14px",
+                                            borderRadius: "6px",
+                                            border: "none",
+                                            backgroundColor: "#ef4444",
+                                            color: "#fff",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        🗑️ Clear
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* TTS Tab Content */}
+                    {activeTab === "tts" && (
+                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
+                            {/* Hidden audio element for playback */}
+                            <audio ref={audioRef} style={{ display: "none" }} />
+
+                            {/* Instructions */}
+                            <InfoBanner color="indigo">
+                                💡 <strong>Tip:</strong> Copy text from canvas (Ctrl+C), then open this tab. Text will auto-fill.
+                            </InfoBanner>
+
+                            {/* Text Input */}
+                            <FormLabel>Text to speak:</FormLabel>
+                            <FormTextarea
+                                value={ttsText}
+                                onChange={(val) => setTtsText(val)}
+                                placeholder="Enter or paste text here to convert to speech..."
+                            />
+
+                            {/* Voice Selector */}
+                            <div style={{ marginTop: "12px" }}>
+                                <FormLabel>Voice:</FormLabel>
+                                <FormSelect
+                                    value={ttsVoice}
+                                    onChange={(val) => setTtsVoice(val)}
+                                >
+                                    {loadingVoices ? (
+                                        <option>Loading voices...</option>
+                                    ) : ttsVoices.length === 0 ? (
+                                        <option>No voices available</option>
+                                    ) : (
+                                        ttsVoices.map((voice) => (
+                                            <option key={voice.id} value={voice.id}>
+                                                {voice.name} ({voice.category})
+                                            </option>
+                                        ))
+                                    )}
+                                </FormSelect>
+                            </div>
+
+                            {/* Speak Button */}
+                            <button
+                                onClick={speakText}
+                                disabled={loading || !ttsText.trim()}
+                                style={{
+                                    marginTop: "14px",
+                                    width: "100%",
+                                    padding: "12px 20px",
+                                    borderRadius: "8px",
+                                    border: "none",
+                                    backgroundColor: (loading || !ttsText.trim()) ? "#4b5563" : "#10b981",
+                                    color: "#ffffff",
+                                    cursor: (loading || !ttsText.trim()) ? "not-allowed" : "pointer",
+                                    fontSize: "14px",
+                                    fontWeight: 500,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "8px",
+                                }}
+                            >
+                                {loading ? (
+                                    <>
+                                        <span style={{
+                                            width: "14px",
+                                            height: "14px",
+                                            border: "2px solid transparent",
+                                            borderTopColor: "#fff",
+                                            borderRadius: "50%",
+                                            animation: "spin 0.8s linear infinite",
+                                        }}></span>
+                                        Generating speech...
+                                    </>
+                                ) : "🔊 Speak Text"}
+                            </button>
+
+                            {/* Audio Player (visible after generation) */}
+                            {ttsAudio && (
+                                <div style={{ marginTop: "16px" }}>
+                                    <label style={{
+                                        display: "block",
+                                        marginBottom: "8px",
+                                        color: "#10b981",
+                                        fontSize: "13px",
+                                        fontWeight: 500,
+                                    }}>✅ Audio Generated:</label>
+                                    <audio
+                                        controls
+                                        src={ttsAudio}
+                                        style={{ width: "100%", borderRadius: "8px" }}
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            setTtsAudio(null);
+                                            setTtsText("");
+                                        }}
+                                        style={{
+                                            marginTop: "8px",
+                                            padding: "8px 14px",
+                                            borderRadius: "6px",
+                                            border: "1px solid rgba(255,255,255,0.2)",
+                                            backgroundColor: "transparent",
+                                            color: "#9ca3af",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                        }}
+                                    >
+                                        🔄 New
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Style selector (only for diagrams) */}
+                    {activeTab === "diagram" && (
+                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
+                            <FormLabel>Diagram Type:</FormLabel>
+                            <FormSelect value={style} onChange={(val) => setStyle(val)}>
+                                <option value="flowchart">Flowchart</option>
+                                <option value="sequence">Sequence Diagram</option>
+                                <option value="class">Class Diagram</option>
+                                <option value="mindmap">Mind Map</option>
+                            </FormSelect>
+                        </div>
+                    )}
+
+                    {/* Error Display */}
+                    {error && (
+                        <div style={{
+                            padding: "10px 12px",
+                            marginBottom: "14px",
+                            maxWidth: "480px",
+                            backgroundColor: "rgba(239, 68, 68, 0.15)",
+                            border: "1px solid rgba(239, 68, 68, 0.4)",
+                            borderRadius: "8px",
+                            color: "#fca5a5",
+                            fontSize: "12px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                        }}>
+                            <span>⚠️</span> {error}
+                        </div>
+                    )}
+
+                    {/* Action Buttons - Not shown for tts tab */}
+                    {activeTab !== "tts" && (
+                        <div style={{ display: "flex", gap: "10px", maxWidth: "480px" }}>
+                            <button
+                                onClick={handleGenerate}
+                                disabled={loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())}
+                                style={{
+                                    flex: 1,
+                                    padding: "12px 18px",
+                                    borderRadius: "10px",
+                                    border: "none",
+                                    backgroundColor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim())
+                                        ? "rgba(255, 255, 255, 0.06)"
+                                        : "rgba(255, 255, 255, 0.08)",
+                                    color: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "#6b7280" : "#e4e4e7",
+                                    cursor: loading || (activeTab === "ocr" ? !ocrImage : !prompt.trim()) ? "not-allowed" : "pointer",
+                                    fontSize: "14px",
+                                    fontWeight: 500,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "8px",
+                                    transition: "all 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => {
+                                    const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
+                                    if (!loading && !isDisabled) {
+                                        e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.12)";
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    const isDisabled = activeTab === "ocr" ? !ocrImage : !prompt.trim();
+                                    if (!loading && !isDisabled) {
+                                        e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.08)";
+                                    }
+                                }}
+                            >
+                                {loading ? (
+                                    <>
+                                        <span style={{
+                                            width: "16px",
+                                            height: "16px",
+                                            border: "2px solid transparent",
+                                            borderTopColor: "currentColor",
+                                            borderRadius: "50%",
+                                            animation: "spin 0.8s linear infinite",
+                                            display: "inline-block",
+                                        }} />
+                                        {activeTab === "ocr" ? "Extracting..." : "Generating..."}
+                                    </>
+                                ) : (
+                                    <>
+                                        {activeTab === "ocr" ? "📝 Extract Text" : "◆ Generate " + (activeTab === "diagram" ? "Diagram" : activeTab === "image" ? "Image" : "from Sketch")}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Footer */}
+                    <div style={{
+                        marginTop: "20px",
+                        fontSize: "12px",
+                        color: "#6b7280",
+                        textAlign: "center",
+                        maxWidth: "480px",
+                    }}>
+                        {activeTab === "diagram" && "Powered by Kimi-K2 + Mermaid-to-Excalidraw"}
+                        {activeTab === "image" && "Powered by Z-Image-Turbo • Ultra-fast generation"}
+                        {activeTab === "sketch" && "Powered by ControlNet v1.1 • May take 30-60s on cold start"}
+                        {activeTab === "ocr" && "Powered by PaddleOCR-VL"}
+                        {activeTab === "tts" && "Powered by ElevenLabs Text-to-Speech"}
+                    </div>
                 </div>
             </div>
         </div>
