@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -10,17 +9,10 @@ import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../utils/mathJaxParser";
 import { addImageToCanvas } from "../utils/addImageToCanvas";
 import { saveAIResult } from "../data/LocalStorage";
-import type { AIHistoryType } from "../data/LocalStorage";
 import { useBlockExcalidrawKeys } from "../hooks/useBlockExcalidrawKeys";
 import { useAIHistory } from "../hooks/useAIHistory";
 import { useTTS } from "../hooks/useTTS";
-
-interface AIToolsDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
-    excalidrawAPI: ExcalidrawImperativeAPI | null;
-    initialTab?: "diagram" | "image" | "ocr" | "tts" | "sketch";
-}
+import type { AITab, AIToolsDialogProps } from "../types/ai-tools";
 
 const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002";
 
@@ -37,7 +29,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     excalidrawAPI,
     initialTab = "diagram"
 }) => {
-    const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "tts" | "sketch" | "history">(initialTab as any);
+    const [activeTab, setActiveTab] = useState<AITab>(initialTab);
     const { history: filteredHistory, allHistory, filter: historyFilter, setFilter: setHistoryFilter, deleteEntry: deleteHistoryEntry, clearAll: clearAllHistory } = useAIHistory(activeTab === "history" && isOpen);
     const [prompt, setPrompt] = useState("");
     const [style, setStyle] = useState("flowchart");
@@ -90,11 +82,11 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             // Compute bounding box of all drawn elements
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             for (const el of elements) {
-                if ((el as any).isDeleted) continue;
-                const ex = (el as any).x ?? 0;
-                const ey = (el as any).y ?? 0;
-                const ew = (el as any).width ?? 0;
-                const eh = (el as any).height ?? 0;
+                if (el.isDeleted) continue;
+                const ex = (el as unknown as { x: number }).x ?? 0;
+                const ey = (el as unknown as { y: number }).y ?? 0;
+                const ew = (el as unknown as { width: number }).width ?? 0;
+                const eh = (el as unknown as { height: number }).height ?? 0;
                 minX = Math.min(minX, ex);
                 minY = Math.min(minY, ey);
                 maxX = Math.max(maxX, ex + ew);

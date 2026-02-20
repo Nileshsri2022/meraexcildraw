@@ -1,6 +1,6 @@
 import React from "react";
 import { FormLabel, FormTextarea, FormSelect, InfoBanner } from "./FormComponents";
-import type { AIHistoryEntry, AIHistoryType } from "../data/LocalStorage";
+import type { AIHistoryEntry, AIHistoryType } from "../types/ai-tools";
 
 // ─── TTS Tab Panel ───────────────────────────────────────────────────────────
 
