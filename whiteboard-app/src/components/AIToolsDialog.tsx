@@ -25,6 +25,7 @@ const AI_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3002"
 // ─── Extracted UI Components ───
 import { IconDiagram, IconImage, IconSketch, IconOCR, IconTTS, IconSparkle, IconHistory } from "./Icons";
 import { FormLabel, FormTextarea, FormSelect, FormSlider, FormInput, InfoBanner } from "./FormComponents";
+import { PromptSection, ImageSettings, SketchSettings, DiagramSettings } from "./TabPanels";
 
 export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     isOpen,
@@ -885,161 +886,28 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     </div>
 
                     {(activeTab === "diagram" || activeTab === "image" || activeTab === "sketch") && (
-                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
-                            <FormLabel>
-                                {activeTab === "diagram"
-                                    ? "Describe your diagram:"
-                                    : activeTab === "image"
-                                        ? "✨ Your Prompt:"
-                                        : "Describe the final image style:"}
-                            </FormLabel>
-                            <FormTextarea
-                                value={prompt}
-                                onChange={setPrompt}
-                                placeholder={
-                                    activeTab === "diagram"
-                                        ? "e.g., User login authentication flow with error handling"
-                                        : activeTab === "image"
-                                            ? "e.g., A futuristic city skyline at sunset with flying cars"
-                                            : "e.g., High-quality anime style, vibrant colors, clean lines"
-                                }
-                            />
-                        </div>
+                        <PromptSection activeTab={activeTab} prompt={prompt} setPrompt={setPrompt} />
                     )}
 
-                    {/* Z-Image-Turbo Advanced Settings */}
                     {activeTab === "image" && (
-                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
-                            <InfoBanner color="amber">
-                                ⚡ <strong>Z-Image-Turbo</strong> — Ultra-fast AI image generation. Generate stunning images in just 8 steps.
-                            </InfoBanner>
-
-                            {/* Height & Width in a row */}
-                            <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
-                                <div style={{ flex: 1 }}>
-                                    <FormSlider label="Height" value={imgHeight} onChange={setImgHeight} min={512} max={2048} step={64} accentColor="#eab308" />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <FormSlider label="Width" value={imgWidth} onChange={setImgWidth} min={512} max={2048} step={64} accentColor="#eab308" />
-                                </div>
-                            </div>
-
-                            <FormSlider label="Inference Steps" value={imgSteps} onChange={setImgSteps} min={1} max={20} step={1} accentColor="#eab308" hint="9 steps = 8 DiT forwards (recommended)" />
-
-                            {/* Seed + Random Seed */}
-                            <div style={{ marginBottom: "4px" }}>
-                                <div style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    marginBottom: "6px",
-                                }}>
-                                    <FormLabel>Seed</FormLabel>
-                                    <label style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        cursor: "pointer",
-                                        fontSize: "12px",
-                                        color: "#9ca3af",
-                                    }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={imgRandomSeed}
-                                            onChange={(e) => setImgRandomSeed(e.target.checked)}
-                                            style={{ accentColor: "#eab308", cursor: "pointer" }}
-                                        />
-                                        🎲 Random Seed
-                                    </label>
-                                </div>
-                                <FormInput
-                                    type="number"
-                                    value={imgSeed}
-                                    onChange={(v) => setImgSeed(Number(v))}
-                                    disabled={imgRandomSeed}
-                                    min={0}
-                                    max={2147483647}
-                                />
-                            </div>
-                        </div>
+                        <ImageSettings
+                            imgWidth={imgWidth} setImgWidth={setImgWidth}
+                            imgHeight={imgHeight} setImgHeight={setImgHeight}
+                            imgSteps={imgSteps} setImgSteps={setImgSteps}
+                            imgSeed={imgSeed} setImgSeed={setImgSeed}
+                            imgRandomSeed={imgRandomSeed} setImgRandomSeed={setImgRandomSeed}
+                        />
                     )}
 
-                    {/* ControlNet Sketch Controls */}
                     {activeTab === "sketch" && (
-                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
-                            <InfoBanner color="indigo">
-                                💡 <strong>ControlNet</strong> — Draw a sketch on the canvas, choose a pipeline, then describe what you want. The AI preserves your sketch's structure.
-                            </InfoBanner>
-
-                            {/* Pipeline */}
-                            <div style={{ marginBottom: "12px" }}>
-                                <FormLabel>Pipeline:</FormLabel>
-                                <FormSelect value={sketchPipeline} onChange={setSketchPipeline}>
-                                    <option value="scribble">✏️ Scribble (rough freehand sketches)</option>
-                                    <option value="canny">🔲 Canny (clean edge outlines)</option>
-                                    <option value="softedge">🌊 SoftEdge (smooth edges)</option>
-                                    <option value="lineart">🖊️ Lineart (clean line drawings)</option>
-                                    <option value="depth">📐 Depth (depth-based generation)</option>
-                                    <option value="normal">🗺️ Normal Map</option>
-                                    <option value="mlsd">📏 MLSD (straight lines / architecture)</option>
-                                    <option value="segmentation">🎨 Segmentation (semantic maps)</option>
-                                </FormSelect>
-                            </div>
-
-                            {/* Preprocessor */}
-                            <div style={{ marginBottom: "12px" }}>
-                                <FormLabel>Preprocessor:</FormLabel>
-                                <FormSelect value={sketchPreprocessor} onChange={setSketchPreprocessor}>
-                                    <option value="HED">HED (Soft edges — best for rough sketches)</option>
-                                    <option value="None">None (Direct — best for clean line art)</option>
-                                </FormSelect>
-                            </div>
-
-                            <FormSlider label="Image Resolution" value={sketchResolution} onChange={setSketchResolution} min={256} max={768} step={128} />
-
-                            {/* Steps & Guidance in a row */}
-                            <div style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
-                                <div style={{ flex: 1 }}>
-                                    <FormSlider label="Steps" value={sketchSteps} onChange={setSketchSteps} min={10} max={40} step={5} />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <FormSlider label="Guidance" value={sketchGuidance} onChange={setSketchGuidance} min={1} max={20} step={0.5} />
-                                </div>
-                            </div>
-
-                            {/* Seed */}
-                            <div style={{ marginBottom: "4px" }}>
-                                <div style={{
-                                    display: "flex",
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                    marginBottom: "6px",
-                                }}>
-                                    <FormLabel>Seed</FormLabel>
-                                    <button
-                                        onClick={() => setSketchSeed(Math.floor(Math.random() * 2147483647))}
-                                        style={{
-                                            padding: "2px 8px",
-                                            borderRadius: "4px",
-                                            border: "1px solid rgba(255, 255, 255, 0.15)",
-                                            backgroundColor: "transparent",
-                                            color: "#9ca3af",
-                                            cursor: "pointer",
-                                            fontSize: "11px",
-                                        }}
-                                    >
-                                        🎲 Random
-                                    </button>
-                                </div>
-                                <FormInput
-                                    type="number"
-                                    value={sketchSeed}
-                                    onChange={(v) => setSketchSeed(Number(v))}
-                                    min={0}
-                                    max={2147483647}
-                                />
-                            </div>
-                        </div>
+                        <SketchSettings
+                            sketchPipeline={sketchPipeline} setSketchPipeline={setSketchPipeline}
+                            sketchPreprocessor={sketchPreprocessor} setSketchPreprocessor={setSketchPreprocessor}
+                            sketchResolution={sketchResolution} setSketchResolution={setSketchResolution}
+                            sketchSteps={sketchSteps} setSketchSteps={setSketchSteps}
+                            sketchGuidance={sketchGuidance} setSketchGuidance={setSketchGuidance}
+                            sketchSeed={sketchSeed} setSketchSeed={setSketchSeed}
+                        />
                     )}
 
                     {/* OCR Tab Content */}
@@ -1468,15 +1336,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
                     {/* Style selector (only for diagrams) */}
                     {activeTab === "diagram" && (
-                        <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
-                            <FormLabel>Diagram Type:</FormLabel>
-                            <FormSelect value={style} onChange={(val) => setStyle(val)}>
-                                <option value="flowchart">Flowchart</option>
-                                <option value="sequence">Sequence Diagram</option>
-                                <option value="class">Class Diagram</option>
-                                <option value="mindmap">Mind Map</option>
-                            </FormSelect>
-                        </div>
+                        <DiagramSettings style={style} setStyle={setStyle} />
                     )}
 
                     {/* Error Display */}
