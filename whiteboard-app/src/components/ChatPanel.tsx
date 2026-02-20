@@ -7,6 +7,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useCanvasChat } from "../hooks/useCanvasChat";
 import type { ChatMessage } from "../hooks/useCanvasChat";
+import { useCanvasActions } from "../hooks/useCanvasActions";
 
 // ─── Message Bubble ──────────────────────────────────────────────────────────
 
@@ -37,6 +38,9 @@ const MessageBubble = React.memo(({ message, isStreaming }: {
                 ) : message.html ? (
                     /* Server-rendered HTML from Python markdown library */
                     <div className="chat-rendered" dangerouslySetInnerHTML={{ __html: message.html }} />
+                ) : message.processedHtml ? (
+                    /* Processed HTML with canvas actions replaced by badges */
+                    <div className="chat-rendered" dangerouslySetInnerHTML={{ __html: message.processedHtml }} />
                 ) : message.content ? (
                     /* Raw text during streaming (before server sends HTML) */
                     <p className="chat-streaming-text">{message.content}</p>
@@ -62,9 +66,22 @@ interface ChatPanelProps {
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidrawAPI }) => {
     const chat = useCanvasChat();
+    const canvasActions = useCanvasActions(excalidrawAPI);
     const [input, setInput] = useState("");
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+
+    // Process messages for canvas actions when they finish streaming
+    useEffect(() => {
+        const lastMsg = chat.messages[chat.messages.length - 1];
+        if (lastMsg?.role === "assistant" && lastMsg.html && !chat.isStreaming) {
+            const processedHtml = canvasActions.processMessage(lastMsg.id, lastMsg.html);
+            if (processedHtml !== lastMsg.html) {
+                // Update the message with processed HTML (canvas actions replaced by badge)
+                chat.updateMessageHtml(lastMsg.id, processedHtml);
+            }
+        }
+    }, [chat.messages, chat.isStreaming]); // eslint-disable-line
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -146,10 +163,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         </div>
                         <div className="chat-suggestions">
                             {[
-                                "Help me plan a system architecture",
-                                "Create a flowchart for user auth",
+                                "Draw a login flowchart",
+                                "Add a blue box that says 'API Server'",
+                                "Create a system architecture diagram",
                                 "What's on my canvas?",
-                                "Suggest improvements to my diagram",
                             ].map(s => (
                                 <button
                                     key={s}

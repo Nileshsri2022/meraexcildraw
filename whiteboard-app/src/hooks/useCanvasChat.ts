@@ -16,6 +16,8 @@ export interface ChatMessage {
     content: string;
     /** Server-rendered HTML (populated when streaming completes) */
     html?: string;
+    /** Processed HTML after canvas actions are extracted */
+    processedHtml?: string;
     timestamp: number;
 }
 
@@ -164,6 +166,19 @@ export function useCanvasChat() {
     }, []);
 
     /**
+     * Update a message's HTML (used after canvas actions are processed).
+     */
+    const updateMessageHtml = useCallback((messageId: string, processedHtml: string) => {
+        setMessages(prev =>
+            prev.map(m =>
+                m.id === messageId
+                    ? { ...m, processedHtml, html: undefined }
+                    : m
+            )
+        );
+    }, []);
+
+    /**
      * Clear conversation history (both local and server-side).
      */
     const clearChat = useCallback(async () => {
@@ -219,5 +234,6 @@ export function useCanvasChat() {
         stopStreaming,
         clearChat,
         syncCanvasContext,
+        updateMessageHtml,
     };
 }
