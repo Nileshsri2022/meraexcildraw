@@ -33,7 +33,8 @@ from pydantic import BaseModel, Field
 
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 import markdown as md
 
 load_dotenv()
@@ -81,28 +82,6 @@ canvas_llm = ChatNVIDIA(
     max_completion_tokens=4096,
 )
 
-# ─── LangChain Output Parser ────────────────────────────────────────────────
-
-canvas_parser = JsonOutputParser()
-
-# ─── Canvas Element Schema (for the LLM prompt) ──────────────────────────────
-
-CANVAS_ELEMENT_SCHEMA = """[
-  {
-    "id": "unique-id",
-    "type": "rectangle | ellipse | diamond | text | arrow | line",
-    "x": 100,
-    "y": 100,
-    "width": 200,
-    "height": 100,
-    "text": "Label text",
-    "backgroundColor": "#3b82f6",
-    "strokeColor": "#1e1e1e",
-    "startId": "source-element-id (for arrows only)",
-    "endId": "target-element-id (for arrows only)"
-  }
-]"""
-
 # ─── Prompts ─────────────────────────────────────────────────────────────────
 
 CHAT_SYSTEM_PROMPT = """You are **Canvas AI**, an intelligent assistant embedded in a collaborative whiteboard application (Excalidraw-based).
@@ -128,7 +107,10 @@ CHAT_SYSTEM_PROMPT = """You are **Canvas AI**, an intelligent assistant embedded
 {canvas_context}
 """
 
-CANVAS_ACTION_PROMPT = """You are a canvas element generator for an Excalidraw whiteboard.
+# ─── Canvas Action Chain (LCEL: prompt | llm | parser) ───────────────────────
+
+canvas_prompt = ChatPromptTemplate.from_messages([
+    ("human", """You are a canvas element generator for an Excalidraw whiteboard.
 
 Based on the user's request, generate a JSON array of canvas elements.
 
@@ -143,13 +125,39 @@ RULES:
 8. For text inside shapes, use the "text" field.
 9. Start positioning from x=100, y=100.
 
-SCHEMA for each element:
-{schema}
+SCHEMA per element:
+[
+  {{
+    "id": "unique-id",
+    "type": "rectangle | ellipse | diamond | text | arrow | line",
+    "x": 100, "y": 100, "width": 200, "height": 100,
+    "text": "Label",
+    "backgroundColor": "#3b82f6",
+    "strokeColor": "#1e1e1e",
+    "startId": "source-id (arrows only)",
+    "endId": "target-id (arrows only)"
+  }}
+]
 
 User request: {user_message}
 Canvas context: {canvas_context}
 
-Respond with ONLY the JSON array:"""
+Respond with ONLY the JSON array:""")
+])
+
+def _clean_llm_json(raw: str) -> list[dict] | None:
+    """Strip think tags and markdown fences, then parse JSON."""
+    text = strip_think_tags(raw).strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```\w*\n?", "", text)
+        text = re.sub(r"\n?```$", "", text)
+    parsed = json.loads(text)
+    if isinstance(parsed, list) and len(parsed) > 0:
+        return parsed
+    return None
+
+# LCEL chain: prompt → LLM (low temp) → string output
+canvas_chain = canvas_prompt | canvas_llm | StrOutputParser()
 
 # ─── Drawing Intent Detection ────────────────────────────────────────────────
 
@@ -167,36 +175,22 @@ def has_drawing_intent(message: str) -> bool:
     msg_lower = message.lower()
     return any(kw in msg_lower for kw in DRAW_KEYWORDS)
 
-# ─── Canvas Element Generator (LangChain structured output) ──────────────────
+# ─── Canvas Element Generator (via LCEL chain) ───────────────────────────────
 
 def generate_canvas_elements(user_message: str, canvas_context: str) -> list[dict] | None:
     """
-    Use LangChain to generate structured canvas elements.
-    Makes a separate LLM call with low temperature for reliable JSON.
+    Run the canvas LCEL chain: prompt | llm | parser.
+    Returns a list of structured canvas elements, or None.
     """
-    prompt = CANVAS_ACTION_PROMPT.format(
-        schema=CANVAS_ELEMENT_SCHEMA,
-        user_message=user_message,
-        canvas_context=canvas_context,
-    )
-
     try:
-        response = canvas_llm.invoke([HumanMessage(content=prompt)])
-        raw = strip_think_tags(response.content).strip()
-
-        # Clean up: remove markdown fences if the model wraps them
-        if raw.startswith("```"):
-            raw = re.sub(r"^```\w*\n?", "", raw)
-            raw = re.sub(r"\n?```$", "", raw)
-
-        elements = canvas_parser.parse(raw)
-
-        # Validate it's a list
-        if isinstance(elements, list) and len(elements) > 0:
-            return elements
+        raw_output = canvas_chain.invoke({
+            "user_message": user_message,
+            "canvas_context": canvas_context,
+        })
+        return _clean_llm_json(raw_output)
 
     except Exception as e:
-        print(f"[CanvasAction] Failed to generate elements: {e}")
+        print(f"[CanvasChain] Failed: {e}")
 
     return None
 
