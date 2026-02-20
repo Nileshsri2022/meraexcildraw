@@ -8,8 +8,10 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../utils/mathJaxParser";
-import { saveAIResult, getAIHistory, deleteAIHistoryEntry, clearAIHistory } from "../data/LocalStorage";
-import type { AIHistoryEntry, AIHistoryType } from "../data/LocalStorage";
+import { saveAIResult } from "../data/LocalStorage";
+import type { AIHistoryType } from "../data/LocalStorage";
+import { useBlockExcalidrawKeys } from "../hooks/useBlockExcalidrawKeys";
+import { useAIHistory } from "../hooks/useAIHistory";
 
 interface AIToolsDialogProps {
     isOpen: boolean;
@@ -220,8 +222,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     initialTab = "diagram"
 }) => {
     const [activeTab, setActiveTab] = useState<"diagram" | "image" | "ocr" | "tts" | "sketch" | "history">(initialTab as any);
-    const [history, setHistory] = useState<AIHistoryEntry[]>([]);
-    const [historyFilter, setHistoryFilter] = useState<AIHistoryType | "all">("all");
+    const { history: filteredHistory, allHistory, filter: historyFilter, setFilter: setHistoryFilter, deleteEntry: deleteHistoryEntry, clearAll: clearAllHistory } = useAIHistory(activeTab === "history" && isOpen);
     const [prompt, setPrompt] = useState("");
     const [style, setStyle] = useState("flowchart");
     const [loading, setLoading] = useState(false);
@@ -871,42 +872,11 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                     ? generateSketchImage
                     : performOcr;
 
-    // Load history when switching to history tab
-    useEffect(() => {
-        if (activeTab === "history" && isOpen) {
-            getAIHistory().then(setHistory).catch(() => setHistory([]));
-        }
-    }, [activeTab, isOpen]);
-
     // Sidebar toggle state
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
-
-    // ─── Block Excalidraw keyboard shortcuts while dialog is open ───
-    // Excalidraw uses capture-phase document listeners, so we need our own
-    // capture-phase listener registered BEFORE theirs to intercept events.
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const blockKeyboard = (e: KeyboardEvent) => {
-            // Allow Escape to close the dialog
-            if (e.key === "Escape") return;
-            // Stop ALL other handlers from seeing this event
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-        };
-
-        // Register on capture phase so it fires before Excalidraw's handlers
-        document.addEventListener("keydown", blockKeyboard, true);
-        document.addEventListener("keyup", blockKeyboard, true);
-        document.addEventListener("keypress", blockKeyboard, true);
-
-        return () => {
-            document.removeEventListener("keydown", blockKeyboard, true);
-            document.removeEventListener("keyup", blockKeyboard, true);
-            document.removeEventListener("keypress", blockKeyboard, true);
-        };
-    }, [isOpen]);
+    // Block Excalidraw keyboard shortcuts while dialog is open
+    useBlockExcalidrawKeys(isOpen);
 
     if (!isOpen) return null;
 
@@ -1600,7 +1570,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                             tts: { label: "TTS", color: "#60a5fa" },
                         };
                         const filters: Array<AIHistoryType | "all"> = ["all", "diagram", "image", "sketch", "ocr", "tts"];
-                        const filtered = historyFilter === "all" ? history : history.filter(e => e.type === historyFilter);
+                        const filtered = filteredHistory;
 
                         return (
                             <div style={{ maxWidth: "560px" }}>
@@ -1617,8 +1587,8 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                             {f === "all" ? "All" : TYPE_META[f].label}
                                         </button>
                                     ))}
-                                    {history.length > 0 && (
-                                        <button onClick={async () => { await clearAIHistory(); setHistory([]); }} style={{
+                                    {allHistory.length > 0 && (
+                                        <button onClick={clearAllHistory} style={{
                                             marginLeft: "auto", padding: "4px 12px", borderRadius: "20px",
                                             border: "1px solid rgba(239,68,68,0.3)", cursor: "pointer",
                                             fontSize: "11px", backgroundColor: "transparent", color: "#f87171",
@@ -1672,10 +1642,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                                     {dateStr} {timeStr}
                                                 </span>
                                                 {/* Delete */}
-                                                <button title="Delete" onClick={async () => {
-                                                    await deleteAIHistoryEntry(entry.id);
-                                                    setHistory(prev => prev.filter(e => e.id !== entry.id));
-                                                }} style={{
+                                                <button title="Delete" onClick={() => deleteHistoryEntry(entry.id)} style={{
                                                     padding: "2px 6px", borderRadius: "4px", border: "none", cursor: "pointer",
                                                     fontSize: "11px", backgroundColor: "rgba(239,68,68,0.1)", color: "#f87171",
                                                     flexShrink: 0, lineHeight: 1,
