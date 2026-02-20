@@ -8,10 +8,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY main.py .
-COPY .env* ./
 
-# Expose the port
+# Expose the port (Railway uses $PORT, fallback to 3003)
 EXPOSE 3003
 
-# Run with uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3003"]
+# Run with uvicorn — use PORT env var if set by Railway
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-3003}
