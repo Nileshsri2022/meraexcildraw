@@ -3,6 +3,9 @@
  *
  * A premium sliding panel with streaming AI responses,
  * server-side rendered HTML, and canvas-aware conversation.
+ *
+ * Canvas actions from the backend are executed automatically
+ * via the useCanvasActions hook — no parsing needed.
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useCanvasChat } from "../hooks/useCanvasChat";
@@ -36,13 +39,8 @@ const MessageBubble = React.memo(({ message, isStreaming }: {
                 {isUser ? (
                     <p>{message.content}</p>
                 ) : message.html ? (
-                    /* Server-rendered HTML from Python markdown library */
                     <div className="chat-rendered" dangerouslySetInnerHTML={{ __html: message.html }} />
-                ) : message.processedHtml ? (
-                    /* Processed HTML with canvas actions replaced by badges */
-                    <div className="chat-rendered" dangerouslySetInnerHTML={{ __html: message.processedHtml }} />
                 ) : message.content ? (
-                    /* Raw text during streaming (before server sends HTML) */
                     <p className="chat-streaming-text">{message.content}</p>
                 ) : isStreaming ? (
                     <div className="chat-typing">
@@ -68,25 +66,27 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const chat = useCanvasChat();
     const canvasActions = useCanvasActions(excalidrawAPI);
     const [input, setInput] = useState("");
+    const [actionCount, setActionCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
-    // Process messages for canvas actions when they finish streaming
+    // Execute pending canvas actions from the backend
     useEffect(() => {
-        const lastMsg = chat.messages[chat.messages.length - 1];
-        if (lastMsg?.role === "assistant" && lastMsg.html && !chat.isStreaming) {
-            const processedHtml = canvasActions.processMessage(lastMsg.id, lastMsg.html, lastMsg.content);
-            if (processedHtml !== lastMsg.html) {
-                // Update the message with processed HTML (canvas actions replaced by badge)
-                chat.updateMessageHtml(lastMsg.id, processedHtml);
-            }
+        if (chat.pendingActions && chat.pendingActions.length > 0) {
+            const count = canvasActions.executeActions(chat.pendingActions) || 0;
+            setActionCount(count);
+            chat.consumeActions();
+
+            // Clear the badge after a few seconds
+            const timer = setTimeout(() => setActionCount(0), 4000);
+            return () => clearTimeout(timer);
         }
-    }, [chat.messages, chat.isStreaming]); // eslint-disable-line
+    }, [chat.pendingActions]); // eslint-disable-line
 
     // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [chat.messages]);
+    }, [chat.messages, actionCount]);
 
     // Focus input when panel opens
     useEffect(() => {
@@ -159,7 +159,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         </div>
                         <div className="chat-empty-title">Canvas AI</div>
                         <div className="chat-empty-subtitle">
-                            Ask me anything about your whiteboard. I can help with diagrams, brainstorming, and more.
+                            Ask me anything about your whiteboard. I can draw diagrams, brainstorm ideas, and more.
                         </div>
                         <div className="chat-suggestions">
                             {[
@@ -187,6 +187,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         isStreaming={chat.isStreaming && i === chat.messages.length - 1}
                     />
                 ))}
+
+                {/* Canvas action badge */}
+                {actionCount > 0 && (
+                    <div className="canvas-action-badge">
+                        ✅ {actionCount} element{actionCount !== 1 ? "s" : ""} added to canvas!
+                    </div>
+                )}
 
                 {chat.error && (
                     <div className="chat-error">
