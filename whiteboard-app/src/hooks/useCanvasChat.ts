@@ -1,7 +1,9 @@
 /**
  * useCanvasChat — Hook for the AI Canvas Chat Assistant.
  *
- * Connects to the Python chat microservice via typed SSE events.
+ * Connects to the Python chat microservice via typed SSE events
+ * using @microsoft/fetch-event-source (no manual SSE parsing).
+ *
  * Manages conversation state, message history, and canvas context sync.
  *
  * SSE Event Types:
@@ -11,6 +13,7 @@
  *   { type: "error",  error: "..." }
  */
 import { useState, useRef, useCallback } from "react";
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 
 const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
@@ -41,16 +44,6 @@ export interface CanvasActionElement {
     endId?: string;
 }
 
-interface SSEEvent {
-    type: "token" | "done" | "canvas_action" | "error";
-    token?: string;
-    done?: boolean;
-    html?: string;
-    session_id?: string;
-    error?: string;
-    elements?: CanvasActionElement[];
-}
-
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useCanvasChat() {
@@ -63,6 +56,11 @@ export function useCanvasChat() {
 
     /**
      * Send a message and stream the response via typed SSE events.
+     *
+     * Uses @microsoft/fetch-event-source which handles:
+     *   - SSE line parsing (no manual buffer/split/slice)
+     *   - Reconnection on network errors
+     *   - POST with JSON body (unlike native EventSource)
      */
     const sendMessage = useCallback(async (content: string) => {
         if (!content.trim() || isStreaming) return;
@@ -88,11 +86,11 @@ export function useCanvasChat() {
         setMessages(prev => [...prev, userMsg, assistantMsg]);
         setIsStreaming(true);
 
-        try {
-            const controller = new AbortController();
-            abortRef.current = controller;
+        const controller = new AbortController();
+        abortRef.current = controller;
 
-            const response = await fetch(`${CHAT_SERVICE_URL}/chat`, {
+        try {
+            await fetchEventSource(`${CHAT_SERVICE_URL}/chat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -100,41 +98,19 @@ export function useCanvasChat() {
                     session_id: sessionIdRef.current,
                 }),
                 signal: controller.signal,
-            });
 
-            if (!response.ok) {
-                throw new Error(`Chat service error: ${response.status}`);
-            }
-
-            const reader = response.body?.getReader();
-            if (!reader) throw new Error("No response stream");
-
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                const lines = buffer.split("\n");
-                buffer = lines.pop() || "";
-
-                for (const line of lines) {
-                    if (!line.startsWith("data: ")) continue;
-
+                // Called for each SSE event — data is already extracted
+                onmessage(event) {
                     try {
-                        const event: SSEEvent = JSON.parse(line.slice(6));
+                        const data = JSON.parse(event.data);
 
-                        // Handle each event type
-                        switch (event.type) {
+                        switch (data.type) {
                             case "token":
-                                if (event.token) {
+                                if (data.token) {
                                     setMessages(prev =>
                                         prev.map(m =>
                                             m.id === assistantId
-                                                ? { ...m, content: m.content + event.token }
+                                                ? { ...m, content: m.content + data.token }
                                                 : m
                                         )
                                     );
@@ -142,14 +118,14 @@ export function useCanvasChat() {
                                 break;
 
                             case "done":
-                                if (event.session_id) {
-                                    sessionIdRef.current = event.session_id;
+                                if (data.session_id) {
+                                    sessionIdRef.current = data.session_id;
                                 }
-                                if (event.html) {
+                                if (data.html) {
                                     setMessages(prev =>
                                         prev.map(m =>
                                             m.id === assistantId
-                                                ? { ...m, html: event.html }
+                                                ? { ...m, html: data.html }
                                                 : m
                                         )
                                     );
@@ -157,24 +133,44 @@ export function useCanvasChat() {
                                 break;
 
                             case "canvas_action":
-                                if (event.elements && event.elements.length > 0) {
-                                    // Set pending actions — the ChatPanel will execute them
-                                    setPendingActions(event.elements);
+                                if (data.elements && data.elements.length > 0) {
+                                    setPendingActions(data.elements);
                                 }
                                 break;
 
                             case "error":
-                                setError(event.error || "Unknown error");
+                                setError(data.error || "Unknown error");
                                 break;
                         }
                     } catch {
                         // Skip malformed JSON
                     }
-                }
-            }
+                },
+
+                // Connection opened successfully
+                onopen: async (response) => {
+                    if (!response.ok) {
+                        throw new Error(`Chat service error: ${response.status}`);
+                    }
+                },
+
+                // Handle errors — don't retry on abort
+                onerror(err) {
+                    if (err instanceof DOMException && err.name === "AbortError") {
+                        // User cancelled — don't retry
+                        throw err;
+                    }
+                    setError(err instanceof Error ? err.message : "Chat failed");
+                    // Throw to stop retrying
+                    throw err;
+                },
+
+                // Close the connection when done (don't keep reconnecting)
+                openWhenHidden: true,
+            });
         } catch (err) {
             if (err instanceof DOMException && err.name === "AbortError") {
-                // User cancelled
+                // User cancelled — silent
             } else {
                 const msg = err instanceof Error ? err.message : "Chat failed";
                 setError(msg);

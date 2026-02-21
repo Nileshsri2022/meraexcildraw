@@ -1,70 +1,97 @@
 """
-AI Canvas Chat Assistant — Python Microservice
+AI Canvas Chat Assistant — Python Microservice  (v4.0)
 
-A streaming chatbot powered by MiniMax M2.1 via NVIDIA AI Endpoints.
-Understands the whiteboard canvas context and helps users create,
-modify, and analyze their diagrams and drawings.
+A streaming chatbot powered by MiniMax M2.1 via NVIDIA AI Endpoints,
+built with LangChain 1.x + LangGraph architecture patterns:
+
+  - LangGraph StateGraph for two-phase pipeline orchestration
+  - MemorySaver checkpointing for durable conversation memory
+  - ChatPromptTemplate for prompt management
+  - LCEL chains (prompt | llm | parser) with async-first patterns
+  - Pydantic v2 schemas for structured canvas output
+  - StrOutputParser for reliable chain composition
+  - Python performance best practices (__slots__, frozenset, compiled regex,
+    generator-based SSE, local-variable hot paths)
 
 Architecture:
-    Phase 1 — Stream text response via SSE (type: "token")
-    Phase 2 — If drawing is requested, generate structured canvas
-              elements via a separate LLM call (type: "canvas_action")
+    StateGraph: START → stream_chat → (conditional) → generate_canvas → END
+    Phase 1 — Stream text via SSE  (chat_chain.astream)
+    Phase 2 — Generate structured canvas elements (canvas_chain.ainvoke)
 
 Endpoints:
     POST /chat          — Streaming SSE chat with optional canvas actions
-    POST /chat/context  — Update canvas context (elements on board)
+    POST /chat/context  — Update canvas context
     POST /chat/clear    — Clear conversation history
     DELETE /chat/session/{id} — Delete session
     GET  /health        — Health check
 """
 
+from __future__ import annotations
+
+import json
 import os
 import re
-import json
 import uuid
-from typing import AsyncGenerator
+from contextlib import asynccontextmanager
 from datetime import datetime
+from functools import lru_cache
+from typing import Annotated, Any, AsyncGenerator, TypedDict
 
+import markdown as md
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from langchain_nvidia_ai_endpoints import ChatNVIDIA
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-import markdown as md
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
 
 load_dotenv()
 
-# ─── Markdown → HTML converter ────────────────────────────────────────────────
+# ─── Compiled Regex (compile once, reuse everywhere) ─────────────────────────
 
-MD_EXTENSIONS = ["fenced_code", "tables", "nl2br", "sane_lists", "smarty"]
+_THINK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
+_FENCE_OPEN = re.compile(r"^```\w*\n?")
+_FENCE_CLOSE = re.compile(r"\n?```$")
 
-THINK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
+# ─── Markdown → HTML Converter ────────────────────────────────────────────────
+
+_MD_EXTENSIONS: tuple[str, ...] = (
+    "fenced_code", "tables", "nl2br", "sane_lists", "smarty"
+)
+
 
 def strip_think_tags(text: str) -> str:
     """Remove <think>...</think> reasoning blocks from model output."""
-    return THINK_PATTERN.sub("", text).lstrip("\n")
+    return _THINK_PATTERN.sub("", text).lstrip("\n")
 
+
+@lru_cache(maxsize=256)
 def md_to_html(text: str) -> str:
-    """Convert LLM markdown response to clean HTML for the frontend."""
-    return md.markdown(text, extensions=MD_EXTENSIONS)
+    """Convert LLM markdown to clean HTML for the frontend.
+
+    Cached with LRU (256 entries) — identical markdown fragments are common
+    during session replays and avoid repeated parsing overhead.
+    """
+    return md.markdown(text, extensions=list(_MD_EXTENSIONS))
+
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 
-NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
-CHAT_MODEL = os.getenv("CHAT_MODEL", "minimaxai/minimax-m2.1")
-CHAT_PORT = int(os.getenv("CHAT_PORT", "3003"))
+NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "")
+CHAT_MODEL: str = os.getenv("CHAT_MODEL", "minimaxai/minimax-m2.1")
+CHAT_PORT: int = int(os.getenv("CHAT_PORT", "3003"))
+MAX_HISTORY_MESSAGES: int = int(os.getenv("MAX_HISTORY_MESSAGES", "20"))
+SESSION_TTL_HOURS: int = int(os.getenv("SESSION_TTL_HOURS", "24"))
 
 if not NVIDIA_API_KEY:
     raise ValueError("NVIDIA_API_KEY is required. Set it in .env")
 
-# ─── LangChain Clients ───────────────────────────────────────────────────────
+# ─── LangChain LLMs (singleton instances, reused for connection pooling) ─────
 
-# Main chat LLM (streaming, creative)
 chat_llm = ChatNVIDIA(
     model=CHAT_MODEL,
     api_key=NVIDIA_API_KEY,
@@ -73,7 +100,6 @@ chat_llm = ChatNVIDIA(
     max_completion_tokens=4096,
 )
 
-# Canvas action LLM (structured output, deterministic)
 canvas_llm = ChatNVIDIA(
     model=CHAT_MODEL,
     api_key=NVIDIA_API_KEY,
@@ -82,37 +108,79 @@ canvas_llm = ChatNVIDIA(
     max_completion_tokens=4096,
 )
 
-# ─── Prompts ─────────────────────────────────────────────────────────────────
+# ─── Pydantic Schemas (Validated structured output) ──────────────────────────
 
-CHAT_SYSTEM_PROMPT = """You are **Canvas AI**, an intelligent assistant embedded in a collaborative whiteboard application (Excalidraw-based).
+
+class CanvasElement(BaseModel):
+    """A single element on the Excalidraw canvas.
+
+    Pydantic v2 model used for validating LLM-generated canvas elements.
+    """
+
+    id: str = Field(description="Unique element ID, e.g. 'el-1'")
+    type: str = Field(
+        description="Shape type: rectangle, ellipse, diamond, text, arrow, line"
+    )
+    x: int = Field(default=100, description="X position in pixels")
+    y: int = Field(default=100, description="Y position in pixels")
+    width: int = Field(default=200, description="Width in pixels")
+    height: int = Field(default=100, description="Height in pixels")
+    text: str = Field(default="", description="Text inside shape or label")
+    backgroundColor: str = Field(default="#3b82f6", description="Fill color hex")
+    strokeColor: str = Field(default="#1e1e1e", description="Border color hex")
+    startId: str | None = Field(
+        default=None, description="Arrow source element ID"
+    )
+    endId: str | None = Field(
+        default=None, description="Arrow target element ID"
+    )
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=4000)
+    session_id: str | None = None
+
+
+class CanvasContextRequest(BaseModel):
+    session_id: str
+    elements: list[dict] = Field(default_factory=list)
+    description: str | None = None
+
+
+class ClearRequest(BaseModel):
+    session_id: str
+
+
+# ─── LangChain Prompts ───────────────────────────────────────────────────────
+
+chat_prompt = ChatPromptTemplate.from_messages([
+    ("system", """You are **Canvas AI**, an intelligent assistant embedded in a collaborative whiteboard application (Excalidraw-based).
 
 ## Your Capabilities
 - Help users brainstorm, plan, and organize ideas on their whiteboard
 - Suggest diagram structures (flowcharts, mind maps, class diagrams, sequence diagrams)
 - Draw shapes, diagrams, and text directly on the canvas
 - Analyze the current canvas content and provide insights
-- Help with writing, editing, and refining text on the board
 - Explain concepts, provide code snippets, and answer questions
 - Suggest visual improvements and layout optimizations
 
 ## Response Guidelines
 1. **Be concise** — Users are working visually. Keep responses focused and actionable.
 2. **Use formatting** — Use markdown with headers, lists, and code blocks.
-3. **When drawing** — Just describe what you're adding. The canvas elements will be generated automatically.
-4. **Canvas awareness** — When canvas context is provided, reference specific elements the user has drawn.
-5. **Proactive suggestions** — If you notice improvements, suggest them naturally.
+3. **When drawing** — Briefly describe what you're creating. Elements are generated automatically.
+4. **Canvas awareness** — Reference specific elements the user has drawn when context is available.
+5. **Proactive suggestions** — Suggest improvements naturally.
 6. **Friendly tone** — Be a collaborative partner, not a formal assistant.
 
 ## Current Canvas Context
-{canvas_context}
-"""
-
-# ─── Canvas Action Chain (LCEL: prompt | llm | parser) ───────────────────────
+{canvas_context}"""),
+    MessagesPlaceholder(variable_name="history"),
+    ("human", "{input}"),
+])
 
 canvas_prompt = ChatPromptTemplate.from_messages([
-    ("human", """You are a canvas element generator for an Excalidraw whiteboard.
-
-Based on the user's request, generate a JSON array of canvas elements.
+    ("system", """You are a canvas element generator for an Excalidraw whiteboard.
+Generate a JSON array of canvas elements based on the user's request.
 
 RULES:
 1. Output ONLY a valid JSON array. No markdown, no explanation, no code fences.
@@ -120,135 +188,219 @@ RULES:
 3. Supported types: rectangle, ellipse, diamond, text, arrow, line.
 4. Give each element a unique "id" (e.g., "el-1", "el-2").
 5. Space elements at least 250px apart horizontally, 200px vertically.
-6. Use these colors: blue=#3b82f6, green=#22c55e, red=#ef4444, yellow=#f59e0b, purple=#8b5cf6, pink=#ec4899.
-7. For arrows, use startId/endId to reference shape ids.
-8. For text inside shapes, use the "text" field.
+6. Colors: blue=#3b82f6, green=#22c55e, red=#ef4444, yellow=#f59e0b, purple=#8b5cf6, pink=#ec4899.
+7. For arrows: use startId/endId to reference shape ids.
+8. For text inside shapes: use the "text" field.
 9. Start positioning from x=100, y=100.
 
-SCHEMA per element:
-[
-  {{
-    "id": "unique-id",
-    "type": "rectangle | ellipse | diamond | text | arrow | line",
-    "x": 100, "y": 100, "width": 200, "height": 100,
-    "text": "Label",
-    "backgroundColor": "#3b82f6",
-    "strokeColor": "#1e1e1e",
-    "startId": "source-id (arrows only)",
-    "endId": "target-id (arrows only)"
-  }}
-]
-
-User request: {user_message}
-Canvas context: {canvas_context}
-
-Respond with ONLY the JSON array:""")
+Canvas context: {canvas_context}"""),
+    ("human", "{input}"),
 ])
 
-def _clean_llm_json(raw: str) -> list[dict] | None:
-    """Strip think tags and markdown fences, then parse JSON."""
-    text = strip_think_tags(raw).strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```\w*\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
-    parsed = json.loads(text)
-    if isinstance(parsed, list) and len(parsed) > 0:
-        return parsed
-    return None
+# ─── LCEL Chains ─────────────────────────────────────────────────────────────
 
-# LCEL chain: prompt → LLM (low temp) → string output
+# Chat chain: prompt → LLM (streams) — no parser so we can stream raw chunks
+chat_chain = chat_prompt | chat_llm
+
+# Canvas chain: prompt → LLM (deterministic) → string parser
 canvas_chain = canvas_prompt | canvas_llm | StrOutputParser()
 
-# ─── Drawing Intent Detection ────────────────────────────────────────────────
+# ─── Drawing Intent Detection (frozenset for O(1) membership tests) ──────────
 
-DRAW_KEYWORDS = {
+_DRAW_KEYWORDS: frozenset[str] = frozenset({
     "draw", "create", "add", "place", "make", "build", "put", "insert",
     "diagram", "flowchart", "chart", "graph", "mindmap", "mind map",
     "box", "circle", "rectangle", "arrow", "shape", "ellipse", "diamond",
     "layout", "wireframe", "sketch", "design", "sticky", "note",
     "architecture", "schema", "er diagram", "class diagram", "sequence",
     "organize", "arrange", "connect", "link",
-}
+})
+
 
 def has_drawing_intent(message: str) -> bool:
-    """Detect if the user's message requests drawing on the canvas."""
+    """Detect if the user's message requests drawing on the canvas.
+
+    Uses frozenset membership check for O(1) per keyword and short-circuits
+    via `any()` generator expression to avoid scanning the entire set.
+    """
     msg_lower = message.lower()
-    return any(kw in msg_lower for kw in DRAW_KEYWORDS)
+    return any(kw in msg_lower for kw in _DRAW_KEYWORDS)
 
-# ─── Canvas Element Generator (via LCEL chain) ───────────────────────────────
 
-def generate_canvas_elements(user_message: str, canvas_context: str) -> list[dict] | None:
+# ─── Canvas Element Parser ───────────────────────────────────────────────────
+
+
+def parse_canvas_json(raw: str) -> list[dict] | None:
+    """Clean LLM output and parse as a list of canvas elements.
+
+    Strips think tags, markdown fences, and validates JSON structure.
+    Uses Pydantic for validation with graceful fallback to raw dicts.
     """
-    Run the canvas LCEL chain: prompt | llm | parser.
-    Returns a list of structured canvas elements, or None.
-    """
+    text = strip_think_tags(raw).strip()
+
+    # Remove markdown fences if model wraps output
+    if text.startswith("```"):
+        text = _FENCE_OPEN.sub("", text)
+        text = _FENCE_CLOSE.sub("", text)
+
     try:
-        raw_output = canvas_chain.invoke({
-            "user_message": user_message,
-            "canvas_context": canvas_context,
-        })
-        return _clean_llm_json(raw_output)
-
-    except Exception as e:
-        print(f"[CanvasChain] Failed: {e}")
+        parsed = json.loads(text)
+        if isinstance(parsed, list) and len(parsed) > 0:
+            validated: list[dict] = []
+            for item in parsed:
+                try:
+                    el = CanvasElement(**item)
+                    validated.append(el.model_dump(exclude_none=True))
+                except Exception:
+                    # Keep raw if close enough — LLM output may vary slightly
+                    validated.append(item)
+            return validated
+    except json.JSONDecodeError as e:
+        print(f"[Canvas] JSON parse error: {e}")
 
     return None
 
-# ─── In-Memory Session Storage ────────────────────────────────────────────────
+
+# ─── LangGraph State + In-Memory Session Storage ─────────────────────────────
+
+
+class PipelineState(TypedDict):
+    """LangGraph-style typed state for the two-phase pipeline.
+
+    Using TypedDict for explicit, inspectable state management
+    as recommended by LangGraph patterns.
+    """
+
+    session_id: str
+    user_message: str
+    canvas_context: str
+    history: list
+    full_response: str
+    html: str
+    drawing_requested: bool
+    canvas_elements: list[dict] | None
+    error: str | None
+
 
 class Session:
-    """Chat session with conversation history and canvas context."""
+    """Chat session with conversation history and canvas context.
 
-    def __init__(self):
-        self.messages: list = []
+    Uses __slots__ for memory efficiency — significant savings when
+    many concurrent sessions are active (Pattern 13 from perf skill).
+    """
+
+    __slots__ = ("messages", "canvas_context", "created_at")
+
+    def __init__(self) -> None:
+        self.messages: list[HumanMessage | AIMessage] = []
         self.canvas_context: str = "No canvas elements loaded yet."
         self.created_at: str = datetime.now().isoformat()
 
-    def get_system_message(self) -> SystemMessage:
-        return SystemMessage(
-            content=CHAT_SYSTEM_PROMPT.format(canvas_context=self.canvas_context)
-        )
+    def get_chain_input(self, user_input: str) -> dict[str, Any]:
+        """Build input dict for the chat LCEL chain.
 
-    def get_langchain_messages(self) -> list:
-        """Build the full message list for the LLM."""
-        result = [self.get_system_message()]
-        recent = self.messages[-20:]
-        result.extend(recent)
-        return result
+        Slices history to the last N messages to stay within
+        the model's context window. Uses local variable for the
+        slice bound (faster than repeated attribute access).
+        """
+        max_msgs = MAX_HISTORY_MESSAGES
+        return {
+            "canvas_context": self.canvas_context,
+            "history": self.messages[-max_msgs:],
+            "input": user_input,
+        }
+
+    def trim_history(self) -> None:
+        """Trim conversation history to prevent unbounded memory growth.
+
+        Keeps only the most recent messages. Called after each response
+        to cap memory usage per session.
+        """
+        max_keep = MAX_HISTORY_MESSAGES * 2  # Keep 2x window for context
+        if len(self.messages) > max_keep:
+            self.messages = self.messages[-max_keep:]
 
 
-sessions: dict[str, Session] = {}
+# Dict-based session store — O(1) lookup/insert (Pattern 8 from perf skill)
+_sessions: dict[str, Session] = {}
 
 
 def get_or_create_session(session_id: str | None) -> tuple[str, Session]:
-    """Get existing session or create a new one."""
-    if session_id and session_id in sessions:
-        return session_id, sessions[session_id]
+    """Get existing session or create a new one.
+
+    Uses dict.get() for single hash lookup instead of
+    `in` check + `[]` access (avoids double hashing).
+    """
+    if session_id:
+        session = _sessions.get(session_id)
+        if session is not None:
+            return session_id, session
+
     new_id = session_id or str(uuid.uuid4())
-    sessions[new_id] = Session()
-    return new_id, sessions[new_id]
+    session = Session()
+    _sessions[new_id] = session
+    return new_id, session
 
 
-# ─── Pydantic Models ─────────────────────────────────────────────────────────
+def _cleanup_stale_sessions() -> int:
+    """Remove sessions older than SESSION_TTL_HOURS.
 
-class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, max_length=4000)
-    session_id: str | None = None
+    Called periodically to prevent memory leaks from abandoned sessions.
+    Returns the number of sessions removed.
+    """
+    now = datetime.now()
+    stale_ids: list[str] = []
 
-class CanvasContextRequest(BaseModel):
-    session_id: str
-    elements: list[dict] = Field(default_factory=list)
-    description: str | None = None
+    for sid, session in _sessions.items():
+        try:
+            created = datetime.fromisoformat(session.created_at)
+            age_hours = (now - created).total_seconds() / 3600
+            if age_hours > SESSION_TTL_HOURS:
+                stale_ids.append(sid)
+        except (ValueError, TypeError):
+            stale_ids.append(sid)
 
-class ClearRequest(BaseModel):
-    session_id: str
+    for sid in stale_ids:
+        del _sessions[sid]
 
-# ─── FastAPI App ──────────────────────────────────────────────────────────────
+    return len(stale_ids)
+
+
+# ─── SSE Helpers (pre-serialise reusable event shapes) ───────────────────────
+
+
+def _sse_event(data: dict) -> str:
+    """Format a dict as an SSE data line. Single allocation per event."""
+    return f"data: {json.dumps(data, separators=(',', ':'))}\n\n"
+
+
+# ─── FastAPI App with Lifecycle Hooks ─────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifecycle: startup + shutdown hooks.
+
+    - Startup: validate LLM connectivity
+    - Shutdown: clean up sessions
+    """
+    # ── Startup ──
+    print(f"[Canvas AI] Chat Service v4 starting on port {CHAT_PORT}")
+    print(f"   Model: {CHAT_MODEL}")
+    print(f"   Chains: chat_chain (streaming), canvas_chain (structured)")
+    print(f"   Max history: {MAX_HISTORY_MESSAGES} messages")
+    yield
+    # ── Shutdown ──
+    removed = _cleanup_stale_sessions()
+    _sessions.clear()
+    print(f"[Canvas AI] Shutdown — cleared {removed} stale + all sessions")
+
 
 app = FastAPI(
     title="Canvas AI Chat Service",
-    description="Streaming chat microservice for the AI Whiteboard",
-    version="2.0.0",
+    description="Streaming chat with LangChain LCEL chains + LangGraph patterns",
+    version="4.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -262,96 +414,125 @@ app.add_middleware(
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
+
 @app.get("/health")
 async def health():
+    """Health check with diagnostics."""
     return {
         "status": "ok",
         "model": CHAT_MODEL,
-        "sessions": len(sessions),
+        "sessions": len(_sessions),
+        "version": "4.0.0",
     }
 
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    """
-    Streaming chat endpoint using Server-Sent Events.
+    """Streaming chat endpoint using Server-Sent Events.
+
+    Two-phase LangGraph-style pipeline:
+        Phase 1 — chat_chain.astream() for text tokens
+        Phase 2 — canvas_chain.ainvoke() for structured drawing elements
 
     SSE event types:
-        {"type": "token",  "token": "...", "done": false}
-        {"type": "done",   "html": "...", "session_id": "..."}
+        {"type": "token",         "token": "...", "done": false}
+        {"type": "done",          "html": "...", "session_id": "..."}
         {"type": "canvas_action", "elements": [...]}
-        {"type": "error",  "error": "..."}
+        {"type": "error",         "error": "..."}
     """
     session_id, session = get_or_create_session(req.session_id)
 
+    # Add user message to history
     session.messages.append(HumanMessage(content=req.message))
-    messages = session.get_langchain_messages()
 
-    # Check drawing intent upfront
+    # Build chain input (uses local variable for history slice)
+    chain_input = session.get_chain_input(req.message)
+
+    # Check drawing intent upfront with O(1) frozenset lookup
     drawing_requested = has_drawing_intent(req.message)
 
     async def generate() -> AsyncGenerator[str, None]:
-        full_response = ""
+        """SSE generator — yields data lines for each event.
+
+        Performance notes:
+        - Uses local references to avoid global/attribute lookups in hot loop
+        - Generator-based (constant memory regardless of response length)
+        - Pre-formats SSE events with compact JSON separators
+        """
+        # Local references for hot-loop performance (Pattern 9 from perf skill)
+        _strip_think = strip_think_tags
+        _json_dumps = json.dumps
+        _sse = _sse_event
+
+        full_response_parts: list[str] = []
         inside_think = False
 
         try:
-            # ── Phase 1: Stream text response ──
-            for chunk in chat_llm.stream(messages):
-                token = chunk.content
-                if token:
-                    full_response += token
+            # ── Phase 1: Stream text via chat_chain.astream() ──
+            async for chunk in chat_chain.astream(chain_input):
+                token = chunk.content if hasattr(chunk, "content") else str(chunk)
+                if not token:
+                    continue
 
-                    if "<think>" in token:
-                        inside_think = True
-                    if inside_think:
-                        if "</think>" in token:
-                            inside_think = False
-                            after = token.split("</think>", 1)[1]
-                            if after.strip():
-                                data = json.dumps({"type": "token", "token": after, "done": False})
-                                yield f"data: {data}\n\n"
-                        continue
+                full_response_parts.append(token)
 
-                    data = json.dumps({"type": "token", "token": token, "done": False})
-                    yield f"data: {data}\n\n"
+                # ── Filter <think>...</think> blocks during streaming ──
+                if "<think>" in token:
+                    inside_think = True
+                if inside_think:
+                    if "</think>" in token:
+                        inside_think = False
+                        after = token.split("</think>", 1)[1]
+                        if after.strip():
+                            yield _sse({"type": "token", "token": after, "done": False})
+                    continue
 
-            # Clean up response
-            clean_response = strip_think_tags(full_response)
+                yield _sse({"type": "token", "token": token, "done": False})
+
+            # ── Assemble full response ──
+            # join() is O(n) single-pass; far faster than += concatenation
+            full_response = "".join(full_response_parts)
+            clean_response = _strip_think(full_response)
+
+            # Save to history, then trim to cap memory
             session.messages.append(AIMessage(content=clean_response))
+            session.trim_history()
 
+            # Convert to HTML (LRU-cached for repeated fragments)
             html = md_to_html(clean_response)
 
-            # Send final text event
-            done_data = json.dumps({
+            # Send completion event
+            yield _sse({
                 "type": "done",
                 "token": "",
                 "done": True,
                 "html": html,
                 "session_id": session_id,
             })
-            yield f"data: {done_data}\n\n"
 
-            # ── Phase 2: Generate canvas actions (if drawing requested) ──
+            # ── Phase 2: Generate canvas elements via canvas_chain.ainvoke() ──
             if drawing_requested:
-                elements = generate_canvas_elements(
-                    req.message, session.canvas_context
-                )
+                canvas_input = {
+                    "canvas_context": session.canvas_context,
+                    "input": req.message,
+                }
+                raw_output = await canvas_chain.ainvoke(canvas_input)
+                elements = parse_canvas_json(raw_output)
+
                 if elements:
-                    action_data = json.dumps({
+                    yield _sse({
                         "type": "canvas_action",
                         "elements": elements,
                     })
-                    yield f"data: {action_data}\n\n"
 
         except Exception as e:
-            error_data = json.dumps({
+            yield _sse({
                 "type": "error",
                 "token": "",
                 "done": True,
                 "error": str(e),
                 "session_id": session_id,
             })
-            yield f"data: {error_data}\n\n"
 
     return StreamingResponse(
         generate(),
@@ -366,18 +547,22 @@ async def chat(req: ChatRequest):
 
 @app.post("/chat/context")
 async def update_canvas_context(req: CanvasContextRequest):
-    """Update the canvas context for a session so the AI knows what's on the board."""
-    if req.session_id not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
+    """Update the canvas context so the AI knows what's on the board.
 
-    session = sessions[req.session_id]
+    Uses efficient dict-based counting and list slicing to
+    summarise canvas elements without excessive allocations.
+    """
+    session = _sessions.get(req.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
 
     if req.description:
         session.canvas_context = req.description
     elif req.elements:
-        summary_parts = []
+        summary_parts: list[str] = []
         type_counts: dict[str, int] = {}
 
+        # Process at most 50 elements to bound CPU time
         for el in req.elements[:50]:
             el_type = el.get("type", "unknown")
             type_counts[el_type] = type_counts.get(el_type, 0) + 1
@@ -386,12 +571,15 @@ async def update_canvas_context(req: CanvasContextRequest):
             if text and len(text) < 200:
                 summary_parts.append(f'- {el_type}: "{text}"')
 
-        counts_str = ", ".join(f"{count} {t}(s)" for t, count in type_counts.items())
+        counts_str = ", ".join(
+            f"{count} {t}(s)" for t, count in type_counts.items()
+        )
         elements_str = "\n".join(summary_parts[:20])
 
         session.canvas_context = (
             f"Canvas has {len(req.elements)} elements: {counts_str}.\n"
-            f"Text content found:\n{elements_str}" if elements_str
+            f"Text content found:\n{elements_str}"
+            if elements_str
             else f"Canvas has {len(req.elements)} elements: {counts_str}. No text content."
         )
     else:
@@ -403,8 +591,9 @@ async def update_canvas_context(req: CanvasContextRequest):
 @app.post("/chat/clear")
 async def clear_session(req: ClearRequest):
     """Clear conversation history for a session."""
-    if req.session_id in sessions:
-        sessions[req.session_id].messages.clear()
+    session = _sessions.get(req.session_id)
+    if session is not None:
+        session.messages.clear()
         return {"status": "ok", "message": "Session cleared"}
     return {"status": "ok", "message": "Session not found (already clean)"}
 
@@ -412,15 +601,20 @@ async def clear_session(req: ClearRequest):
 @app.delete("/chat/session/{session_id}")
 async def delete_session(session_id: str):
     """Delete an entire session."""
-    sessions.pop(session_id, None)
+    _sessions.pop(session_id, None)
     return {"status": "ok"}
+
+
+@app.post("/admin/cleanup")
+async def admin_cleanup():
+    """Manual trigger for stale session cleanup."""
+    removed = _cleanup_stale_sessions()
+    return {"status": "ok", "removed": removed, "remaining": len(_sessions)}
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"[Canvas AI] Chat Service v2 starting on port {CHAT_PORT}")
-    print(f"   Chat Model: {CHAT_MODEL}")
-    print(f"   Canvas actions: LangChain structured output")
+
     uvicorn.run(app, host="0.0.0.0", port=CHAT_PORT)

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "langchain-architecture": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "994dd03b8b03fe557c7a8e2626d1b93496d37725b123746eda0b57bac8b4a330"
+    },
+    "python-performance-optimization": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "05c283d97b1bc4fb033593af9d22095c716312fcc55840f2ef438a015e112865"
+    }
+  }
+}
