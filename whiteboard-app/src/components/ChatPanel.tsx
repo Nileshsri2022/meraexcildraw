@@ -70,12 +70,27 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
+    // Register excalidrawAPI with the chat hook so it can read canvas state
+    useEffect(() => {
+        if (excalidrawAPI) {
+            chat.setExcalidrawAPI(excalidrawAPI);
+        }
+    }, [excalidrawAPI]); // eslint-disable-line
+
     // Execute pending canvas actions from the backend
     useEffect(() => {
         if (chat.pendingActions && chat.pendingActions.length > 0) {
             const count = canvasActions.executeActions(chat.pendingActions) || 0;
             setActionCount(count);
             chat.consumeActions();
+
+            // After drawing, re-sync canvas context so AI knows about new elements
+            setTimeout(() => {
+                const elements = excalidrawAPI?.getSceneElements?.() || [];
+                if (elements.length > 0) {
+                    chat.syncCanvasContext(elements);
+                }
+            }, 200);
 
             // Clear the badge after a few seconds
             const timer = setTimeout(() => setActionCount(0), 4000);
@@ -95,15 +110,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         }
     }, [isOpen]);
 
-    // Sync canvas context when chat opens
+    // Sync canvas context when chat panel opens
     useEffect(() => {
         if (!isOpen || !excalidrawAPI) return;
 
         const elements = excalidrawAPI.getSceneElements?.() || [];
-        if (elements.length > 0) {
-            chat.syncCanvasContext(elements);
-        }
-    }, [isOpen]); // eslint-disable-line -- only sync when panel opens
+        chat.syncCanvasContext(elements);
+    }, [isOpen]); // eslint-disable-line — sync when panel opens
 
     const handleSend = useCallback(() => {
         if (!input.trim() || chat.isStreaming) return;

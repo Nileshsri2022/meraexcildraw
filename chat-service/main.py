@@ -520,6 +520,22 @@ async def chat(req: ChatRequest):
                 elements = parse_canvas_json(raw_output)
 
                 if elements:
+                    # Update canvas context with what AI just drew
+                    # so subsequent messages know about these elements
+                    drawn_parts: list[str] = []
+                    for el in elements:
+                        el_type = el.get("type", "unknown")
+                        el_text = el.get("text", "").strip()
+                        if el_text:
+                            drawn_parts.append(f'- {el_type}: "{el_text}"')
+                        else:
+                            drawn_parts.append(f"- {el_type}")
+                    drawn_summary = "\n".join(drawn_parts)
+                    session.canvas_context += (
+                        f"\n\nAI just drew {len(elements)} elements:\n"
+                        f"{drawn_summary}"
+                    )
+
                     yield _sse({
                         "type": "canvas_action",
                         "elements": elements,
@@ -590,10 +606,11 @@ async def update_canvas_context(req: CanvasContextRequest):
 
 @app.post("/chat/clear")
 async def clear_session(req: ClearRequest):
-    """Clear conversation history for a session."""
+    """Clear conversation history and canvas context for a session."""
     session = _sessions.get(req.session_id)
     if session is not None:
         session.messages.clear()
+        session.canvas_context = "No canvas elements loaded yet."
         return {"status": "ok", "message": "Session cleared"}
     return {"status": "ok", "message": "Session not found (already clean)"}
 

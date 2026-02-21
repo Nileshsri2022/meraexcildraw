@@ -5,6 +5,8 @@
  * using @microsoft/fetch-event-source (no manual SSE parsing).
  *
  * Manages conversation state, message history, and canvas context sync.
+ * Syncs canvas context before EVERY message so the AI always knows
+ * the current state of the canvas.
  *
  * SSE Event Types:
  *   { type: "token",  token: "...", done: false }
@@ -53,15 +55,64 @@ export function useCanvasChat() {
     const [pendingActions, setPendingActions] = useState<CanvasActionElement[] | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
-    const pendingContextRef = useRef<any[] | null>(null);
+
+    /**
+     * Ref to an Excalidraw API instance for reading current canvas state.
+     * Set via setExcalidrawAPI() from the ChatPanel.
+     */
+    const excalidrawAPIRef = useRef<any>(null);
+
+    /**
+     * Register the Excalidraw API so the hook can read canvas state
+     * before every message.
+     */
+    const setExcalidrawAPI = useCallback((api: any) => {
+        excalidrawAPIRef.current = api;
+    }, []);
+
+    /**
+     * Internal: send canvas context to the server (requires active session).
+     */
+    const flushCanvasContext = useCallback(async (elements: any[]) => {
+        if (!sessionIdRef.current || elements.length === 0) return;
+
+        try {
+            await fetch(`${CHAT_SERVICE_URL}/chat/context`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    session_id: sessionIdRef.current,
+                    elements: elements.map(el => ({
+                        type: el.type,
+                        text: el.text || el.originalText || "",
+                        x: el.x,
+                        y: el.y,
+                        width: el.width,
+                        height: el.height,
+                    })),
+                }),
+            });
+        } catch {
+            // Non-critical
+        }
+    }, []);
+
+    /**
+     * Sync current canvas context to the server.
+     * If no session exists yet, it's a no-op (context will be synced
+     * right before the first message via sendMessage).
+     */
+    const syncCanvasContext = useCallback(async (elements?: any[]) => {
+        const els = elements || excalidrawAPIRef.current?.getSceneElements?.() || [];
+        if (!sessionIdRef.current || els.length === 0) return;
+        await flushCanvasContext(els);
+    }, [flushCanvasContext]);
 
     /**
      * Send a message and stream the response via typed SSE events.
      *
-     * Uses @microsoft/fetch-event-source which handles:
-     *   - SSE line parsing (no manual buffer/split/slice)
-     *   - Reconnection on network errors
-     *   - POST with JSON body (unlike native EventSource)
+     * Before sending, automatically syncs the current canvas state
+     * so the AI always has up-to-date context.
      */
     const sendMessage = useCallback(async (content: string) => {
         if (!content.trim() || isStreaming) return;
@@ -120,13 +171,15 @@ export function useCanvasChat() {
 
                             case "done":
                                 if (data.session_id) {
+                                    const isNewSession = !sessionIdRef.current;
                                     sessionIdRef.current = data.session_id;
 
-                                    // Flush any canvas context that was buffered before session existed
-                                    if (pendingContextRef.current) {
-                                        const elements = pendingContextRef.current;
-                                        pendingContextRef.current = null;
-                                        flushCanvasContext(elements);
+                                    // If this is a brand-new session, sync canvas context now
+                                    if (isNewSession) {
+                                        const els = excalidrawAPIRef.current?.getSceneElements?.() || [];
+                                        if (els.length > 0) {
+                                            flushCanvasContext(els);
+                                        }
                                     }
                                 }
                                 if (data.html) {
@@ -165,15 +218,12 @@ export function useCanvasChat() {
                 // Handle errors — don't retry on abort
                 onerror(err) {
                     if (err instanceof DOMException && err.name === "AbortError") {
-                        // User cancelled — don't retry
                         throw err;
                     }
                     setError(err instanceof Error ? err.message : "Chat failed");
-                    // Throw to stop retrying
                     throw err;
                 },
 
-                // Close the connection when done (don't keep reconnecting)
                 openWhenHidden: true,
             });
         } catch (err) {
@@ -190,7 +240,36 @@ export function useCanvasChat() {
             setIsStreaming(false);
             abortRef.current = null;
         }
-    }, [isStreaming]);
+    }, [isStreaming, flushCanvasContext]);
+
+    /**
+     * Send a message with a fresh canvas sync.
+     * Called by ChatPanel which has access to excalidrawAPI.
+     */
+    const sendMessageWithSync = useCallback(async (content: string) => {
+        // Sync canvas context right before sending (if session exists)
+        if (sessionIdRef.current) {
+            const els = excalidrawAPIRef.current?.getSceneElements?.() || [];
+            if (els.length > 0) {
+                await flushCanvasContext(els);
+            } else {
+                // Canvas is empty — tell the server
+                try {
+                    await fetch(`${CHAT_SERVICE_URL}/chat/context`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            session_id: sessionIdRef.current,
+                            elements: [],
+                        }),
+                    });
+                } catch {
+                    // Non-critical
+                }
+            }
+        }
+        return sendMessage(content);
+    }, [sendMessage, flushCanvasContext]);
 
     /**
      * Stop the current stream.
@@ -210,6 +289,7 @@ export function useCanvasChat() {
 
     /**
      * Clear conversation history (both local and server-side).
+     * Also resets canvas context on the server.
      */
     const clearChat = useCallback(async () => {
         setMessages([]);
@@ -229,57 +309,17 @@ export function useCanvasChat() {
         }
     }, []);
 
-    /**
-     * Internal: send canvas context to the server (requires active session).
-     */
-    const flushCanvasContext = useCallback(async (elements: any[]) => {
-        if (!sessionIdRef.current || elements.length === 0) return;
-
-        try {
-            await fetch(`${CHAT_SERVICE_URL}/chat/context`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    session_id: sessionIdRef.current,
-                    elements: elements.map(el => ({
-                        type: el.type,
-                        text: el.text || "",
-                        x: el.x,
-                        y: el.y,
-                        width: el.width,
-                        height: el.height,
-                    })),
-                }),
-            });
-        } catch {
-            // Non-critical
-        }
-    }, []);
-
-    /**
-     * Sync canvas context to the chat service.
-     * If no session exists yet, buffers the context and flushes
-     * it once the first session_id is established.
-     */
-    const syncCanvasContext = useCallback(async (elements: any[]) => {
-        if (!sessionIdRef.current) {
-            // No session yet — buffer for later
-            pendingContextRef.current = elements;
-            return;
-        }
-        await flushCanvasContext(elements);
-    }, [flushCanvasContext]);
-
     return {
         messages,
         isStreaming,
         error,
         pendingActions,
         sessionId: sessionIdRef.current,
-        sendMessage,
+        sendMessage: sendMessageWithSync,
         stopStreaming,
         clearChat,
         syncCanvasContext,
         consumeActions,
+        setExcalidrawAPI,
     };
 }
