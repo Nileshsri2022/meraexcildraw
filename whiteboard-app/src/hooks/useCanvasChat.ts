@@ -53,6 +53,7 @@ export function useCanvasChat() {
     const [pendingActions, setPendingActions] = useState<CanvasActionElement[] | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
+    const pendingContextRef = useRef<any[] | null>(null);
 
     /**
      * Send a message and stream the response via typed SSE events.
@@ -120,6 +121,13 @@ export function useCanvasChat() {
                             case "done":
                                 if (data.session_id) {
                                     sessionIdRef.current = data.session_id;
+
+                                    // Flush any canvas context that was buffered before session existed
+                                    if (pendingContextRef.current) {
+                                        const elements = pendingContextRef.current;
+                                        pendingContextRef.current = null;
+                                        flushCanvasContext(elements);
+                                    }
                                 }
                                 if (data.html) {
                                     setMessages(prev =>
@@ -222,10 +230,10 @@ export function useCanvasChat() {
     }, []);
 
     /**
-     * Sync canvas context to the chat service.
+     * Internal: send canvas context to the server (requires active session).
      */
-    const syncCanvasContext = useCallback(async (elements: any[]) => {
-        if (!sessionIdRef.current) return;
+    const flushCanvasContext = useCallback(async (elements: any[]) => {
+        if (!sessionIdRef.current || elements.length === 0) return;
 
         try {
             await fetch(`${CHAT_SERVICE_URL}/chat/context`, {
@@ -247,6 +255,20 @@ export function useCanvasChat() {
             // Non-critical
         }
     }, []);
+
+    /**
+     * Sync canvas context to the chat service.
+     * If no session exists yet, buffers the context and flushes
+     * it once the first session_id is established.
+     */
+    const syncCanvasContext = useCallback(async (elements: any[]) => {
+        if (!sessionIdRef.current) {
+            // No session yet — buffer for later
+            pendingContextRef.current = elements;
+            return;
+        }
+        await flushCanvasContext(elements);
+    }, [flushCanvasContext]);
 
     return {
         messages,
