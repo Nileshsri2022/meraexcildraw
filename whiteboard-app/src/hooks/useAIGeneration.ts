@@ -81,8 +81,9 @@ export function useAIGeneration(
 
     // ─── Sketch-to-Image ─────────────────────────────────────────────────────
 
-    const generateSketchImage = useCallback(async () => {
-        if (!prompt.trim()) { setError("Please enter a description"); return; }
+    const generateSketchImage = useCallback(async (overridePrompt?: string) => {
+        const currentPrompt = overridePrompt || prompt;
+        if (!currentPrompt.trim()) { setError("Please enter a description"); return; }
         if (!excalidrawAPI) { setError("Canvas not ready"); return; }
 
         const elements = excalidrawAPI.getSceneElements();
@@ -160,7 +161,7 @@ export function useAIGeneration(
             const data = await apiFetch<SketchToImageResponse>("/api/ai/sketch-to-image", {
                 method: "POST",
                 body: JSON.stringify({
-                    prompt, imageBase64, width: 512, height: 512,
+                    prompt: currentPrompt, imageBase64, width: 512, height: 512,
                     pipeline: sketchPipeline, image_resolution: sketchResolution,
                     num_steps: sketchSteps, guidance_scale: sketchGuidance,
                     seed: sketchSeed, preprocessor_name: sketchPreprocessor,
@@ -176,7 +177,7 @@ export function useAIGeneration(
                 });
                 excalidrawAPI.scrollToContent(undefined, { fitToContent: true });
                 // Fire-and-forget history save (async-defer-await)
-                saveAIResult({ type: "sketch", prompt, result: data.imageUrl, thumbnail: data.imageUrl, metadata: { pipeline: sketchPipeline, resolution: sketchResolution } }).catch(() => { });
+                saveAIResult({ type: "sketch", prompt: currentPrompt, result: data.imageUrl, thumbnail: data.imageUrl, metadata: { pipeline: sketchPipeline, resolution: sketchResolution } }).catch(() => { });
             }
 
             onClose();
@@ -191,8 +192,9 @@ export function useAIGeneration(
 
     // ─── Generate Diagram ────────────────────────────────────────────────────
 
-    const generateDiagram = useCallback(async () => {
-        if (!prompt.trim()) { setError("Please enter a description"); return; }
+    const generateDiagram = useCallback(async (overridePrompt?: string) => {
+        const currentPrompt = overridePrompt || prompt;
+        if (!currentPrompt.trim()) { setError("Please enter a description"); return; }
 
         setLoading(true);
         setError(null);
@@ -200,7 +202,7 @@ export function useAIGeneration(
         try {
             const data = await apiFetch<DiagramResponse>("/api/ai/generate-diagram", {
                 method: "POST",
-                body: JSON.stringify({ prompt, style }),
+                body: JSON.stringify({ prompt: currentPrompt, style }),
             });
 
             const diagramCode = data.code || data.mermaid;
@@ -215,7 +217,7 @@ export function useAIGeneration(
                 excalidrawAPI.scrollToContent(excalidrawElements, { fitToContent: true });
             }
 
-            saveAIResult({ type: "diagram", prompt, result: diagramCode, metadata: { style } }).catch(() => { });
+            saveAIResult({ type: "diagram", prompt: currentPrompt, result: diagramCode, metadata: { style } }).catch(() => { });
             onClose();
             setPrompt("");
         } catch (err) {
@@ -228,8 +230,9 @@ export function useAIGeneration(
 
     // ─── Generate Image ──────────────────────────────────────────────────────
 
-    const generateImage = useCallback(async () => {
-        if (!prompt.trim()) { setError("Please enter a description"); return; }
+    const generateImage = useCallback(async (overridePrompt?: string) => {
+        const currentPrompt = overridePrompt || prompt;
+        if (!currentPrompt.trim()) { setError("Please enter a description"); return; }
 
         setLoading(true);
         setError(null);
@@ -238,7 +241,7 @@ export function useAIGeneration(
             const data = await apiFetch<ImageResponse>("/api/ai/generate-image", {
                 method: "POST",
                 body: JSON.stringify({
-                    prompt, width: imgWidth, height: imgHeight,
+                    prompt: currentPrompt, width: imgWidth, height: imgHeight,
                     num_inference_steps: imgSteps, seed: imgSeed, randomize_seed: imgRandomSeed,
                 }),
             });
@@ -251,7 +254,7 @@ export function useAIGeneration(
             }
 
             if (data.imageUrl) {
-                saveAIResult({ type: "image", prompt, result: data.imageUrl, thumbnail: data.imageUrl, metadata: { width: imgWidth, height: imgHeight, steps: imgSteps, seed: data.seed } }).catch(() => { });
+                saveAIResult({ type: "image", prompt: currentPrompt, result: data.imageUrl, thumbnail: data.imageUrl, metadata: { width: imgWidth, height: imgHeight, steps: imgSteps, seed: data.seed } }).catch(() => { });
             }
 
             onClose();
@@ -289,8 +292,10 @@ export function useAIGeneration(
         }
     }, [excalidrawAPI]);
 
-    const performOcr = useCallback(async () => {
+    const performOcr = useCallback(async (overridePrompt?: string) => {
         if (!ocrImage) { setError("Please upload or capture an image first"); return; }
+
+        const currentPrompt = overridePrompt || prompt;
 
         setLoading(true);
         setError(null);

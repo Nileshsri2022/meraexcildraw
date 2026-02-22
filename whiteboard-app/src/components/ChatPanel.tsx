@@ -112,38 +112,34 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
         const executeTool = async () => {
             try {
-                // Set the prompt in the AI generation hook
+                // Set the prompt in the AI generation hook for UI consistency
                 aiGen.setPrompt(action.prompt);
 
                 switch (action.tool) {
                     case "diagram":
                         setToolStatus("🧩 Generating diagram...");
                         if (action.style) aiGen.setStyle(action.style);
-                        // Small delay to let state settle
-                        await new Promise(r => setTimeout(r, 100));
-                        await aiGen.generateDiagram();
+                        await aiGen.generateDiagram(action.prompt);
                         setToolStatus("✅ Diagram created!");
                         break;
 
                     case "image":
                         setToolStatus("🖼️ Generating image...");
-                        await new Promise(r => setTimeout(r, 100));
-                        await aiGen.generateImage();
+                        await aiGen.generateImage(action.prompt);
                         setToolStatus("✅ Image created!");
                         break;
 
                     case "sketch":
                         setToolStatus("✏️ Converting sketch...");
-                        await new Promise(r => setTimeout(r, 100));
-                        await aiGen.generateSketchImage();
+                        await aiGen.generateSketchImage(action.prompt);
                         setToolStatus("✅ Sketch converted!");
                         break;
 
                     case "ocr":
                         setToolStatus("📝 Capturing canvas for OCR...");
                         aiGen.captureCanvas();
-                        await new Promise(r => setTimeout(r, 300));
-                        await aiGen.performOcr();
+                        await new Promise(r => setTimeout(r, 300)); // still need to wait for canvas capture
+                        await aiGen.performOcr(action.prompt);
                         setToolStatus("✅ Text extracted!");
                         break;
 
