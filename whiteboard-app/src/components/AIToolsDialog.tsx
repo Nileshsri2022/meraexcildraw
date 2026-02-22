@@ -123,14 +123,12 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
     }, [voiceCommand, onVoiceCommandDone]);
 
 
-    const handleGenerate =
-        activeTab === "diagram"
-            ? gen.generateDiagram
-            : activeTab === "image"
-                ? gen.generateImage
-                : activeTab === "sketch"
-                    ? gen.generateSketchImage
-                    : gen.performOcr;
+    const handleGenerate = () => {
+        if (activeTab === "diagram") gen.generateDiagram();
+        else if (activeTab === "image") gen.generateImage();
+        else if (activeTab === "sketch") gen.generateSketchImage();
+        else gen.performOcr();
+    };
 
     // Sidebar toggle state
     const [sidebarOpen, setSidebarOpen] = useState(true);
