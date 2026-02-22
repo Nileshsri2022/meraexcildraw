@@ -28,6 +28,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -504,7 +505,23 @@ async def health():
         "model": CHAT_MODEL,
         "sessions": len(_sessions),
         "version": "4.0.0",
+        "api_key_set": bool(NVIDIA_API_KEY),
+        "api_key_prefix": NVIDIA_API_KEY[:8] + "..." if NVIDIA_API_KEY else "NOT SET",
     }
+
+
+@app.get("/debug/test-llm")
+async def test_llm():
+    """Quick LLM connectivity test — 15s timeout."""
+    try:
+        async with asyncio.timeout(15):
+            result = await chat_llm.ainvoke("Say hello in one word")
+            content = result.content if hasattr(result, "content") else str(result)
+            return {"status": "ok", "response": content[:200]}
+    except asyncio.TimeoutError:
+        return {"status": "timeout", "error": "LLM did not respond within 15s"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 @app.post("/chat")
@@ -553,32 +570,38 @@ async def chat(req: ChatRequest):
             # Send initial heartbeat to keep connection alive
             yield ": heartbeat\n\n"
 
+            print(f"[Chat] Starting LLM stream for session {session_id}")
+
             # ── Phase 1: Stream text via chat_chain.astream() ──
-            async for chunk in chat_chain.astream(chain_input):
-                token = chunk.content if hasattr(chunk, "content") else str(chunk)
-                if not token:
-                    continue
+            # Wrap in timeout to catch hung LLM calls
+            async with asyncio.timeout(90):
+                async for chunk in chat_chain.astream(chain_input):
+                    token = chunk.content if hasattr(chunk, "content") else str(chunk)
+                    if not token:
+                        continue
 
-                full_response_parts.append(token)
+                    full_response_parts.append(token)
 
-                # ── Filter <think>...</think> blocks during streaming ──
-                if "<think>" in token:
-                    inside_think = True
-                if inside_think:
-                    if "</think>" in token:
-                        inside_think = False
-                        after = token.split("</think>", 1)[1]
-                        if after.strip():
-                            yield _sse({"type": "token", "token": after, "done": False})
+                    # ── Filter <think>...</think> blocks during streaming ──
+                    if "<think>" in token:
+                        inside_think = True
+                    if inside_think:
+                        if "</think>" in token:
+                            inside_think = False
+                            after = token.split("</think>", 1)[1]
+                            if after.strip():
+                                yield _sse({"type": "token", "token": after, "done": False})
+                                chunks_yielded += 1
+                        else:
+                            # Send keep-alive during think phase to prevent proxy timeout
                             chunks_yielded += 1
-                    else:
-                        # Send keep-alive during think phase to prevent proxy timeout
-                        chunks_yielded += 1
-                        if chunks_yielded % 10 == 0:
-                            yield ": keepalive\n\n"
-                    continue
+                            if chunks_yielded % 10 == 0:
+                                yield ": keepalive\n\n"
+                        continue
 
-                yield _sse({"type": "token", "token": token, "done": False})
+                    yield _sse({"type": "token", "token": token, "done": False})
+
+            print(f"[Chat] LLM stream completed for session {session_id}, {len(full_response_parts)} chunks")
 
             # ── Assemble full response ──
             full_response = "".join(full_response_parts)
@@ -603,6 +626,7 @@ async def chat(req: ChatRequest):
             # ── Phase 2: Route to AI tool or canvas_chain ──
             if tool_intent:
                 tool_name = tool_intent["tool"]
+                print(f"[Chat] Tool intent detected: {tool_name}")
 
                 if tool_name == "draw":
                     # Fallback: use canvas_chain for basic shape drawing
@@ -610,7 +634,8 @@ async def chat(req: ChatRequest):
                         "canvas_context": session.canvas_context,
                         "input": req.message,
                     }
-                    raw_output = await canvas_chain.ainvoke(canvas_input)
+                    async with asyncio.timeout(60):
+                        raw_output = await canvas_chain.ainvoke(canvas_input)
                     elements = parse_canvas_json(raw_output)
 
                     if elements:
@@ -648,7 +673,17 @@ async def chat(req: ChatRequest):
 
                     yield _sse(tool_event)
 
+        except asyncio.TimeoutError:
+            print(f"[Chat] LLM timeout for session {session_id}")
+            yield _sse({
+                "type": "error",
+                "token": "",
+                "done": True,
+                "error": "LLM response timed out. Please try again.",
+                "session_id": session_id,
+            })
         except Exception as e:
+            print(f"[Chat] Error for session {session_id}: {e}")
             yield _sse({
                 "type": "error",
                 "token": "",
