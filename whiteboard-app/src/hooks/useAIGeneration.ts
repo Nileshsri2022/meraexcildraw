@@ -238,6 +238,9 @@ export function useAIGeneration(
         setError(null);
 
         try {
+            console.log(`[generateImage] Starting with prompt: "${currentPrompt.substring(0, 80)}"`);
+            console.log(`[generateImage] excalidrawAPI present: ${!!excalidrawAPI}`);
+
             const data = await apiFetch<ImageResponse>("/api/ai/generate-image", {
                 method: "POST",
                 body: JSON.stringify({
@@ -246,11 +249,20 @@ export function useAIGeneration(
                 }),
             });
 
+            console.log(`[generateImage] API response: imageUrl=${data.imageUrl ? `${data.imageUrl.substring(0, 50)}... (${data.imageUrl.length} chars)` : 'MISSING'}, width=${data.width}, height=${data.height}`);
+
             if (excalidrawAPI && data.imageUrl) {
-                await addImageToCanvas(excalidrawAPI, data.imageUrl, {
-                    width: data.width || imgWidth, height: data.height || imgHeight,
-                    idPrefix: "ai-image",
-                });
+                try {
+                    const elementId = await addImageToCanvas(excalidrawAPI, data.imageUrl, {
+                        width: data.width || imgWidth, height: data.height || imgHeight,
+                        idPrefix: "ai-image",
+                    });
+                    console.log(`[generateImage] Image added to canvas successfully: ${elementId}`);
+                } catch (canvasErr) {
+                    console.error(`[generateImage] addImageToCanvas FAILED:`, canvasErr);
+                }
+            } else {
+                console.warn(`[generateImage] Skipping canvas add: excalidrawAPI=${!!excalidrawAPI}, imageUrl=${!!data.imageUrl}`);
             }
 
             if (data.imageUrl) {

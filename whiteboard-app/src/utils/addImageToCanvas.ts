@@ -23,20 +23,41 @@ export async function addImageToCanvas(
     const fileId = `${opts.idPrefix || "ai-img"}-${Date.now()}`;
     const elementId = `${fileId}-el`;
 
+    console.log(`[addImageToCanvas] Starting. fileId=${fileId}, dataURL length=${dataURL.length}, size=${opts.width}x${opts.height}`);
+
     // Register the binary file with Excalidraw's file store
-    await api.addFiles([{
-        id: toFileId(fileId),
-        dataURL: toDataURL(dataURL),
-        mimeType: "image/png",
-        created: Date.now(),
-    }]);
+    try {
+        await api.addFiles([{
+            id: toFileId(fileId),
+            dataURL: toDataURL(dataURL),
+            mimeType: "image/png",
+            created: Date.now(),
+        }]);
+        console.log(`[addImageToCanvas] File registered successfully`);
+    } catch (err) {
+        console.error(`[addImageToCanvas] Failed to register file:`, err);
+        throw err;
+    }
+
+    // Compute a good position — avoid stacking on top of existing elements
+    const currentElements = api.getSceneElements();
+    let posX = opts.x ?? 100;
+    let posY = opts.y ?? 100;
+
+    // If there are existing elements, place the new image to the right of the rightmost element
+    if (currentElements.length > 0) {
+        const maxRight = Math.max(...currentElements.map((el: any) => (el.x || 0) + (el.width || 0)));
+        const avgY = currentElements.reduce((sum: number, el: any) => sum + (el.y || 0), 0) / currentElements.length;
+        posX = maxRight + 50; // 50px gap to the right
+        posY = avgY;
+    }
 
     // Build the image element descriptor
     const imageElement = {
         type: "image" as const,
         id: elementId,
-        x: opts.x ?? 100,
-        y: opts.y ?? 100,
+        x: posX,
+        y: posY,
         width: opts.width,
         height: opts.height,
         angle: 0,
@@ -64,12 +85,27 @@ export async function addImageToCanvas(
         scale: [1, 1] as [number, number],
     };
 
+    console.log(`[addImageToCanvas] Placing image at (${posX}, ${posY}), existing elements: ${currentElements.length}`);
+
     // Add to scene and scroll into view
-    const currentElements = api.getSceneElements();
     api.updateScene({
         elements: [...currentElements, imageElement as any],
     });
+
+    // Small delay to let Excalidraw process the scene update before scrolling
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     api.scrollToContent([imageElement as any], { fitToContent: true });
+
+    console.log(`[addImageToCanvas] Scene updated and scrolled. Total elements now: ${api.getSceneElements().length}`);
+
+    // Verify the element was actually added
+    const addedEl = api.getSceneElements().find((el: any) => el.id === elementId);
+    if (!addedEl) {
+        console.error(`[addImageToCanvas] WARNING: Element ${elementId} was NOT found in scene after updateScene!`);
+    } else {
+        console.log(`[addImageToCanvas] Verified: element ${elementId} exists in scene, isDeleted=${(addedEl as any).isDeleted}`);
+    }
 
     return elementId;
 }
