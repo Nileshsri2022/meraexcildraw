@@ -11,6 +11,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useCanvasChat } from "../hooks/useCanvasChat";
 import type { ChatMessage } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
+import { useAIGeneration } from "../hooks/useAIGeneration";
 
 // ─── Message Bubble ──────────────────────────────────────────────────────────
 
@@ -69,6 +70,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [actionCount, setActionCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const [toolStatus, setToolStatus] = useState<string | null>(null);
+
+    // AI generation hook — used when chatbot routes to real AI tools
+    const aiGen = useAIGeneration(excalidrawAPI, () => {/* no-op: we don't close the chat panel */ });
 
     // Register excalidrawAPI with the chat hook so it can read canvas state
     useEffect(() => {
@@ -97,6 +102,71 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             return () => clearTimeout(timer);
         }
     }, [chat.pendingActions]); // eslint-disable-line
+
+    // Execute pending AI tool actions from the backend
+    useEffect(() => {
+        if (!chat.pendingToolAction) return;
+
+        const action = chat.pendingToolAction;
+        chat.consumeToolAction();
+
+        const executeTool = async () => {
+            try {
+                // Set the prompt in the AI generation hook
+                aiGen.setPrompt(action.prompt);
+
+                switch (action.tool) {
+                    case "diagram":
+                        setToolStatus("🧩 Generating diagram...");
+                        if (action.style) aiGen.setStyle(action.style);
+                        // Small delay to let state settle
+                        await new Promise(r => setTimeout(r, 100));
+                        await aiGen.generateDiagram();
+                        setToolStatus("✅ Diagram created!");
+                        break;
+
+                    case "image":
+                        setToolStatus("🖼️ Generating image...");
+                        await new Promise(r => setTimeout(r, 100));
+                        await aiGen.generateImage();
+                        setToolStatus("✅ Image created!");
+                        break;
+
+                    case "sketch":
+                        setToolStatus("✏️ Converting sketch...");
+                        await new Promise(r => setTimeout(r, 100));
+                        await aiGen.generateSketchImage();
+                        setToolStatus("✅ Sketch converted!");
+                        break;
+
+                    case "ocr":
+                        setToolStatus("📝 Capturing canvas for OCR...");
+                        aiGen.captureCanvas();
+                        await new Promise(r => setTimeout(r, 300));
+                        await aiGen.performOcr();
+                        setToolStatus("✅ Text extracted!");
+                        break;
+
+                    case "tts":
+                        setToolStatus("🔊 Generating speech...");
+                        // TTS needs to be handled differently since it uses a separate hook
+                        setToolStatus("🔊 TTS requested — open AI Tools > TTS tab");
+                        break;
+
+                    default:
+                        setToolStatus(null);
+                }
+            } catch (err) {
+                console.error(`Tool ${action.tool} failed:`, err);
+                setToolStatus(`❌ ${action.tool} failed`);
+            }
+
+            // Clear status after a few seconds
+            setTimeout(() => setToolStatus(null), 4000);
+        };
+
+        executeTool();
+    }, [chat.pendingToolAction]); // eslint-disable-line
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -205,6 +275,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                 {actionCount > 0 && (
                     <div className="canvas-action-badge">
                         ✅ {actionCount} element{actionCount !== 1 ? "s" : ""} added to canvas!
+                    </div>
+                )}
+
+                {/* AI tool status badge */}
+                {toolStatus && (
+                    <div className="canvas-action-badge">
+                        {toolStatus}
                     </div>
                 )}
 

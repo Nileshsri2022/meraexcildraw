@@ -205,26 +205,107 @@ chat_chain = chat_prompt | chat_llm
 # Canvas chain: prompt → LLM (deterministic) → string parser
 canvas_chain = canvas_prompt | canvas_llm | StrOutputParser()
 
-# ─── Drawing Intent Detection (frozenset for O(1) membership tests) ──────────
+# ─── AI Tool Intent Detection ─────────────────────────────────────────────────
+#
+# Routes user messages to the appropriate AI tool:
+#   diagram  → Mermaid-based diagram generation (best quality diagrams)
+#   image    → FLUX image generation (actual images on canvas)
+#   sketch   → ControlNet sketch-to-image conversion
+#   ocr      → Vision-based text extraction
+#   tts      → Text-to-speech synthesis
+#   draw     → Basic canvas_chain shapes (fallback for simple drawing)
+#   None     → Plain chat (no tool needed)
 
+_TOOL_KEYWORDS: dict[str, frozenset[str]] = {
+    "diagram": frozenset({
+        "flowchart", "diagram", "mindmap", "mind map", "sequence diagram",
+        "class diagram", "er diagram", "gantt", "pie chart", "state diagram",
+        "graph", "chart", "architecture", "uml", "schema",
+    }),
+    "image": frozenset({
+        "generate image", "generate an image", "create image",
+        "create an image", "generate picture", "create picture",
+        "photo of", "picture of", "image of", "illustration of",
+        "generate a photo", "make an image", "make a picture",
+    }),
+    "sketch": frozenset({
+        "sketch to image", "convert sketch", "turn sketch",
+        "make it realistic", "sketch to real", "transform sketch",
+        "convert my drawing", "turn my drawing", "make my sketch",
+    }),
+    "ocr": frozenset({
+        "read text", "extract text", "ocr", "what text",
+        "recognize text", "what does it say", "read the text",
+        "text recognition", "scan text",
+    }),
+    "tts": frozenset({
+        "read aloud", "speak", "say this", "text to speech",
+        "read this aloud", "tts", "pronounce", "voice",
+        "say it out loud", "read out",
+    }),
+}
+
+# Fallback: basic shape drawing keywords (uses canvas_chain)
 _DRAW_KEYWORDS: frozenset[str] = frozenset({
     "draw", "create", "add", "place", "make", "build", "put", "insert",
-    "diagram", "flowchart", "chart", "graph", "mindmap", "mind map",
     "box", "circle", "rectangle", "arrow", "shape", "ellipse", "diamond",
-    "layout", "wireframe", "sketch", "design", "sticky", "note",
-    "architecture", "schema", "er diagram", "class diagram", "sequence",
+    "layout", "wireframe", "design", "sticky", "note",
     "organize", "arrange", "connect", "link",
 })
 
+# Diagram styles derived from prompt keywords
+_DIAGRAM_STYLES: dict[str, str] = {
+    "flowchart": "flowchart",
+    "flow chart": "flowchart",
+    "mindmap": "mindmap",
+    "mind map": "mindmap",
+    "sequence": "sequence",
+    "class diagram": "classDiagram",
+    "er diagram": "erDiagram",
+    "state diagram": "stateDiagram",
+    "gantt": "gantt",
+    "pie": "pie",
+}
 
-def has_drawing_intent(message: str) -> bool:
-    """Detect if the user's message requests drawing on the canvas.
 
-    Uses frozenset membership check for O(1) per keyword and short-circuits
-    via `any()` generator expression to avoid scanning the entire set.
+def detect_tool_intent(message: str) -> dict | None:
+    """Detect which AI tool the user's message needs.
+
+    Returns a dict with tool info, or None for plain chat.
+    Priority: specific tools > basic drawing > None.
+
+    Returns:
+        {"tool": "diagram", "prompt": "...", "style": "flowchart"}
+        {"tool": "image",   "prompt": "..."}
+        {"tool": "sketch",  "prompt": "..."}
+        {"tool": "ocr"}
+        {"tool": "tts",     "text": "..."}
+        {"tool": "draw"}    — fallback to canvas_chain
+        None                — plain chat
     """
     msg_lower = message.lower()
-    return any(kw in msg_lower for kw in _DRAW_KEYWORDS)
+
+    # Check specific tools first (highest priority)
+    for tool_name, keywords in _TOOL_KEYWORDS.items():
+        if any(kw in msg_lower for kw in keywords):
+            result: dict[str, Any] = {"tool": tool_name, "prompt": message}
+
+            # For diagrams, detect the style
+            if tool_name == "diagram":
+                style = "flowchart"  # default
+                for keyword, diagram_style in _DIAGRAM_STYLES.items():
+                    if keyword in msg_lower:
+                        style = diagram_style
+                        break
+                result["style"] = style
+
+            return result
+
+    # Fallback: basic shape drawing
+    if any(kw in msg_lower for kw in _DRAW_KEYWORDS):
+        return {"tool": "draw", "prompt": message}
+
+    return None
 
 
 # ─── Canvas Element Parser ───────────────────────────────────────────────────
@@ -448,8 +529,8 @@ async def chat(req: ChatRequest):
     # Build chain input (uses local variable for history slice)
     chain_input = session.get_chain_input(req.message)
 
-    # Check drawing intent upfront with O(1) frozenset lookup
-    drawing_requested = has_drawing_intent(req.message)
+    # Detect which AI tool (if any) should handle this message
+    tool_intent = detect_tool_intent(req.message)
 
     async def generate() -> AsyncGenerator[str, None]:
         """SSE generator — yields data lines for each event.
@@ -490,7 +571,6 @@ async def chat(req: ChatRequest):
                 yield _sse({"type": "token", "token": token, "done": False})
 
             # ── Assemble full response ──
-            # join() is O(n) single-pass; far faster than += concatenation
             full_response = "".join(full_response_parts)
             clean_response = _strip_think(full_response)
 
@@ -510,36 +590,53 @@ async def chat(req: ChatRequest):
                 "session_id": session_id,
             })
 
-            # ── Phase 2: Generate canvas elements via canvas_chain.ainvoke() ──
-            if drawing_requested:
-                canvas_input = {
-                    "canvas_context": session.canvas_context,
-                    "input": req.message,
-                }
-                raw_output = await canvas_chain.ainvoke(canvas_input)
-                elements = parse_canvas_json(raw_output)
+            # ── Phase 2: Route to AI tool or canvas_chain ──
+            if tool_intent:
+                tool_name = tool_intent["tool"]
 
-                if elements:
-                    # Update canvas context with what AI just drew
-                    # so subsequent messages know about these elements
-                    drawn_parts: list[str] = []
-                    for el in elements:
-                        el_type = el.get("type", "unknown")
-                        el_text = el.get("text", "").strip()
-                        if el_text:
-                            drawn_parts.append(f'- {el_type}: "{el_text}"')
-                        else:
-                            drawn_parts.append(f"- {el_type}")
-                    drawn_summary = "\n".join(drawn_parts)
-                    session.canvas_context += (
-                        f"\n\nAI just drew {len(elements)} elements:\n"
-                        f"{drawn_summary}"
-                    )
+                if tool_name == "draw":
+                    # Fallback: use canvas_chain for basic shape drawing
+                    canvas_input = {
+                        "canvas_context": session.canvas_context,
+                        "input": req.message,
+                    }
+                    raw_output = await canvas_chain.ainvoke(canvas_input)
+                    elements = parse_canvas_json(raw_output)
 
-                    yield _sse({
-                        "type": "canvas_action",
-                        "elements": elements,
-                    })
+                    if elements:
+                        drawn_parts: list[str] = []
+                        for el in elements:
+                            el_type = el.get("type", "unknown")
+                            el_text = el.get("text", "").strip()
+                            if el_text:
+                                drawn_parts.append(f'- {el_type}: "{el_text}"')
+                            else:
+                                drawn_parts.append(f"- {el_type}")
+                        drawn_summary = "\n".join(drawn_parts)
+                        session.canvas_context += (
+                            f"\n\nAI just drew {len(elements)} elements:\n"
+                            f"{drawn_summary}"
+                        )
+
+                        yield _sse({
+                            "type": "canvas_action",
+                            "elements": elements,
+                        })
+                else:
+                    # Route to a real AI tool (diagram, image, sketch, ocr, tts)
+                    tool_event: dict[str, Any] = {
+                        "type": "tool_action",
+                        "tool": tool_name,
+                        "prompt": tool_intent.get("prompt", req.message),
+                    }
+                    # Include style for diagram tool
+                    if tool_name == "diagram" and "style" in tool_intent:
+                        tool_event["style"] = tool_intent["style"]
+                    # Include text for TTS
+                    if tool_name == "tts":
+                        tool_event["text"] = clean_response
+
+                    yield _sse(tool_event)
 
         except Exception as e:
             yield _sse({

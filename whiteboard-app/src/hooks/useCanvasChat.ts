@@ -46,6 +46,14 @@ export interface CanvasActionElement {
     endId?: string;
 }
 
+/** AI tool action from the backend — routes to real AI tools */
+export interface ToolAction {
+    tool: "diagram" | "image" | "sketch" | "ocr" | "tts";
+    prompt: string;
+    style?: string;   // for diagram tool
+    text?: string;    // for TTS tool
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useCanvasChat() {
@@ -53,6 +61,7 @@ export function useCanvasChat() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pendingActions, setPendingActions] = useState<CanvasActionElement[] | null>(null);
+    const [pendingToolAction, setPendingToolAction] = useState<ToolAction | null>(null);
     const sessionIdRef = useRef<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
 
@@ -119,6 +128,7 @@ export function useCanvasChat() {
 
         setError(null);
         setPendingActions(null);
+        setPendingToolAction(null);
 
         const userMsg: ChatMessage = {
             id: `u-${Date.now()}`,
@@ -196,6 +206,18 @@ export function useCanvasChat() {
                             case "canvas_action":
                                 if (data.elements && data.elements.length > 0) {
                                     setPendingActions(data.elements);
+                                }
+                                break;
+
+                            case "tool_action":
+                                // Route to a real AI tool (diagram, image, sketch, ocr, tts)
+                                if (data.tool) {
+                                    setPendingToolAction({
+                                        tool: data.tool,
+                                        prompt: data.prompt || "",
+                                        style: data.style,
+                                        text: data.text,
+                                    });
                                 }
                                 break;
 
@@ -288,6 +310,15 @@ export function useCanvasChat() {
     }, [pendingActions]);
 
     /**
+     * Consume and clear pending tool action.
+     */
+    const consumeToolAction = useCallback(() => {
+        const action = pendingToolAction;
+        setPendingToolAction(null);
+        return action;
+    }, [pendingToolAction]);
+
+    /**
      * Clear conversation history (both local and server-side).
      * Also resets canvas context on the server.
      */
@@ -314,12 +345,14 @@ export function useCanvasChat() {
         isStreaming,
         error,
         pendingActions,
+        pendingToolAction,
         sessionId: sessionIdRef.current,
         sendMessage: sendMessageWithSync,
         stopStreaming,
         clearChat,
         syncCanvasContext,
         consumeActions,
+        consumeToolAction,
         setExcalidrawAPI,
     };
 }
