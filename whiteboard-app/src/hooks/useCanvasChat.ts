@@ -83,7 +83,10 @@ export function useCanvasChat() {
      * Internal: send canvas context to the server (requires active session).
      */
     const flushCanvasContext = useCallback(async (elements: any[]) => {
-        if (!sessionIdRef.current || elements.length === 0) return;
+        if (!sessionIdRef.current) return;
+
+        // Excalidraw keeps deleted elements in memory for undo/redo. Filter them out!
+        const activeElements = elements.filter(el => !el.isDeleted);
 
         try {
             await fetch(`${CHAT_SERVICE_URL}/chat/context`, {
@@ -91,7 +94,7 @@ export function useCanvasChat() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     session_id: sessionIdRef.current,
-                    elements: elements.map(el => ({
+                    elements: activeElements.map(el => ({
                         type: el.type,
                         text: el.text || el.originalText || "",
                         x: el.x,
@@ -113,7 +116,7 @@ export function useCanvasChat() {
      */
     const syncCanvasContext = useCallback(async (elements?: any[]) => {
         const els = elements || excalidrawAPIRef.current?.getSceneElements?.() || [];
-        if (!sessionIdRef.current || els.length === 0) return;
+        if (!sessionIdRef.current) return;
         await flushCanvasContext(els);
     }, [flushCanvasContext]);
 
@@ -272,23 +275,7 @@ export function useCanvasChat() {
         // Sync canvas context right before sending (if session exists)
         if (sessionIdRef.current) {
             const els = excalidrawAPIRef.current?.getSceneElements?.() || [];
-            if (els.length > 0) {
-                await flushCanvasContext(els);
-            } else {
-                // Canvas is empty — tell the server
-                try {
-                    await fetch(`${CHAT_SERVICE_URL}/chat/context`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            session_id: sessionIdRef.current,
-                            elements: [],
-                        }),
-                    });
-                } catch {
-                    // Non-critical
-                }
-            }
+            await flushCanvasContext(els);
         }
         return sendMessage(content);
     }, [sendMessage, flushCanvasContext]);
