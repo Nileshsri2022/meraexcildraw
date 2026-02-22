@@ -84,6 +84,7 @@ def md_to_html(text: str) -> str:
 
 NVIDIA_API_KEY: str = os.getenv("NVIDIA_API_KEY", "")
 CHAT_MODEL: str = os.getenv("CHAT_MODEL", "minimaxai/minimax-m2.1")
+CHAT_MODEL_FALLBACK: str = os.getenv("CHAT_MODEL_FALLBACK", "meta/llama-3.1-8b-instruct")
 CHAT_PORT: int = int(os.getenv("CHAT_PORT", "3003"))
 MAX_HISTORY_MESSAGES: int = int(os.getenv("MAX_HISTORY_MESSAGES", "20"))
 SESSION_TTL_HOURS: int = int(os.getenv("SESSION_TTL_HOURS", "24"))
@@ -103,6 +104,23 @@ chat_llm = ChatNVIDIA(
 
 canvas_llm = ChatNVIDIA(
     model=CHAT_MODEL,
+    api_key=NVIDIA_API_KEY,
+    temperature=0.2,
+    top_p=0.9,
+    max_completion_tokens=4096,
+)
+
+# Fallback LLMs (used when primary model is down)
+fallback_chat_llm = ChatNVIDIA(
+    model=CHAT_MODEL_FALLBACK,
+    api_key=NVIDIA_API_KEY,
+    temperature=0.8,
+    top_p=0.95,
+    max_completion_tokens=4096,
+)
+
+fallback_canvas_llm = ChatNVIDIA(
+    model=CHAT_MODEL_FALLBACK,
     api_key=NVIDIA_API_KEY,
     temperature=0.2,
     top_p=0.9,
@@ -200,11 +218,13 @@ Canvas context: {canvas_context}"""),
 
 # ─── LCEL Chains ─────────────────────────────────────────────────────────────
 
-# Chat chain: prompt → LLM (streams) — no parser so we can stream raw chunks
+# Primary chains (MiniMax or configured model)
 chat_chain = chat_prompt | chat_llm
-
-# Canvas chain: prompt → LLM (deterministic) → string parser
 canvas_chain = canvas_prompt | canvas_llm | StrOutputParser()
+
+# Fallback chains (Llama 3.1 or configured fallback)
+fallback_chat_chain = chat_prompt | fallback_chat_llm
+fallback_canvas_chain = canvas_prompt | fallback_canvas_llm | StrOutputParser()
 
 # ─── AI Tool Intent Detection ─────────────────────────────────────────────────
 #
@@ -512,16 +532,32 @@ async def health():
 
 @app.get("/debug/test-llm")
 async def test_llm():
-    """Quick LLM connectivity test — 15s timeout."""
+    """Quick LLM connectivity test — tries primary then fallback."""
+    results: dict[str, Any] = {}
+
+    # Test primary model
     try:
         async with asyncio.timeout(15):
             result = await chat_llm.ainvoke("Say hello in one word")
             content = result.content if hasattr(result, "content") else str(result)
-            return {"status": "ok", "response": content[:200]}
+            results["primary"] = {"status": "ok", "model": CHAT_MODEL, "response": content[:200]}
     except asyncio.TimeoutError:
-        return {"status": "timeout", "error": "LLM did not respond within 15s"}
+        results["primary"] = {"status": "timeout", "model": CHAT_MODEL}
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        results["primary"] = {"status": "error", "model": CHAT_MODEL, "error": str(e)}
+
+    # Test fallback model
+    try:
+        async with asyncio.timeout(15):
+            result = await fallback_chat_llm.ainvoke("Say hello in one word")
+            content = result.content if hasattr(result, "content") else str(result)
+            results["fallback"] = {"status": "ok", "model": CHAT_MODEL_FALLBACK, "response": content[:200]}
+    except asyncio.TimeoutError:
+        results["fallback"] = {"status": "timeout", "model": CHAT_MODEL_FALLBACK}
+    except Exception as e:
+        results["fallback"] = {"status": "error", "model": CHAT_MODEL_FALLBACK, "error": str(e)}
+
+    return results
 
 
 @app.post("/chat")
@@ -570,12 +606,44 @@ async def chat(req: ChatRequest):
             # Send initial heartbeat to keep connection alive
             yield ": heartbeat\n\n"
 
-            print(f"[Chat] Starting LLM stream for session {session_id}")
+            # ── Phase 1: Stream text — try primary model, fallback if needed ──
+            active_chain = chat_chain
+            model_used = CHAT_MODEL
 
-            # ── Phase 1: Stream text via chat_chain.astream() ──
-            # Wrap in timeout to catch hung LLM calls
+            # Try primary model with a short initial-chunk timeout
+            try:
+                first_chunk_received = False
+                async with asyncio.timeout(20):
+                    async for chunk in chat_chain.astream(chain_input):
+                        token = chunk.content if hasattr(chunk, "content") else str(chunk)
+                        if not token:
+                            continue
+                        first_chunk_received = True
+                        break  # got first chunk, primary model works
+
+                if not first_chunk_received:
+                    raise asyncio.TimeoutError()
+
+                # Primary model responded! Stream the rest with it
+                print(f"[Chat] Primary model {CHAT_MODEL} responded")
+                full_response_parts.append(token)
+                if "<think>" in token:
+                    inside_think = True
+                if not inside_think:
+                    yield _sse({"type": "token", "token": token, "done": False})
+
+            except (asyncio.TimeoutError, Exception) as primary_err:
+                # Primary model failed — switch to fallback
+                print(f"[Chat] Primary model timeout/error: {primary_err}. Switching to {CHAT_MODEL_FALLBACK}")
+                active_chain = fallback_chat_chain
+                model_used = CHAT_MODEL_FALLBACK
+                yield _sse({"type": "token", "token": f"*[Using {CHAT_MODEL_FALLBACK}]*\n\n", "done": False})
+                full_response_parts.clear()
+                inside_think = False
+
+            # Stream tokens from active chain (primary or fallback)
             async with asyncio.timeout(90):
-                async for chunk in chat_chain.astream(chain_input):
+                async for chunk in active_chain.astream(chain_input):
                     token = chunk.content if hasattr(chunk, "content") else str(chunk)
                     if not token:
                         continue
@@ -601,7 +669,7 @@ async def chat(req: ChatRequest):
 
                     yield _sse({"type": "token", "token": token, "done": False})
 
-            print(f"[Chat] LLM stream completed for session {session_id}, {len(full_response_parts)} chunks")
+            print(f"[Chat] LLM stream completed ({model_used}), {len(full_response_parts)} chunks")
 
             # ── Assemble full response ──
             full_response = "".join(full_response_parts)
@@ -629,13 +697,14 @@ async def chat(req: ChatRequest):
                 print(f"[Chat] Tool intent detected: {tool_name}")
 
                 if tool_name == "draw":
-                    # Fallback: use canvas_chain for basic shape drawing
+                    # Use the active (possibly fallback) canvas_chain
+                    active_canvas = canvas_chain if model_used == CHAT_MODEL else fallback_canvas_chain
                     canvas_input = {
                         "canvas_context": session.canvas_context,
                         "input": req.message,
                     }
                     async with asyncio.timeout(60):
-                        raw_output = await canvas_chain.ainvoke(canvas_input)
+                        raw_output = await active_canvas.ainvoke(canvas_input)
                     elements = parse_canvas_json(raw_output)
 
                     if elements:
