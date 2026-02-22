@@ -59,6 +59,7 @@ export interface ToolAction {
 export function useCanvasChat() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isStreaming, setIsStreaming] = useState(false);
+    const isStreamingRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
     const [pendingActions, setPendingActions] = useState<CanvasActionElement[] | null>(null);
     const [pendingToolAction, setPendingToolAction] = useState<ToolAction | null>(null);
@@ -132,7 +133,7 @@ export function useCanvasChat() {
      * so the AI always has up-to-date context.
      */
     const sendMessage = useCallback(async (content: string) => {
-        if (!content.trim() || isStreaming) return;
+        if (!content.trim() || isStreamingRef.current) return;
 
         setError(null);
         setPendingActions(null);
@@ -154,6 +155,7 @@ export function useCanvasChat() {
         };
 
         setMessages(prev => [...prev, userMsg, assistantMsg]);
+        isStreamingRef.current = true;
         setIsStreaming(true);
 
         const controller = new AbortController();
@@ -267,10 +269,11 @@ export function useCanvasChat() {
                 );
             }
         } finally {
+            isStreamingRef.current = false;
             setIsStreaming(false);
             abortRef.current = null;
         }
-    }, [isStreaming, flushCanvasContext]);
+    }, [flushCanvasContext]);
 
     /**
      * Send a message with a fresh canvas sync.
