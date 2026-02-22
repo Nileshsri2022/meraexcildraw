@@ -547,8 +547,12 @@ async def chat(req: ChatRequest):
 
         full_response_parts: list[str] = []
         inside_think = False
+        chunks_yielded = 0
 
         try:
+            # Send initial heartbeat to keep connection alive
+            yield ": heartbeat\n\n"
+
             # ── Phase 1: Stream text via chat_chain.astream() ──
             async for chunk in chat_chain.astream(chain_input):
                 token = chunk.content if hasattr(chunk, "content") else str(chunk)
@@ -566,6 +570,12 @@ async def chat(req: ChatRequest):
                         after = token.split("</think>", 1)[1]
                         if after.strip():
                             yield _sse({"type": "token", "token": after, "done": False})
+                            chunks_yielded += 1
+                    else:
+                        # Send keep-alive during think phase to prevent proxy timeout
+                        chunks_yielded += 1
+                        if chunks_yielded % 10 == 0:
+                            yield ": keepalive\n\n"
                     continue
 
                 yield _sse({"type": "token", "token": token, "done": False})
@@ -651,9 +661,13 @@ async def chat(req: ChatRequest):
         generate(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
             "Connection": "keep-alive",
             "X-Session-Id": session_id,
+            # Disable proxy/CDN buffering (critical for Railway + Fastly)
+            "X-Accel-Buffering": "no",
+            "X-Content-Type-Options": "nosniff",
+            "Transfer-Encoding": "chunked",
         },
     )
 
