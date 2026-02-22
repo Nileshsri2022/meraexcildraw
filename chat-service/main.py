@@ -195,10 +195,7 @@ chat_prompt = ChatPromptTemplate.from_messages([
 2. **Use formatting** — Use markdown with headers, lists, and code blocks.
 3. **When drawing/generating** — Briefly describe what you're creating. Do NOT include the actual image URL or diagram code, as the system handles it automatically.
 4. **Canvas awareness** — Reference specific elements the user has drawn when context is available.
-5. **Friendly tone** — Be a collaborative partner, not a formal assistant.
-
-## Current Canvas Context
-{canvas_context}"""),
+5. **Friendly tone** — Be a collaborative partner, not a formal assistant."""),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{input}"),
 ])
@@ -403,11 +400,20 @@ class ChatSession:
         self.last_active = datetime.now()
         self.messages.append(HumanMessage(content=user_input))
 
-        # Keep history bounded
-        history = self.messages[-(MAX_HISTORY_MESSAGES - 1):]
+        # Keep history bounded, excluding the message we JUST added
+        # so it isn't duplicated in the `history` and `input` variables.
+        history = self.messages[-(MAX_HISTORY_MESSAGES):-1]
+        
+        # Inject the live canvas context into the current turn to override History Anchor Bias
+        injected_input = (
+            f"[SYSTEM NOTE: Current Live Canvas Context]\n"
+            f"{self.canvas_context}\n\n"
+            f"[User Request]\n"
+            f"{user_input}"
+        )
 
         return {
-            "input": user_input,
+            "input": injected_input,
             "history": history,
             "canvas_context": self.canvas_context,
         }
