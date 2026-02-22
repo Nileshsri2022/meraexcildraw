@@ -173,8 +173,72 @@ OUTPUT (Mermaid code only):`;
 });
 
 // ==== AI Image Generation Endpoint ====
-// Using Z-Image-Turbo (fast turbo model via Gradio)
+// Primary: Z-Image-Turbo (fast turbo model)
+// Fallback: FLUX.1-dev (high quality, slower)
 const IMAGE_SPACE = process.env.IMAGE_SPACE || "mrfakename/Z-Image-Turbo";
+const FALLBACK_IMAGE_SPACE = process.env.FALLBACK_IMAGE_SPACE || "black-forest-labs/FLUX.1-dev";
+
+/**
+ * Try generating an image with Z-Image-Turbo (fast, ~9 steps).
+ * Returns { imageUrl, seedUsed } or throws on failure.
+ */
+async function generateWithZImageTurbo(Client, prompt, width, height, steps, seed, randomizeSeed) {
+    console.log(`[AI Image] Trying primary: Z-Image-Turbo...`);
+    const client = await Client.connect(IMAGE_SPACE, {
+        hf_token: process.env.HF_TOKEN || undefined,
+    });
+
+    const result = await client.predict("/generate_image", {
+        prompt, height, width,
+        num_inference_steps: steps,
+        seed, randomize_seed: randomizeSeed,
+    });
+
+    const imageInfo = result.data?.[0];
+    const seedUsed = result.data?.[1];
+    const imageUrl = imageInfo?.url || imageInfo;
+
+    if (!imageUrl || typeof imageUrl !== "string") {
+        throw new Error("Could not extract image URL from Z-Image-Turbo result");
+    }
+
+    return { imageUrl, seedUsed };
+}
+
+/**
+ * Try generating an image with FLUX.1-dev (high quality, ~28 steps).
+ * Returns { imageUrl, seedUsed } or throws on failure.
+ */
+async function generateWithFluxDev(Client, prompt, width, height, steps, seed, randomizeSeed) {
+    console.log(`[AI Image] Trying fallback: FLUX.1-dev...`);
+    const client = await Client.connect(FALLBACK_IMAGE_SPACE, {
+        hf_token: process.env.HF_TOKEN || undefined,
+    });
+
+    // FLUX.1-dev uses /infer endpoint with guidance_scale
+    // It needs more steps for quality (28 default vs 9 for turbo)
+    const fluxSteps = Math.max(steps, 28);
+    const result = await client.predict("/infer", {
+        prompt,
+        seed,
+        randomize_seed: randomizeSeed,
+        width,
+        height,
+        guidance_scale: 3.5,
+        num_inference_steps: fluxSteps,
+    });
+
+    // FLUX.1-dev returns: [dict(path, url, size, ...), seed]
+    const imageInfo = result.data?.[0];
+    const seedUsed = result.data?.[1];
+    const imageUrl = imageInfo?.url || imageInfo?.path || imageInfo;
+
+    if (!imageUrl || typeof imageUrl !== "string") {
+        throw new Error("Could not extract image URL from FLUX.1-dev result");
+    }
+
+    return { imageUrl, seedUsed };
+}
 
 app.post("/api/ai/generate-image", async (req, res) => {
     try {
@@ -191,36 +255,30 @@ app.post("/api/ai/generate-image", async (req, res) => {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        console.log(`[AI Image] Generating image with Z-Image-Turbo...`);
         console.log(`[AI Image] Prompt: "${prompt}"`);
         console.log(`[AI Image] Settings: ${width}x${height}, steps=${num_inference_steps}, seed=${seed}, randomize=${randomize_seed}`);
 
-        // Connect to the Z-Image-Turbo Gradio Space
         const { Client } = await import("@gradio/client");
-        const client = await Client.connect(IMAGE_SPACE, {
-            hf_token: process.env.HF_TOKEN || undefined,
-        });
 
-        const result = await client.predict("/generate_image", {
-            prompt: prompt,
-            height: height,
-            width: width,
-            num_inference_steps: num_inference_steps,
-            seed: seed,
-            randomize_seed: randomize_seed,
-        });
+        let imageUrl, seedUsed, modelUsed;
 
-        // result.data = [imageUrl, seedUsed]
-        const imageInfo = result.data?.[0];
-        const seedUsed = result.data?.[1];
-        const imageUrl = imageInfo?.url || imageInfo;
+        // Try primary model first, fall back to FLUX.1-dev on failure
+        try {
+            const primary = await generateWithZImageTurbo(Client, prompt, width, height, num_inference_steps, seed, randomize_seed);
+            imageUrl = primary.imageUrl;
+            seedUsed = primary.seedUsed;
+            modelUsed = "Z-Image-Turbo";
+        } catch (primaryError) {
+            console.warn(`[AI Image] Primary model failed: ${primaryError.message}`);
+            console.log(`[AI Image] Falling back to FLUX.1-dev...`);
 
-        if (!imageUrl || typeof imageUrl !== "string") {
-            console.error("[AI Image] Unexpected result format:", JSON.stringify(result.data));
-            throw new Error("Could not extract image URL from result");
+            const fallback = await generateWithFluxDev(Client, prompt, width, height, num_inference_steps, seed, randomize_seed);
+            imageUrl = fallback.imageUrl;
+            seedUsed = fallback.seedUsed;
+            modelUsed = "FLUX.1-dev";
         }
 
-        console.log(`[AI Image] Fetching generated image (seed=${seedUsed})...`);
+        console.log(`[AI Image] ${modelUsed} returned URL, fetching image...`);
 
         // Fetch the generated image and convert to base64 data URL
         const imageResponse = await fetch(imageUrl);
@@ -233,7 +291,7 @@ app.post("/api/ai/generate-image", async (req, res) => {
         const contentType = imageResponse.headers.get("content-type") || "image/png";
         const dataUrl = `data:${contentType};base64,${base64}`;
 
-        console.log(`[AI Image] Successfully generated image (${Math.round(base64.length / 1024)} KB)`);
+        console.log(`[AI Image] ✅ Successfully generated image via ${modelUsed} (${Math.round(base64.length / 1024)} KB)`);
 
         res.json({
             success: true,
@@ -242,9 +300,10 @@ app.post("/api/ai/generate-image", async (req, res) => {
             height: height,
             seed: seedUsed,
             prompt: prompt,
+            model: modelUsed,
         });
     } catch (error) {
-        console.error("[AI Image] Error generating image:", error);
+        console.error("[AI Image] All models failed:", error);
         res.status(500).json({
             error: "Failed to generate image",
             message: error.message,
