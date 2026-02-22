@@ -50,6 +50,27 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 
+# ─── LangChain OpenAI Monkey Patch for OpenRouter Reasoning ───────────────────
+#
+# LangChain normally strips custom message fields like 'reasoning_details'.
+# OpenRouter requires passing 'reasoning_details' unmodified back to the API.
+# This patch ensures AIMessage.additional_kwargs["reasoning_details"] is
+# correctly serialized to {"role": "assistant", "reasoning_details": ...}
+
+try:
+    import langchain_openai.chat_models.base as lc_base
+    _orig_convert = lc_base._convert_message_to_dict
+
+    def _patched_convert_message_to_dict(message, *args, **kwargs):
+        msg_dict = _orig_convert(message, *args, **kwargs)
+        if hasattr(message, "additional_kwargs") and "reasoning_details" in message.additional_kwargs:
+            msg_dict["reasoning_details"] = message.additional_kwargs["reasoning_details"]
+        return msg_dict
+
+    lc_base._convert_message_to_dict = _patched_convert_message_to_dict
+except Exception as e:
+    print(f"[Warning] Could not patch langchain_openai message converter: {e}")
+
 load_dotenv()
 
 # ─── Compiled Regex (compile once, reuse everywhere) ─────────────────────────
@@ -104,6 +125,7 @@ chat_llm = ChatOpenAI(
     temperature=0.8,
     max_tokens=4096,
     streaming=True,
+    model_kwargs={"extra_body": {"reasoning": {"enabled": True}}},
 )
 
 canvas_llm = ChatOpenAI(
@@ -113,6 +135,9 @@ canvas_llm = ChatOpenAI(
     temperature=0.2,
     max_tokens=4096,
     streaming=False,
+    # Canvas doesn't strictly need reasoning since it just outputs JSON,
+    # but we enable it to match the configured model's requirements if it strictly requires it.
+    model_kwargs={"extra_body": {"reasoning": {"enabled": True}}},
 )
 
 
@@ -520,6 +545,7 @@ async def chat(req: ChatRequest):
         _sse = _sse_event
 
         full_response_parts: list[str] = []
+        reasoning_details_accum: list[str] = []
         inside_think = False
         chunks_yielded = 0
 
@@ -532,6 +558,11 @@ async def chat(req: ChatRequest):
             # ── Phase 1: Stream text via chat_chain.astream() ──
             async with asyncio.timeout(90):
                 async for chunk in chat_chain.astream(chain_input):
+                    # Capture reasoning_details if OpenRouter streams it via additional_kwargs
+                    rd = chunk.additional_kwargs.get("reasoning_details") or getattr(chunk, "reasoning_details", None)
+                    if rd:
+                        reasoning_details_accum.append(str(rd))
+
                     token = chunk.content if hasattr(chunk, "content") else str(chunk)
                     if not token:
                         continue
@@ -563,8 +594,15 @@ async def chat(req: ChatRequest):
             full_response = "".join(full_response_parts)
             clean_response = _strip_think(full_response)
 
-            # Save to history, then trim to cap memory
-            session.messages.append(AIMessage(content=clean_response))
+            # Extract reasoning_details from final compiled parts or just fallback to string think block
+            final_reasoning = "".join(reasoning_details_accum)
+
+            # Save to history, preserving OpenRouter reasoning unmodified
+            ai_msg = AIMessage(content=clean_response)
+            if final_reasoning:
+                ai_msg.additional_kwargs["reasoning_details"] = final_reasoning
+            
+            session.messages.append(ai_msg)
             session.trim_history()
 
             # Convert to HTML (LRU-cached for repeated fragments)
