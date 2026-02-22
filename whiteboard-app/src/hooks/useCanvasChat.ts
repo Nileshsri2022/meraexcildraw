@@ -63,6 +63,11 @@ export function useCanvasChat() {
     const [pendingActions, setPendingActions] = useState<CanvasActionElement[] | null>(null);
     const [pendingToolAction, setPendingToolAction] = useState<ToolAction | null>(null);
     const sessionIdRef = useRef<string | null>(null);
+
+    // Auto-initialize session ID so first message can sync canvas context
+    if (!sessionIdRef.current && typeof crypto !== 'undefined' && crypto.randomUUID) {
+        sessionIdRef.current = crypto.randomUUID();
+    }
     const abortRef = useRef<AbortController | null>(null);
 
     /**
@@ -321,6 +326,13 @@ export function useCanvasChat() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ session_id: sessionIdRef.current }),
                 });
+
+                // Clear the session ID locally as well to rotate the session
+                if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                    sessionIdRef.current = crypto.randomUUID();
+                } else {
+                    sessionIdRef.current = null;
+                }
             } catch {
                 // Non-critical
             }

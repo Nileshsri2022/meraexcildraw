@@ -382,7 +382,7 @@ class ChatSession:
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
         self.messages: list[HumanMessage | AIMessage] = []
-        self.canvas_context: str = "No canvas elements loaded yet."
+        self.canvas_context: str = "The whiteboard is currently completely empty."
         self.created_at: datetime = datetime.now()
         self.last_active: datetime = datetime.now()
 
@@ -734,13 +734,13 @@ async def update_canvas_context(req: CanvasContextRequest):
         elements_str = "\n".join(summary_parts[:20])
 
         session.canvas_context = (
-            f"Canvas has {len(req.elements)} elements: {counts_str}.\n"
-            f"Text content found:\n{elements_str}"
+            f"The whiteboard currently has {len(req.elements)} shape(s)/element(s) drawn by the user: {counts_str}.\n"
+            f"Text content written on the whiteboard:\n{elements_str}"
             if elements_str
-            else f"Canvas has {len(req.elements)} elements: {counts_str}. No text content."
+            else f"The whiteboard currently has {len(req.elements)} shape(s)/element(s) drawn by the user: {counts_str}. There is no text written on the board."
         )
     else:
-        session.canvas_context = "Canvas is empty."
+        session.canvas_context = "The whiteboard is currently completely empty."
 
     return {"status": "ok", "context_length": len(session.canvas_context)}
 
@@ -749,9 +749,9 @@ async def update_canvas_context(req: CanvasContextRequest):
 async def clear_session(req: ClearRequest):
     """Clear conversation history and canvas context for a session."""
     session = _sessions.get(req.session_id)
-    if session is not None:
-        session.messages.clear()
-        session.canvas_context = "No canvas elements loaded yet."
+    if session:
+        session.messages = []
+        session.canvas_context = "The whiteboard is currently completely empty."
         return {"status": "ok", "message": "Session cleared"}
     return {"status": "ok", "message": "Session not found (already clean)"}
 
