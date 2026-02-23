@@ -192,8 +192,9 @@ export function useAIGeneration(
 
     // ─── Generate Diagram ────────────────────────────────────────────────────
 
-    const generateDiagram = useCallback(async (overridePrompt?: string) => {
+    const generateDiagram = useCallback(async (overridePrompt?: string, overrideStyle?: string) => {
         const currentPrompt = overridePrompt || prompt;
+        const currentStyle = overrideStyle || style;
         if (!currentPrompt.trim()) { setError("Please enter a description"); return; }
 
         setLoading(true);
@@ -202,7 +203,7 @@ export function useAIGeneration(
         try {
             const data = await apiFetch<DiagramResponse>("/api/ai/generate-diagram", {
                 method: "POST",
-                body: JSON.stringify({ prompt: currentPrompt, style }),
+                body: JSON.stringify({ prompt: currentPrompt, style: currentStyle }),
             });
 
             const diagramCode = data.code || data.mermaid;
@@ -217,7 +218,7 @@ export function useAIGeneration(
                 excalidrawAPI.scrollToContent(excalidrawElements, { fitToContent: true });
             }
 
-            saveAIResult({ type: "diagram", prompt: currentPrompt, result: diagramCode, metadata: { style } }).catch(() => { });
+            saveAIResult({ type: "diagram", prompt: currentPrompt, result: diagramCode, metadata: { style: currentStyle } }).catch(() => { });
             onClose();
             setPrompt("");
         } catch (err) {

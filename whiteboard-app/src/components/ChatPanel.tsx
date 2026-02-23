@@ -119,7 +119,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                     case "diagram":
                         setToolStatus("🧩 Generating diagram...");
                         if (action.style) aiGen.setStyle(action.style);
-                        await aiGen.generateDiagram(action.prompt);
+                        await aiGen.generateDiagram(action.prompt, action.style);
                         setToolStatus("✅ Diagram created!");
                         break;
 
