@@ -295,18 +295,22 @@ export function useAIGeneration(
         }
     }, []);
 
-    const captureCanvas = useCallback(() => {
-        if (!excalidrawAPI) return;
+    const captureCanvas = useCallback((): string | null => {
+        if (!excalidrawAPI) return null;
         const canvas = document.querySelector('.excalidraw canvas') as HTMLCanvasElement;
         if (canvas) {
-            setOcrImage(canvas.toDataURL('image/png'));
+            const dataUrl = canvas.toDataURL('image/png');
+            setOcrImage(dataUrl);
             setOcrResult(null);
             setError(null);
+            return dataUrl;
         }
+        return null;
     }, [excalidrawAPI]);
 
-    const performOcr = useCallback(async (overridePrompt?: string): Promise<string | null> => {
-        if (!ocrImage) { setError("Please upload or capture an image first"); return null; }
+    const performOcr = useCallback(async (overridePrompt?: string, overrideImage?: string): Promise<string | null> => {
+        const imageToUse = overrideImage || ocrImage;
+        if (!imageToUse) { setError("Please upload or capture an image first"); return null; }
 
         const currentPrompt = overridePrompt || prompt;
 
@@ -316,14 +320,14 @@ export function useAIGeneration(
         try {
             const data = await apiFetch<OCRResponse>("/api/ai/ocr", {
                 method: "POST",
-                body: JSON.stringify({ imageBase64: ocrImage }),
+                body: JSON.stringify({ imageBase64: imageToUse }),
             });
 
             let processedText = data.text || "No text detected";
             processedText = normalizeLatexWithMathJax(processedText);
             setOcrResult(processedText);
 
-            saveAIResult({ type: "ocr", prompt: "Canvas / Uploaded Image", result: processedText, thumbnail: ocrImage ?? undefined }).catch(() => { });
+            saveAIResult({ type: "ocr", prompt: "Canvas / Uploaded Image", result: processedText, thumbnail: imageToUse ?? undefined }).catch(() => { });
             return processedText;
         } catch (err) {
             console.error("OCR error:", err);

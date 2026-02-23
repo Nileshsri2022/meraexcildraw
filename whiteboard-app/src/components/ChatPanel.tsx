@@ -137,9 +137,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
                     case "ocr":
                         setToolStatus("📝 Capturing canvas for OCR...");
-                        aiGen.captureCanvas();
-                        await new Promise(r => setTimeout(r, 300)); // wait for canvas capture
-                        const ocrText = await aiGen.performOcr(action.prompt);
+                        const capturedImage = aiGen.captureCanvas();
+                        if (!capturedImage) {
+                            setToolStatus("❌ No canvas content to capture");
+                            break;
+                        }
+                        setToolStatus("📝 Extracting text...");
+                        const ocrText = await aiGen.performOcr(action.prompt, capturedImage);
                         // Show the extracted text in the chat
                         if (ocrText) {
                             chat.appendAssistantMessage(
