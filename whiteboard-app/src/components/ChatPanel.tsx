@@ -7,7 +7,7 @@
  * Canvas actions from the backend are executed automatically
  * via the useCanvasActions hook — no parsing needed.
  */
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { useCanvasChat } from "../hooks/useCanvasChat";
 import type { ChatMessage, McpServerConfig } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
@@ -99,6 +99,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const canvasActions = useCanvasActions(excalidrawAPI);
     const [input, setInput] = useState("");
     const [actionCount, setActionCount] = useState(0);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const [toolStatus, setToolStatus] = useState<string | null>(null);
@@ -266,16 +267,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     // Auto-scroll logic
     const prevActiveId = useRef<string | null>(null);
 
-    useEffect(() => {
-        const isNewChat = chat.activeConversationId !== prevActiveId.current;
-        const behavior = isNewChat ? "auto" : "smooth";
+    useLayoutEffect(() => {
+        const isSwitchingChat = chat.activeConversationId !== prevActiveId.current;
 
-        // Use a tiny delay to ensure the DOM has updated with new messages
+        // If switching, do it instantly to avoid seeing the top
+        if (isSwitchingChat && messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
+
+        const behavior = isSwitchingChat ? "auto" : "smooth";
         const timeout = setTimeout(() => {
-            if (messagesEndRef.current) {
-                messagesEndRef.current.scrollIntoView({ behavior: behavior as ScrollBehavior });
-            }
-        }, isNewChat ? 0 : 50);
+            messagesEndRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
+        }, isSwitchingChat ? 0 : 50);
 
         prevActiveId.current = chat.activeConversationId;
         return () => clearTimeout(timeout);
@@ -533,7 +536,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                     </div>
 
                     {/* Messages */}
-                    <div className="chat-panel-messages">
+                    <div className="chat-panel-messages" ref={messagesContainerRef}>
                         {chat.messages.length === 0 && (
                             <div className="chat-empty-state">
                                 <div className="chat-empty-icon">
