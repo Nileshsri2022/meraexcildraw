@@ -149,8 +149,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                             chat.appendAssistantMessage(
                                 `📝 **Extracted Text:**\n\n${ocrText}`
                             );
+                            setToolStatus("✅ Text extracted!");
+                        } else {
+                            chat.appendAssistantMessage(
+                                `❌ OCR failed — the service may be busy or timed out. Please try again.`
+                            );
+                            setToolStatus("❌ OCR failed");
                         }
-                        setToolStatus("✅ Text extracted!");
                         break;
 
                     case "tts":

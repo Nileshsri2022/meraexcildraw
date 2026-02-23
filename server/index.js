@@ -678,9 +678,9 @@ app.post("/api/ai/ocr", async (req, res) => {
         // Remove data URL prefix if present
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
-        // Call PaddleOCR-VL API (layout-parsing endpoint) with 30s timeout
+        // Call PaddleOCR-VL API (layout-parsing endpoint) with 60s timeout
         const ocrController = new AbortController();
-        const ocrTimeout = setTimeout(() => ocrController.abort(), 30000);
+        const ocrTimeout = setTimeout(() => ocrController.abort(), 120000);
 
         const response = await fetch(`${PADDLEOCR_SERVER}/layout-parsing`, {
             method: "POST",
@@ -731,9 +731,16 @@ app.post("/api/ai/ocr", async (req, res) => {
         });
     } catch (error) {
         console.error("[OCR] Error:", error);
-        res.status(500).json({
+
+        // Provide a clear message for timeout/abort errors
+        const isAbort = error.name === "AbortError" || error.message?.includes("aborted");
+        const message = isAbort
+            ? "OCR request timed out (60s). The image may be too large or the service is busy. Try again."
+            : error.message;
+
+        res.status(isAbort ? 504 : 500).json({
             error: "Failed to process OCR",
-            message: error.message,
+            message,
         });
     }
 });
