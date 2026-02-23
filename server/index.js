@@ -65,6 +65,21 @@ async function groqChat(messages, { maxTokens = 500, temperature = 0.7 } = {}) {
 const rooms = new Map();
 
 // ==== AI Diagram Generation Endpoint ====
+
+// Complexity keywords — if any match, the LLM gets a richer prompt + more tokens
+const COMPLEX_KEYWORDS = [
+    "architecture", "system design", "microservice", "infrastructure",
+    "deployment", "pipeline", "ci/cd", "database schema", "network",
+    "multi-tier", "distributed", "cloud", "kubernetes", "docker",
+    "api gateway", "load balancer", "authentication flow", "oauth",
+    "event driven", "messaging", "queue", "pub/sub", "workflow",
+];
+
+function detectComplexity(prompt) {
+    const lower = prompt.toLowerCase();
+    return COMPLEX_KEYWORDS.some(kw => lower.includes(kw)) || lower.length > 100;
+}
+
 app.post("/api/ai/generate-diagram", async (req, res) => {
     try {
         const { prompt, style = "flowchart" } = req.body;
@@ -73,34 +88,87 @@ app.post("/api/ai/generate-diagram", async (req, res) => {
             return res.status(400).json({ error: "Prompt is required" });
         }
 
-        if (!process.env.HF_TOKEN) {
-            return res.status(500).json({ error: "HF_TOKEN not configured" });
+        if (!GROQ_API_KEY) {
+            return res.status(500).json({ error: "GROQ_API_KEY not configured" });
         }
 
-        // Create a prompt for diagram generation
-        // All diagrams use Mermaid format - mindmap uses graph LR for visual difference
+        const isComplex = detectComplexity(prompt);
+
+        // Map style to Mermaid types natively supported by parseMermaidToExcalidraw:
+        //   flowchart-v2 (graph TD/LR), sequenceDiagram, classDiagram
         const diagramType = style === "mindmap" ? "graph LR" :
             style === "flowchart" ? "graph TD" :
                 style === "sequence" ? "sequenceDiagram" :
                     style === "class" ? "classDiagram" : "graph TD";
 
-        // Get example for the specific diagram type
+        // ── Rich examples — simple & complex variants ──
         const examples = {
-            "graph LR": `graph LR
+            "graph LR": {
+                simple: `graph LR
     Root((Main Topic)) --> A[Branch 1]
     Root --> B[Branch 2]
     Root --> C[Branch 3]
     A --> A1[Sub-topic 1]
     A --> A2[Sub-topic 2]
-    B --> B1[Sub-topic 3]`,
-            "graph TD": `graph TD
+    B --> B1[Sub-topic 3]
+    C --> C1[Sub-topic 4]`,
+                complex: `graph LR
+    subgraph Core["Core Concepts"]
+        A((Central Idea)) --> B[Concept A]
+        A --> C[Concept B]
+        A --> D[Concept C]
+    end
+    subgraph DA["Concept A Details"]
+        B --> B1[Detail 1]
+        B --> B2[Detail 2]
+        B --> B3[Detail 3]
+    end
+    subgraph DB["Concept B Details"]
+        C --> C1[Detail 4]
+        C --> C2[Detail 5]
+    end
+    subgraph DC["Concept C Details"]
+        D --> D1[Detail 6]
+        D --> D2[Detail 7]
+        D --> D3[Detail 8]
+    end`
+            },
+            "graph TD": {
+                simple: `graph TD
     A[Start] --> B[Step 1]
     B --> C{Decision}
     C -->|Yes| D[Action 1]
     C -->|No| E[Action 2]
     D --> F[End]
     E --> F`,
-            "sequenceDiagram": `sequenceDiagram
+                complex: `graph TD
+    subgraph Client["Client Layer"]
+        WEB[Web Browser]
+        MOB[Mobile App]
+    end
+    subgraph Gateway["API Gateway"]
+        GW[API Gateway] --> AUTH[Auth Service]
+        GW --> RATE[Rate Limiter]
+    end
+    subgraph Services["Microservices"]
+        USR[User Service] --> UDB[(User DB)]
+        ORD[Order Service] --> ODB[(Order DB)]
+        PAY[Payment Service] --> PGW[Payment Gateway]
+    end
+    subgraph Infra["Infrastructure"]
+        MQ[Message Queue] --> WRK[Worker Service]
+        CACHE[Cache Layer] --> RDS[(Redis)]
+    end
+    WEB --> GW
+    MOB --> GW
+    AUTH -->|Authenticated| USR
+    AUTH -->|Authenticated| ORD
+    ORD --> PAY
+    ORD --> MQ
+    USR --> CACHE`
+            },
+            "sequenceDiagram": {
+                simple: `sequenceDiagram
     participant User
     participant Server
     participant Database
@@ -108,52 +176,143 @@ app.post("/api/ai/generate-diagram", async (req, res) => {
     Server->>Database: Query
     Database-->>Server: Response
     Server-->>User: Result`,
-            "classDiagram": `classDiagram
+                complex: `sequenceDiagram
+    participant Client
+    participant Gateway as API Gateway
+    participant Auth as Auth Service
+    participant API as Backend API
+    participant DB as Database
+    participant Cache as Redis
+
+    Client->>Gateway: POST /login
+    Gateway->>Auth: Validate credentials
+    Auth->>DB: Check user
+    DB-->>Auth: User found
+    Auth-->>Gateway: JWT Token
+    Gateway-->>Client: 200 + Token
+
+    Client->>Gateway: GET /data
+    Gateway->>Auth: Verify JWT
+    Auth-->>Gateway: Valid
+    Gateway->>API: Forward request
+    API->>Cache: Check cache
+    alt Cache Hit
+        Cache-->>API: Cached data
+    else Cache Miss
+        API->>DB: Query data
+        DB-->>API: Result
+        API->>Cache: Store in cache
+    end
+    API-->>Gateway: Response
+    Gateway-->>Client: 200 + Data`
+            },
+            "classDiagram": {
+                simple: `classDiagram
     class User {
         +String name
         +String email
         +login()
+        +logout()
     }
     class Order {
         +Int id
         +Date date
         +process()
+        +cancel()
     }
-    User "1" --> "*" Order`
+    User "1" --> "*" Order : places`,
+                complex: `classDiagram
+    class BaseEntity {
+        +UUID id
+        +DateTime createdAt
+        +save()
+        +delete()
+    }
+    class User {
+        +String name
+        +String email
+        +login()
+        +resetPassword()
+    }
+    class Order {
+        +Int orderNumber
+        +String status
+        +Decimal total
+        +process()
+        +cancel()
+    }
+    class Product {
+        +String name
+        +Decimal price
+        +Int stock
+    }
+    class OrderItem {
+        +Int quantity
+        +Decimal unitPrice
+    }
+    class Payment {
+        +Decimal amount
+        +String method
+        +charge()
+        +refund()
+    }
+    BaseEntity <|-- User
+    BaseEntity <|-- Order
+    BaseEntity <|-- Product
+    User "1" --> "*" Order : places
+    Order "1" --> "*" OrderItem : contains
+    OrderItem "*" --> "1" Product : references
+    Order "1" --> "1" Payment : has`
+            }
         };
 
-        const example = examples[diagramType] || examples["graph TD"];
+        const exampleSet = examples[diagramType] || examples["graph TD"];
+        const example = isComplex ? exampleSet.complex : exampleSet.simple;
 
-        const systemPrompt = `Generate ONLY valid Mermaid code. No explanations.
+        // ── System prompt — architecture-quality for complex, clean for simple ──
+        const systemContent = isComplex
+            ? `You are a senior software architect creating production-quality Mermaid diagrams.
 
-TYPE: ${diagramType}
+RULES:
+- Output ONLY valid Mermaid code. No explanations, no markdown.
+- Use subgraphs to group related components (e.g., "Client Layer", "Services").
+- Use descriptive edge labels: -->|"label"| for data/control flow.
+- Node shapes: [Rectangle], {Diamond}, ((Circle)), [(Cylinder for DB/storage)].
+- Include 8-20 nodes for detailed architecture diagrams.
+- NEVER use "style", "classDef", or "click" commands — they break the renderer.
+- NEVER use "flowchart" keyword — always use "graph TD" or "graph LR".
+- Every node needs a unique short ID (e.g., SVC, DB1, GW, AUTH).`
+            : `You are a diagram expert. Generate ONLY valid Mermaid code.
+
+RULES:
+- Output ONLY the Mermaid code, nothing else.
+- Use clear, descriptive node labels.
+- Use edge labels where helpful: -->|"label"|.
+- NEVER use "style", "classDef", or "click" commands.
+- NEVER use "flowchart" keyword — use "graph TD" or "graph LR".`;
+
+        const userPrompt = `Generate a ${diagramType} diagram for: ${prompt}
 
 EXAMPLE:
 ${example}
 
-REQUEST: ${prompt}
+Generate for: "${prompt}"
+Mermaid code only:`;
 
-OUTPUT (Mermaid code only):`;
+        // Complex diagrams need more tokens
+        const maxTokens = isComplex ? 1200 : 600;
 
-        console.log(`[AI] Generating diagram with Groq ${GROQ_MODEL}...`);
+        console.log(`[AI] Generating ${isComplex ? "COMPLEX" : "simple"} diagram with Groq ${GROQ_MODEL}...`);
 
-        let mermaidCode = "";
+        // Use Groq chat completion
+        let mermaidCode = await groqChat([
+            { role: "system", content: systemContent },
+            { role: "user", content: userPrompt }
+        ], { maxTokens, temperature: 0.7 });
 
-        // Use Groq chat completion (fast, free)
-        mermaidCode = await groqChat([
-            {
-                role: "system",
-                content: "You are a diagram expert. Generate ONLY Mermaid code, no explanations."
-            },
-            {
-                role: "user",
-                content: systemPrompt
-            }
-        ], { maxTokens: 500, temperature: 0.7 });
+        console.log(`[AI] Raw response:\n${mermaidCode.substring(0, 800)}`);
 
-        console.log(`[AI] Raw response:\n${mermaidCode.substring(0, 500)}`);
-
-        // Clean up the response - remove think tags and code blocks
+        // Clean up — remove think tags and code blocks
         let diagramCode = mermaidCode
             .replace(/<think>[\s\S]*?<\/think>/g, "")
             .replace(/```mermaid\n?/g, "")
@@ -170,10 +329,18 @@ OUTPUT (Mermaid code only):`;
             diagramCode = mermaidMatch[1].trim();
         }
 
-        console.log(`[AI] Generated Mermaid diagram for: "${prompt}"`);
+        // ── Post-processing: fix common LLM mistakes ──
+        // 1. "flowchart TD" → "graph TD" (parseMermaidToExcalidraw prefers "graph")
+        diagramCode = diagramCode.replace(/^flowchart\s+(TD|LR|TB|RL|BT)/i, "graph $1");
+        // 2. Remove style/classDef/click blocks (unsupported by renderer)
+        diagramCode = diagramCode.replace(/^\s*(style|classDef|click)\s+.+$/gm, "");
+        // 3. Clean up any resulting blank lines
+        diagramCode = diagramCode.replace(/\n{3,}/g, "\n\n");
+
+        console.log(`[AI] Final ${isComplex ? "complex" : "simple"} diagram for: "${prompt}"`);
         console.log(`[AI] Code:\n${diagramCode}`);
 
-        // Validate that we got valid code
+        // Validate
         if (!diagramCode || diagramCode.length < 10) {
             console.log(`[AI] Response was empty or too short, using fallback`);
             diagramCode = `graph TD
@@ -187,6 +354,7 @@ OUTPUT (Mermaid code only):`;
             code: diagramCode,
             mermaid: diagramCode,
             prompt: prompt,
+            complexity: isComplex ? "complex" : "simple",
         });
     } catch (error) {
         console.error("[AI] Error generating diagram:", error);

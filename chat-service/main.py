@@ -270,6 +270,12 @@ _TOOL_KEYWORDS: dict[str, frozenset[str]] = {
         "flowchart", "diagram", "mindmap", "mind map", "sequence diagram",
         "class diagram", "er diagram", "gantt", "pie chart", "state diagram",
         "graph", "chart", "architecture", "uml", "schema",
+        # Architecture & system design keywords
+        "system design", "microservice", "infrastructure", "deployment",
+        "pipeline", "ci/cd", "database schema", "network topology",
+        "data flow", "entity relationship", "workflow", "process flow",
+        "hierarchy", "org chart", "sitemap", "user flow", "api flow",
+        "decision tree", "tree structure",
     }),
     "image": frozenset({
         "generate image", "generate an image", "create image",
@@ -285,7 +291,8 @@ _TOOL_KEYWORDS: dict[str, frozenset[str]] = {
     "ocr": frozenset({
         "read text", "extract text", "ocr", "what text",
         "recognize text", "what does it say", "read the text",
-        "text recognition", "scan text",
+        "text recognition", "scan text", "what is written",
+        "what's written",
     }),
     "tts": frozenset({
         "read aloud", "speak", "say this", "text to speech",
@@ -302,19 +309,36 @@ _DRAW_KEYWORDS: frozenset[str] = frozenset({
     "organize", "arrange", "connect", "link",
 })
 
-# Diagram styles derived from prompt keywords
-_DIAGRAM_STYLES: dict[str, str] = {
-    "flowchart": "flowchart",
-    "flow chart": "flowchart",
-    "mindmap": "mindmap",
-    "mind map": "mindmap",
-    "sequence": "sequence",
-    "class diagram": "classDiagram",
-    "er diagram": "erDiagram",
-    "state diagram": "stateDiagram",
-    "gantt": "gantt",
-    "pie": "pie",
-}
+# Diagram styles derived from prompt keywords — order matters (most specific first)
+_DIAGRAM_STYLES: list[tuple[str, str]] = [
+    ("class diagram", "class"),
+    ("er diagram", "erDiagram"),
+    ("entity relationship", "erDiagram"),
+    ("sequence diagram", "sequence"),
+    ("sequence", "sequence"),
+    ("state diagram", "stateDiagram"),
+    ("gantt", "gantt"),
+    ("pie chart", "pie"),
+    ("pie", "pie"),
+    ("mindmap", "mindmap"),
+    ("mind map", "mindmap"),
+    ("flow chart", "flowchart"),
+    ("flowchart", "flowchart"),
+    # Architecture patterns → use flowchart for native rendering
+    ("architecture", "flowchart"),
+    ("system design", "flowchart"),
+    ("microservice", "flowchart"),
+    ("infrastructure", "flowchart"),
+    ("deployment", "flowchart"),
+    ("pipeline", "flowchart"),
+    ("ci/cd", "flowchart"),
+    ("network", "flowchart"),
+    ("data flow", "flowchart"),
+    ("workflow", "flowchart"),
+    ("process flow", "flowchart"),
+    ("hierarchy", "flowchart"),
+    ("decision tree", "flowchart"),
+]
 
 
 def detect_tool_intent(message: str) -> dict | None:
@@ -339,10 +363,10 @@ def detect_tool_intent(message: str) -> dict | None:
         if any(kw in msg_lower for kw in keywords):
             result: dict[str, Any] = {"tool": tool_name, "prompt": message}
 
-            # For diagrams, detect the style
+            # For diagrams, detect the style (use ordered list for specificity)
             if tool_name == "diagram":
                 style = "flowchart"  # default
-                for keyword, diagram_style in _DIAGRAM_STYLES.items():
+                for keyword, diagram_style in _DIAGRAM_STYLES:
                     if keyword in msg_lower:
                         style = diagram_style
                         break
