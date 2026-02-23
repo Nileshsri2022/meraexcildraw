@@ -210,7 +210,8 @@ async def tools_chat(req: ToolChatRequest):
                             "tool": et.get("type", "unknown"),
                         })
 
-                    yield from _stream_text(clean)
+                    for chunk in _stream_text(clean):
+                        yield chunk
                     yield _final_event(session, session_id, req.message, clean)
 
                 elif has_mcp:
@@ -257,7 +258,8 @@ async def tools_chat(req: ToolChatRequest):
                         })
 
                     clean = strip_think_tags(content)
-                    yield from _stream_text(clean)
+                    for chunk in _stream_text(clean):
+                        yield chunk
                     yield _final_event(session, session_id, req.message, clean)
 
                 else:
