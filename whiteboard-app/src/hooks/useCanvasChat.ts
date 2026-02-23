@@ -100,6 +100,7 @@ export function useCanvasChat() {
         typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null
     );
     const abortRef = useRef<AbortController | null>(null);
+    const isInitialLoadRef = useRef<boolean>(false);
 
     /**
      * Ref to an Excalidraw API instance for reading current canvas state.
@@ -141,6 +142,13 @@ export function useCanvasChat() {
      */
     useEffect(() => {
         if (activeConversationId && messages.length > 0 && !isStreaming) {
+            // If we just loaded this conversation from DB, skip the save 
+            // to avoid updating the updatedAt timestamp unintentionally.
+            if (isInitialLoadRef.current) {
+                isInitialLoadRef.current = false;
+                return;
+            }
+
             chatDb.saveMessages(activeConversationId, messages).catch(err => {
                 console.error("[ChatDB] Failed to save messages:", err);
             });
@@ -161,16 +169,15 @@ export function useCanvasChat() {
                 chatDb.loadConversations().then(setConversations);
             }
         }
-    }, [messages, isStreaming, activeConversationId]);
+    }, [messages, isStreaming, activeConversationId, conversations]);
 
     const selectConversation = useCallback(async (id: string) => {
         if (id === activeConversationId) return;
         try {
             const msgs = await chatDb.loadMessages(id);
+            isInitialLoadRef.current = true; // Mark as initial load to prevent save trigger
             setMessages(msgs);
             setActiveConversationId(id);
-
-
 
             // Session ID rotation is handled by the backend if needed, 
             if (typeof crypto !== 'undefined' && crypto.randomUUID) {
