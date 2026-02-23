@@ -289,8 +289,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         <span className="chat-tools-label">Built-in Tools</span>
                         <div className="chat-tools-pills">
                             <button
-                                className={`chat-tool-pill ${activeBuiltinTools.includes('browser_search') ? 'chat-tool-pill--active' : ''}`}
-                                onClick={() => toggleBuiltinTool('browser_search')}
+                                className={`chat-tool-pill ${activeBuiltinTools.includes('web_search') ? 'chat-tool-pill--active' : ''}`}
+                                onClick={() => toggleBuiltinTool('web_search')}
                                 title="Search the web for current information"
                             >
                                 🔍 Web Search
@@ -301,6 +301,27 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                 title="Execute Python code for calculations"
                             >
                                 💻 Code Exec
+                            </button>
+                            <button
+                                className={`chat-tool-pill ${activeBuiltinTools.includes('visit_website') ? 'chat-tool-pill--active' : ''}`}
+                                onClick={() => toggleBuiltinTool('visit_website')}
+                                title="Visit a URL and extract its content"
+                            >
+                                🌐 Visit URL
+                            </button>
+                            <button
+                                className={`chat-tool-pill ${activeBuiltinTools.includes('browser_automation') ? 'chat-tool-pill--active' : ''}`}
+                                onClick={() => toggleBuiltinTool('browser_automation')}
+                                title="Automate browser interactions"
+                            >
+                                🤖 Browser Auto
+                            </button>
+                            <button
+                                className={`chat-tool-pill ${activeBuiltinTools.includes('wolfram_alpha') ? 'chat-tool-pill--active' : ''}`}
+                                onClick={() => toggleBuiltinTool('wolfram_alpha')}
+                                title="Math, science, and data queries via Wolfram Alpha"
+                            >
+                                🧮 Wolfram
                             </button>
                         </div>
                     </div>

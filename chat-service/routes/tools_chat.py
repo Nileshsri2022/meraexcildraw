@@ -42,9 +42,9 @@ KNOWN_MCP_SERVERS: dict[str, dict[str, Any]] = {
     },
 }
 
-# Built-in tools available for GPT-OSS models
+# Built-in tools available via Groq
 BUILT_IN_TOOLS = {
-    "browser_search": {
+    "web_search": {
         "label": "Web Search",
         "description": "Search the web for current information",
         "icon": "🔍",
@@ -53,6 +53,21 @@ BUILT_IN_TOOLS = {
         "label": "Code Execution",
         "description": "Execute Python code for calculations and analysis",
         "icon": "💻",
+    },
+    "visit_website": {
+        "label": "Visit Website",
+        "description": "Visit a URL and extract its content",
+        "icon": "🌐",
+    },
+    "browser_automation": {
+        "label": "Browser Automation",
+        "description": "Automate browser interactions like clicking and form filling",
+        "icon": "🤖",
+    },
+    "wolfram_alpha": {
+        "label": "Wolfram Alpha",
+        "description": "Compute math, science, and data queries via Wolfram Alpha",
+        "icon": "🧮",
     },
 }
 
@@ -107,19 +122,25 @@ async def tools_chat(req: ToolChatRequest):
     session = get_or_create_session(req.session_id)
     session_id = session.session_id
 
-    # Build tools array
-    tools: list[dict[str, Any]] = []
+    # Compound-only tools require groq/compound model
+    COMPOUND_ONLY_TOOLS = {"visit_website", "browser_automation", "wolfram_alpha"}
+    # These work on both compound and GPT-OSS
+    GPT_OSS_TOOLS = {"web_search", "code_interpreter"}
+
+    # Build tools arrays
+    builtin_tools: list[dict[str, Any]] = []
+    mcp_tools: list[dict[str, Any]] = []
 
     # Add built-in tools
     for tool_id in req.builtin_tools:
         if tool_id in BUILT_IN_TOOLS:
-            tools.append({"type": tool_id})
+            builtin_tools.append({"type": tool_id, "id": tool_id})
 
     # Add known MCP servers
     for server_id in req.mcp_servers:
         server = KNOWN_MCP_SERVERS.get(server_id)
         if server and server["available"]:
-            tools.append({
+            mcp_tools.append({
                 "type": "mcp",
                 "server_label": server["server_label"],
                 "server_description": server["server_description"],
@@ -129,7 +150,7 @@ async def tools_chat(req: ToolChatRequest):
 
     # Add custom MCP servers
     for custom in req.custom_mcp:
-        tools.append({
+        mcp_tools.append({
             "type": "mcp",
             "server_label": custom.get("label", "custom"),
             "server_url": custom.get("url", ""),
@@ -137,7 +158,10 @@ async def tools_chat(req: ToolChatRequest):
             "require_approval": custom.get("require_approval", "never"),
         })
 
-    has_mcp = any(t.get("type") == "mcp" for t in tools)
+    # Decide model based on tools used
+    builtin_ids = {t["id"] for t in builtin_tools}
+    needs_compound = bool(builtin_ids & COMPOUND_ONLY_TOOLS)
+    has_mcp = len(mcp_tools) > 0
 
     async def generate() -> AsyncGenerator[str, None]:
         yield ": heartbeat\n\n"
@@ -149,9 +173,73 @@ async def tools_chat(req: ToolChatRequest):
                     "Content-Type": "application/json",
                 }
 
-                if has_mcp:
-                    # Use Responses API for MCP tools
+                if needs_compound:
+                    # ── Route 1: groq/compound for compound-only tools ──
+                    headers["Groq-Model-Version"] = "latest"
+                    enabled = [t["id"] for t in builtin_tools]
                     payload: dict[str, Any] = {
+                        "model": "groq/compound",
+                        "messages": [
+                            {"role": "user", "content": req.message}
+                        ],
+                        "compound_custom": {
+                            "tools": {
+                                "enabled_tools": enabled,
+                            }
+                        },
+                    }
+
+                    yield _sse_event({"type": "token", "token": "🔧 Using compound tools... ", "done": False})
+
+                    resp = await client.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    clean = strip_think_tags(content)
+
+                    # Extract executed_tools info
+                    executed = data.get("choices", [{}])[0].get("message", {}).get("executed_tools", [])
+                    for et in executed:
+                        yield _sse_event({
+                            "type": "tool_call",
+                            "server": "groq-compound",
+                            "tool": et.get("type", "unknown"),
+                        })
+
+                    chunk_size = 80
+                    for i in range(0, len(clean), chunk_size):
+                        yield _sse_event({
+                            "type": "token",
+                            "token": clean[i:i+chunk_size],
+                            "done": False,
+                        })
+                        await asyncio.sleep(0.02)
+
+                    html = md_to_html(clean)
+                    from langchain_core.messages import HumanMessage, AIMessage
+                    session.messages.append(HumanMessage(content=req.message))
+                    session.messages.append(AIMessage(content=clean))
+                    session.trim_history()
+
+                    yield _sse_event({
+                        "type": "done",
+                        "token": "",
+                        "done": True,
+                        "html": html,
+                        "session_id": session_id,
+                    })
+
+                elif has_mcp:
+                    # ── Route 2: Responses API for MCP tools ──
+                    tools = [{"type": t["id"]} for t in builtin_tools if t["id"] in GPT_OSS_TOOLS]
+                    tools.extend(mcp_tools)
+
+                    payload = {
                         "model": "openai/gpt-oss-120b",
                         "input": [
                             {"type": "message", "role": "user", "content": req.message}
@@ -203,10 +291,8 @@ async def tools_chat(req: ToolChatRequest):
                                 if c.get("type") == "output_text":
                                     final_text += c.get("text", "")
 
-                    # Stream the final text
                     if final_text:
                         clean = strip_think_tags(final_text)
-                        # Send in chunks for streaming feel
                         chunk_size = 80
                         for i in range(0, len(clean), chunk_size):
                             yield _sse_event({
@@ -217,7 +303,6 @@ async def tools_chat(req: ToolChatRequest):
                             await asyncio.sleep(0.02)
 
                         html = md_to_html(clean)
-                        # Save to session history
                         from langchain_core.messages import HumanMessage, AIMessage
                         session.messages.append(HumanMessage(content=req.message))
                         session.messages.append(AIMessage(content=clean))
@@ -241,7 +326,8 @@ async def tools_chat(req: ToolChatRequest):
                         })
 
                 else:
-                    # Use Chat Completions API for built-in tools only
+                    # ── Route 3: Chat Completions for GPT-OSS built-in tools only ──
+                    tools = [{"type": t["id"]} for t in builtin_tools]
                     payload = {
                         "model": "openai/gpt-oss-120b",
                         "messages": [
@@ -265,7 +351,6 @@ async def tools_chat(req: ToolChatRequest):
                     content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                     clean = strip_think_tags(content)
 
-                    # Extract executed_tools info
                     executed = data.get("choices", [{}])[0].get("message", {}).get("executed_tools", [])
                     for et in executed:
                         yield _sse_event({
