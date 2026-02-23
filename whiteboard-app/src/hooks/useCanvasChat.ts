@@ -145,8 +145,21 @@ export function useCanvasChat() {
                 console.error("[ChatDB] Failed to save messages:", err);
             });
 
-            // Refresh conversation list to get latest updates (titles/timestamps)
-            chatDb.loadConversations().then(setConversations);
+            // If this is the FIRST save for a "New Conversation", we might need to update title
+            const current = conversations.find(c => c.id === activeConversationId);
+            if (current && current.title === "New Conversation" && messages.length > 0) {
+                const firstUserMsg = messages.find(m => m.role === "user");
+                if (firstUserMsg) {
+                    const newTitle = firstUserMsg.content.substring(0, 40) + (firstUserMsg.content.length > 40 ? "..." : "");
+                    const updated = { ...current, title: newTitle, updatedAt: Date.now() };
+                    chatDb.saveConversation(updated).then(() => {
+                        chatDb.loadConversations().then(setConversations);
+                    });
+                }
+            } else {
+                // Refresh conversation list to get latest updates (timestamps)
+                chatDb.loadConversations().then(setConversations);
+            }
         }
     }, [messages, isStreaming, activeConversationId]);
 
@@ -168,13 +181,7 @@ export function useCanvasChat() {
 
     const startNewConversation = useCallback(async () => {
         const id = crypto.randomUUID();
-        const newConv: Conversation = {
-            id,
-            title: "New Conversation",
-            updatedAt: Date.now(),
-        };
-        await chatDb.saveConversation(newConv);
-        setConversations(prev => [newConv, ...prev]);
+        // Just set the state, don't save to DB yet
         setActiveConversationId(id);
         setMessages([]);
         if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -275,17 +282,15 @@ export function useCanvasChat() {
             timestamp: now + 1,
         };
 
-        // Create a new conversation if none active
-        let targetConvId = activeConversationId;
-        if (!targetConvId) {
-            targetConvId = crypto.randomUUID();
+        // Create/Update conversation in the list if it's the first message
+        const currentConv = conversations.find(c => c.id === activeConversationId);
+        if (!currentConv && activeConversationId) {
             const newConv: Conversation = {
-                id: targetConvId,
+                id: activeConversationId,
                 title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
                 updatedAt: now,
             };
             await chatDb.saveConversation(newConv);
-            setActiveConversationId(targetConvId);
             setConversations(prev => [newConv, ...prev]);
         }
 
@@ -454,17 +459,15 @@ export function useCanvasChat() {
             timestamp: now + 1,
         };
 
-        // Create a new conversation if none active
-        let targetConvId = activeConversationId;
-        if (!targetConvId) {
-            targetConvId = crypto.randomUUID();
+        // Create/Update conversation in the list if it's the first message
+        const currentConv = conversations.find(c => c.id === activeConversationId);
+        if (!currentConv && activeConversationId) {
             const newConv: Conversation = {
-                id: targetConvId,
+                id: activeConversationId,
                 title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
                 updatedAt: now,
             };
             await chatDb.saveConversation(newConv);
-            setActiveConversationId(targetConvId);
             setConversations(prev => [newConv, ...prev]);
         }
 

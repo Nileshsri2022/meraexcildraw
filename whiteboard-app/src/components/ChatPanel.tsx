@@ -111,6 +111,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [mcpTestStatus, setMcpTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
     const [mcpTestError, setMcpTestError] = useState("");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [confirmClear, setConfirmClear] = useState(false);
 
     const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
@@ -242,10 +244,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         run();
     }, [chat.pendingToolAction, chat, aiGen, excalidrawAPI]);
 
-    // Auto-scroll to bottom
+    // Auto-scroll logic
+    const prevMessagesLength = useRef(0);
+    const prevActiveId = useRef<string | null>(null);
+
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [chat.messages, actionCount]);
+        const isNewChat = chat.activeConversationId !== prevActiveId.current;
+        const behavior = isNewChat ? "auto" : "smooth";
+
+        messagesEndRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
+
+        prevMessagesLength.current = chat.messages.length;
+        prevActiveId.current = chat.activeConversationId;
+    }, [chat.messages, actionCount, chat.activeConversationId]);
 
     // Focus input when panel opens
     useEffect(() => {
@@ -344,49 +355,100 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                     </div>
 
                     <div className="chat-conv-list">
-                        {chat.conversations.map(conv => (
-                            <div
-                                key={conv.id}
-                                className={`chat-conv-item ${chat.activeConversationId === conv.id ? 'chat-conv-item--active' : ''}`}
-                                onClick={() => chat.selectConversation(conv.id)}
-                            >
-                                <div className="chat-conv-title" title={conv.title}>
-                                    {conv.title}
-                                </div>
-                                <button
-                                    className="chat-conv-delete"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (window.confirm("Delete this conversation?")) {
-                                            chat.deleteConversation(conv.id);
-                                        }
+                        {chat.conversations
+                            .filter(conv => conv.title !== "New Conversation" || chat.activeConversationId === conv.id)
+                            .map(conv => (
+                                <div
+                                    key={conv.id}
+                                    className={`chat-conv-item ${chat.activeConversationId === conv.id ? 'chat-conv-item--active' : ''}`}
+                                    onClick={() => {
+                                        chat.selectConversation(conv.id);
+                                        setConfirmDeleteId(null);
                                     }}
-                                    title="Delete conversation"
                                 >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                        <path d="M18 6L6 18M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-                        ))}
+                                    <div className="chat-conv-title" title={conv.title}>
+                                        {conv.title}
+                                    </div>
+                                    {confirmDeleteId === conv.id ? (
+                                        <div className="chat-conv-confirm">
+                                            <button
+                                                className="chat-conv-confirm-btn chat-conv-confirm-btn--yes"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    chat.deleteConversation(conv.id);
+                                                    setConfirmDeleteId(null);
+                                                }}
+                                            >
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                                    <polyline points="20 6 9 17 4 12" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                className="chat-conv-confirm-btn chat-conv-confirm-btn--no"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setConfirmDeleteId(null);
+                                                }}
+                                            >
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            className="chat-conv-delete"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setConfirmDeleteId(conv.id);
+                                            }}
+                                            title="Delete conversation"
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                                <path d="M18 6L6 18M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
                     </div>
 
                     <div className="chat-sidebar-footer">
-                        <button
-                            className="chat-sidebar-btn"
-                            onClick={() => {
-                                if (chat.messages.length > 0 && window.confirm("Clear all messages in this chat?")) {
-                                    chat.clearChat();
-                                }
-                            }}
-                            disabled={chat.messages.length === 0}
-                            title="Clear current history"
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                            </svg>
-                            <span>Clear Current</span>
-                        </button>
+                        {confirmClear ? (
+                            <div className="chat-sidebar-clear-confirm">
+                                <span className="chat-clear-label">Clear all?</span>
+                                <div className="chat-clear-actions">
+                                    <button
+                                        className="chat-sidebar-btn chat-sidebar-btn--danger"
+                                        onClick={() => {
+                                            chat.clearChat();
+                                            setConfirmClear(false);
+                                        }}
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        className="chat-sidebar-btn"
+                                        onClick={() => setConfirmClear(false)}
+                                    >
+                                        No
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                className="chat-sidebar-btn"
+                                onClick={() => setConfirmClear(true)}
+                                disabled={chat.messages.length === 0}
+                                title="Clear current history"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                </svg>
+                                <span>Clear History</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 

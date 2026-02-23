@@ -1730,12 +1730,93 @@ body.dark {
   color: #ef4444;
 }
 
+.chat-conv-confirm {
+  display: flex;
+  gap: 4px;
+}
+
+.chat-conv-confirm-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chat-conv-confirm-btn--yes {
+  background: rgba(45, 212, 191, 0.15);
+  color: var(--aurora-teal);
+}
+
+.chat-conv-confirm-btn--yes:hover {
+  background: var(--aurora-teal);
+  color: white;
+}
+
+.chat-conv-confirm-btn--no {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.chat-conv-confirm-btn--no:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-bright);
+}
+
 .chat-sidebar-footer {
   padding: 12px 16px 0 16px;
   border-top: 1px solid var(--border-subtle);
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
+}
+
+.chat-sidebar-clear-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.chat-clear-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.chat-clear-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-sidebar-btn--danger {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+.chat-sidebar-btn--danger:hover {
+  background: #ef4444 !important;
+  color: white !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .chat-sidebar-btn {
