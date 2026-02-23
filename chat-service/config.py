@@ -58,7 +58,7 @@ fallback_chat_llm = ChatOpenAI(
     temperature=0.8,
     max_tokens=4096,
     streaming=True,
-    model_kwargs={"extra_body": {"reasoning": {"enabled": True}}},
+    extra_body={"reasoning": {"enabled": True}},
 ) if OPENROUTER_API_KEY else None
 
 fallback_canvas_llm = ChatOpenAI(
@@ -68,7 +68,7 @@ fallback_canvas_llm = ChatOpenAI(
     temperature=0.2,
     max_tokens=4096,
     streaming=False,
-    model_kwargs={"extra_body": {"reasoning": {"enabled": True}}},
+    extra_body={"reasoning": {"enabled": True}},
 ) if OPENROUTER_API_KEY else None
 
 # Use primary if available, otherwise fallback
