@@ -1608,24 +1608,29 @@ body.dark {
 
 /* Header */
 .chat-panel-header {
-  padding: 24px;
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-subtle);
   background: rgba(255, 255, 255, 0.01);
   flex-shrink: 0;
+  gap: 12px;
 }
 
 .chat-panel-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   font-family: 'Space Grotesk', var(--font-display);
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-bright);
   letter-spacing: -0.02em;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-panel-dot {
@@ -1689,10 +1694,10 @@ body.dark {
 .chat-panel-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   background-image:
     radial-gradient(circle at 10% 15%, rgba(139, 92, 246, 0.04) 0%, transparent 35%),
     radial-gradient(circle at 85% 85%, rgba(45, 212, 191, 0.04) 0%, transparent 35%);
@@ -1768,6 +1773,8 @@ body.dark {
   border-radius: 16px;
   position: relative;
   transition: all 0.3s;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .chat-message--user .chat-message-content {
@@ -1826,6 +1833,35 @@ body.dark {
 .chat-rendered a:hover {
   border-bottom-color: var(--aurora-teal);
   background: rgba(45, 212, 191, 0.05);
+}
+
+.chat-rendered table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  display: block;
+  overflow-x: auto;
+  font-size: 13px;
+  scrollbar-width: thin;
+}
+
+.chat-rendered th,
+.chat-rendered td {
+  padding: 8px 12px;
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  min-width: 120px;
+}
+
+.chat-rendered th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+  color: var(--text-bright);
+  font-family: 'Space Grotesk', var(--font-display);
+}
+
+.chat-rendered td {
+  color: var(--text-primary);
 }
 
 .chat-rendered ul,
@@ -2042,13 +2078,13 @@ body.dark {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 4px 10px;
   border-radius: 16px;
   border: 1px solid var(--border-default);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text-secondary);
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
