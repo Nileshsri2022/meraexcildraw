@@ -94,6 +94,13 @@ export function useCanvasChat() {
         // Excalidraw keeps deleted elements in memory for undo/redo. Filter them out!
         const activeElements = elements.filter(el => !el.isDeleted);
 
+        // Get currently selected elements for "this" / "that" references
+        const selectedIds = new Set(
+            excalidrawAPIRef.current?.getAppState?.()?.selectedElementIds
+                ? Object.keys(excalidrawAPIRef.current.getAppState().selectedElementIds)
+                : []
+        );
+
         try {
             await fetch(`${CHAT_SERVICE_URL}/chat/context`, {
                 method: "POST",
@@ -101,12 +108,19 @@ export function useCanvasChat() {
                 body: JSON.stringify({
                     session_id: sessionIdRef.current,
                     elements: activeElements.map(el => ({
+                        id: el.id,
                         type: el.type,
                         text: el.text || el.originalText || "",
-                        x: el.x,
-                        y: el.y,
-                        width: el.width,
-                        height: el.height,
+                        x: Math.round(el.x),
+                        y: Math.round(el.y),
+                        width: Math.round(el.width),
+                        height: Math.round(el.height),
+                        strokeColor: el.strokeColor || "",
+                        backgroundColor: el.backgroundColor || "",
+                        fillStyle: el.fillStyle || "",
+                        isSelected: selectedIds.has(el.id),
+                        fileId: el.fileId || null,       // for images
+                        label: el.text?.substring(0, 50) || el.type, // human-readable label
                     })),
                 }),
             });
