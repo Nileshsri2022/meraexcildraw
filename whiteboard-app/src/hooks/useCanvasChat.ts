@@ -356,6 +356,20 @@ export function useCanvasChat() {
         }
     }, []);
 
+    /**
+     * Programmatically append an assistant message to the chat.
+     * Used by tool actions (OCR, etc.) to show results in the conversation.
+     */
+    const appendAssistantMessage = useCallback((content: string) => {
+        const msg: ChatMessage = {
+            id: `tool-${Date.now()}`,
+            role: "assistant",
+            content,
+            timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, msg]);
+    }, []);
+
     return {
         messages,
         isStreaming,
@@ -370,5 +384,6 @@ export function useCanvasChat() {
         consumeActions,
         consumeToolAction,
         setExcalidrawAPI,
+        appendAssistantMessage,
     };
 }

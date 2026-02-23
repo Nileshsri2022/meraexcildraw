@@ -304,8 +304,8 @@ export function useAIGeneration(
         }
     }, [excalidrawAPI]);
 
-    const performOcr = useCallback(async (overridePrompt?: string) => {
-        if (!ocrImage) { setError("Please upload or capture an image first"); return; }
+    const performOcr = useCallback(async (overridePrompt?: string): Promise<string | null> => {
+        if (!ocrImage) { setError("Please upload or capture an image first"); return null; }
 
         const currentPrompt = overridePrompt || prompt;
 
@@ -323,9 +323,11 @@ export function useAIGeneration(
             setOcrResult(processedText);
 
             saveAIResult({ type: "ocr", prompt: "Canvas / Uploaded Image", result: processedText, thumbnail: ocrImage ?? undefined }).catch(() => { });
+            return processedText;
         } catch (err) {
             console.error("OCR error:", err);
             setError(getErrorMessage(err, "Failed to perform OCR"));
+            return null;
         } finally {
             setLoading(false);
         }
