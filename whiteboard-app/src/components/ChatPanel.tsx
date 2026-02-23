@@ -22,6 +22,15 @@ const MessageBubble = React.memo(({ message, isStreaming }: {
     isStreaming: boolean;
 }) => {
     const isUser = message.role === "user";
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = useCallback(() => {
+        const text = message.content;
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        });
+    }, [message.content]);
 
     return (
         <div className={`chat-message ${isUser ? "chat-message--user" : "chat-message--assistant"}`}>
@@ -50,6 +59,25 @@ const MessageBubble = React.memo(({ message, isStreaming }: {
                         <span /><span /><span />
                     </div>
                 ) : null}
+
+                {!isUser && message.content && (
+                    <button
+                        className={`chat-copy-btn ${copied ? 'chat-copy-btn--copied' : ''}`}
+                        onClick={handleCopy}
+                        title="Copy to clipboard"
+                    >
+                        {copied ? (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                        ) : (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                        )}
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -295,278 +323,304 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             {/* Resize Handle */}
             <div className="chat-panel-resizer" onMouseDown={startResizing} />
 
-            {/* Header */}
-            <div className="chat-panel-header">
-                <div className="chat-panel-title">
-                    <div className="chat-panel-dot" />
-                    <span>Canvas AI</span>
-                </div>
-                <div className="chat-panel-actions">
+            <div className="chat-panel-container">
+                {/* Left Mini Sidebar */}
+                <div className="chat-panel-sidebar">
                     <button
-                        className="chat-panel-action-btn"
-                        onClick={chat.clearChat}
-                        title="Clear chat"
-                        disabled={chat.messages.length === 0}
+                        className="chat-sidebar-btn chat-sidebar-btn--primary"
+                        onClick={() => {
+                            if (chat.messages.length > 0) {
+                                chat.clearChat();
+                            }
+                        }}
+                        title="New conversation"
                     >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
                     </button>
-                    <button className="chat-panel-action-btn" onClick={onClose} title="Close">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
+                    <div className="chat-sidebar-spacer" />
+                    <button
+                        className="chat-sidebar-btn"
+                        onClick={() => {
+                            if (chat.messages.length > 0 && window.confirm("Clear all messages?")) {
+                                chat.clearChat();
+                            }
+                        }}
+                        disabled={chat.messages.length === 0}
+                        title="Clear history"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
                         </svg>
                     </button>
                 </div>
-            </div>
 
-            {/* Messages */}
-            <div className="chat-panel-messages">
-                {chat.messages.length === 0 && (
-                    <div className="chat-empty-state">
-                        <div className="chat-empty-icon">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                                <path d="M12 2a8 8 0 0 1 8 8v4a8 8 0 0 1-16 0v-4a8 8 0 0 1 8-8z" />
-                                <path d="M9 12h.01M15 12h.01M10 16s1 1 2 1 2-1 2-1" />
-                            </svg>
+                <div className="chat-panel-main">
+                    {/* Header */}
+                    <div className="chat-panel-header">
+                        <div className="chat-panel-title">
+                            <div className="chat-panel-dot" />
+                            <span>Canvas AI</span>
                         </div>
-                        <div className="chat-empty-title">Canvas AI</div>
-                        <div className="chat-empty-subtitle">
-                            Ask me anything about your whiteboard. I can draw diagrams, brainstorm ideas, and more.
-                        </div>
-                        <div className="chat-suggestions">
-                            {[
-                                "Draw a login flowchart",
-                                "Add a blue box that says 'API Server'",
-                                "Create a system architecture diagram",
-                                "What's on my canvas?",
-                            ].map(s => (
-                                <button
-                                    key={s}
-                                    className="chat-suggestion-chip"
-                                    onClick={() => { setInput(s); inputRef.current?.focus(); }}
-                                >
-                                    {s}
-                                </button>
-                            ))}
+                        <div className="chat-panel-actions">
+                            <button className="chat-panel-action-btn" onClick={onClose} title="Close">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
-                )}
 
-                {chat.messages.map((msg, i) => (
-                    <MessageBubble
-                        key={msg.id}
-                        message={msg}
-                        isStreaming={chat.isStreaming && i === chat.messages.length - 1}
-                    />
-                ))}
+                    {/* Messages */}
+                    <div className="chat-panel-messages">
+                        {chat.messages.length === 0 && (
+                            <div className="chat-empty-state">
+                                <div className="chat-empty-icon">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                                        <path d="M12 2a8 8 0 0 1 8 8v4a8 8 0 0 1-16 0v-4a8 8 0 0 1 8-8z" />
+                                        <path d="M9 12h.01M15 12h.01M10 16s1 1 2 1 2-1 2-1" />
+                                    </svg>
+                                </div>
+                                <div className="chat-empty-title">Canvas AI</div>
+                                <div className="chat-empty-subtitle">
+                                    Ask me anything about your whiteboard. I can draw diagrams, brainstorm ideas, and more.
+                                </div>
+                                <div className="chat-suggestions">
+                                    {[
+                                        "Draw a login flowchart",
+                                        "Add a blue box that says 'API Server'",
+                                        "Create a system architecture diagram",
+                                        "What's on my canvas?",
+                                    ].map(s => (
+                                        <button
+                                            key={s}
+                                            className="chat-suggestion-chip"
+                                            onClick={() => { setInput(s); inputRef.current?.focus(); }}
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
-                {/* Canvas action badge */}
-                {actionCount > 0 && (
-                    <div className="canvas-action-badge">
-                        ✅ {actionCount} element{actionCount !== 1 ? "s" : ""} added to canvas!
+                        {chat.messages.map((msg, i) => (
+                            <MessageBubble
+                                key={msg.id}
+                                message={msg}
+                                isStreaming={chat.isStreaming && i === chat.messages.length - 1}
+                            />
+                        ))}
+
+                        {/* Canvas action badge */}
+                        {actionCount > 0 && (
+                            <div className="canvas-action-badge">
+                                ✅ {actionCount} element{actionCount !== 1 ? "s" : ""} added to canvas!
+                            </div>
+                        )}
+
+                        {/* AI tool status badge */}
+                        {toolStatus && (
+                            <div className="canvas-action-badge">
+                                {toolStatus}
+                            </div>
+                        )}
+
+                        {chat.error && (
+                            <div className="chat-error">
+                                {chat.error}
+                            </div>
+                        )}
+
+                        <div ref={messagesEndRef} />
                     </div>
-                )}
 
-                {/* AI tool status badge */}
-                {toolStatus && (
-                    <div className="canvas-action-badge">
-                        {toolStatus}
-                    </div>
-                )}
+                    {/* MCP Connection Modal */}
+                    {showMcpModal && (
+                        <div className="mcp-modal-overlay" onClick={() => setShowMcpModal(false)}>
+                            <div className="mcp-modal" onClick={e => e.stopPropagation()}>
+                                <div className="mcp-modal-header">
+                                    <h3>Connect MCP Server</h3>
+                                    <button className="mcp-modal-close" onClick={() => setShowMcpModal(false)}>×</button>
+                                </div>
+                                <div className="mcp-modal-body">
+                                    <label className="mcp-field">
+                                        <span>Label *</span>
+                                        <input
+                                            value={mcpForm.label}
+                                            onChange={e => setMcpForm(p => ({ ...p, label: e.target.value }))}
+                                            placeholder="e.g. firecrawl"
+                                        />
+                                    </label>
+                                    <label className="mcp-field">
+                                        <span>Server URL *</span>
+                                        <input
+                                            value={mcpForm.url}
+                                            onChange={e => setMcpForm(p => ({ ...p, url: e.target.value }))}
+                                            placeholder="https://mcp.firecrawl.dev/<APIKEY>/v2/mcp"
+                                        />
+                                    </label>
+                                    <label className="mcp-field">
+                                        <span>API Key <small>(replaces {'<APIKEY>'} in URL or sent as Bearer token)</small></span>
+                                        <input
+                                            type="password"
+                                            value={mcpForm.apiKey}
+                                            onChange={e => setMcpForm(p => ({ ...p, apiKey: e.target.value }))}
+                                            placeholder="fc-..."
+                                        />
+                                    </label>
+                                    <label className="mcp-field">
+                                        <span>Description</span>
+                                        <input
+                                            value={mcpForm.description}
+                                            onChange={e => setMcpForm(p => ({ ...p, description: e.target.value }))}
+                                            placeholder="Web scraping and content extraction"
+                                        />
+                                    </label>
 
-                {chat.error && (
-                    <div className="chat-error">
-                        {chat.error}
-                    </div>
-                )}
-
-                <div ref={messagesEndRef} />
-            </div>
-
-            {/* MCP Connection Modal */}
-            {showMcpModal && (
-                <div className="mcp-modal-overlay" onClick={() => setShowMcpModal(false)}>
-                    <div className="mcp-modal" onClick={e => e.stopPropagation()}>
-                        <div className="mcp-modal-header">
-                            <h3>Connect MCP Server</h3>
-                            <button className="mcp-modal-close" onClick={() => setShowMcpModal(false)}>×</button>
-                        </div>
-                        <div className="mcp-modal-body">
-                            <label className="mcp-field">
-                                <span>Label *</span>
-                                <input
-                                    value={mcpForm.label}
-                                    onChange={e => setMcpForm(p => ({ ...p, label: e.target.value }))}
-                                    placeholder="e.g. firecrawl"
-                                />
-                            </label>
-                            <label className="mcp-field">
-                                <span>Server URL *</span>
-                                <input
-                                    value={mcpForm.url}
-                                    onChange={e => setMcpForm(p => ({ ...p, url: e.target.value }))}
-                                    placeholder="https://mcp.firecrawl.dev/<APIKEY>/v2/mcp"
-                                />
-                            </label>
-                            <label className="mcp-field">
-                                <span>API Key <small>(replaces {'<APIKEY>'} in URL or sent as Bearer token)</small></span>
-                                <input
-                                    type="password"
-                                    value={mcpForm.apiKey}
-                                    onChange={e => setMcpForm(p => ({ ...p, apiKey: e.target.value }))}
-                                    placeholder="fc-..."
-                                />
-                            </label>
-                            <label className="mcp-field">
-                                <span>Description</span>
-                                <input
-                                    value={mcpForm.description}
-                                    onChange={e => setMcpForm(p => ({ ...p, description: e.target.value }))}
-                                    placeholder="Web scraping and content extraction"
-                                />
-                            </label>
-
-                            {/* Connection test status */}
-                            <div className="mcp-test-row">
-                                <button
-                                    className="mcp-test-btn"
-                                    onClick={handleTestMcp}
-                                    disabled={!mcpForm.label.trim() || !mcpForm.url.trim() || mcpTestStatus === "testing"}
-                                >
-                                    {mcpTestStatus === "testing" ? "Testing..." : "Test Connection"}
-                                </button>
-                                {mcpTestStatus === "ok" && <span className="mcp-status mcp-status--ok">✓ Connected</span>}
-                                {mcpTestStatus === "error" && <span className="mcp-status mcp-status--error" title={mcpTestError}>✗ Failed</span>}
+                                    {/* Connection test status */}
+                                    <div className="mcp-test-row">
+                                        <button
+                                            className="mcp-test-btn"
+                                            onClick={handleTestMcp}
+                                            disabled={!mcpForm.label.trim() || !mcpForm.url.trim() || mcpTestStatus === "testing"}
+                                        >
+                                            {mcpTestStatus === "testing" ? "Testing..." : "Test Connection"}
+                                        </button>
+                                        {mcpTestStatus === "ok" && <span className="mcp-status mcp-status--ok">✓ Connected</span>}
+                                        {mcpTestStatus === "error" && <span className="mcp-status mcp-status--error" title={mcpTestError}>✗ Failed</span>}
+                                    </div>
+                                </div>
+                                <div className="mcp-modal-footer">
+                                    <button className="mcp-cancel-btn" onClick={() => setShowMcpModal(false)}>Cancel</button>
+                                    <button
+                                        className="mcp-add-btn"
+                                        onClick={handleAddMcp}
+                                        disabled={!mcpForm.label.trim() || !mcpForm.url.trim()}
+                                    >
+                                        Add Server
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div className="mcp-modal-footer">
-                            <button className="mcp-cancel-btn" onClick={() => setShowMcpModal(false)}>Cancel</button>
-                            <button
-                                className="mcp-add-btn"
-                                onClick={handleAddMcp}
-                                disabled={!mcpForm.label.trim() || !mcpForm.url.trim()}
-                            >
-                                Add Server
-                            </button>
+                    )}
+
+                    {/* Tools Bar */}
+                    {showToolBar && (
+                        <div className="chat-tools-bar">
+                            <div className="chat-tools-section">
+                                <span className="chat-tools-label">Built-in Tools</span>
+                                <div className="chat-tools-pills">
+                                    <button
+                                        className={`chat-tool-pill ${activeBuiltinTools.includes('web_search') ? 'chat-tool-pill--active' : ''}`}
+                                        onClick={() => toggleBuiltinTool('web_search')}
+                                        title="Search the web for current information"
+                                    >
+                                        🔍 Web Search
+                                    </button>
+                                    <button
+                                        className={`chat-tool-pill ${activeBuiltinTools.includes('code_interpreter') ? 'chat-tool-pill--active' : ''}`}
+                                        onClick={() => toggleBuiltinTool('code_interpreter')}
+                                        title="Execute Python code for calculations"
+                                    >
+                                        💻 Code Exec
+                                    </button>
+                                    <button
+                                        className={`chat-tool-pill ${activeBuiltinTools.includes('visit_website') ? 'chat-tool-pill--active' : ''}`}
+                                        onClick={() => toggleBuiltinTool('visit_website')}
+                                        title="Visit a URL and extract its content"
+                                    >
+                                        🌐 Visit URL
+                                    </button>
+                                    <button
+                                        className={`chat-tool-pill ${activeBuiltinTools.includes('browser_automation') ? 'chat-tool-pill--active' : ''}`}
+                                        onClick={() => toggleBuiltinTool('browser_automation')}
+                                        title="Automate browser interactions"
+                                    >
+                                        🤖 Browser Auto
+                                    </button>
+                                    <button
+                                        className={`chat-tool-pill ${activeBuiltinTools.includes('wolfram_alpha') ? 'chat-tool-pill--active' : ''}`}
+                                        onClick={() => toggleBuiltinTool('wolfram_alpha')}
+                                        title="Math, science, and data queries via Wolfram Alpha"
+                                    >
+                                        🧮 Wolfram
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="chat-tools-section">
+                                <span className="chat-tools-label">MCP Servers</span>
+                                <div className="chat-tools-pills">
+                                    {connectedMcpServers.map(srv => (
+                                        <button
+                                            key={srv.label}
+                                            className="chat-tool-pill chat-tool-pill--mcp chat-tool-pill--active"
+                                            onClick={() => removeMcpServer(srv.label)}
+                                            title={`${srv.description || srv.url} — click to disconnect`}
+                                        >
+                                            <span className="mcp-connected-dot" />
+                                            {srv.label}
+                                            <span className="mcp-remove">×</span>
+                                        </button>
+                                    ))}
+                                    <button
+                                        className="chat-tool-pill chat-tool-pill--add"
+                                        onClick={() => setShowMcpModal(true)}
+                                        title="Connect an MCP server"
+                                    >
+                                        + Add MCP
+                                    </button>
+                                </div>
+                            </div>
                         </div>
+                    )}
+
+                    {/* Input */}
+                    <div className="chat-panel-input">
+                        <button
+                            className={`chat-tools-toggle ${hasActiveTools ? 'chat-tools-toggle--active' : ''}`}
+                            onClick={() => setShowToolBar(prev => !prev)}
+                            title={showToolBar ? 'Hide tools' : 'Show tools'}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                            </svg>
+                            {hasActiveTools && <span className="chat-tools-badge">{activeBuiltinTools.length + connectedMcpServers.length}</span>}
+                        </button>
+                        <textarea
+                            ref={inputRef}
+                            className="chat-input"
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder={hasActiveTools ? 'Ask with tools enabled...' : 'Ask Canvas AI...'}
+                            rows={1}
+                            disabled={chat.isStreaming}
+                        />
+                        {chat.isStreaming ? (
+                            <button className="chat-send-btn chat-send-btn--stop" onClick={chat.stopStreaming} title="Stop">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                                </svg>
+                            </button>
+                        ) : (
+                            <button
+                                className="chat-send-btn"
+                                onClick={handleSend}
+                                disabled={!input.trim()}
+                                title="Send (Enter)"
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <line x1="22" y1="2" x2="11" y2="13" />
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                                </svg>
+                            </button>
+                        )}
                     </div>
                 </div>
-            )}
-
-            {/* Tools Bar */}
-            {showToolBar && (
-                <div className="chat-tools-bar">
-                    <div className="chat-tools-section">
-                        <span className="chat-tools-label">Built-in Tools</span>
-                        <div className="chat-tools-pills">
-                            <button
-                                className={`chat-tool-pill ${activeBuiltinTools.includes('web_search') ? 'chat-tool-pill--active' : ''}`}
-                                onClick={() => toggleBuiltinTool('web_search')}
-                                title="Search the web for current information"
-                            >
-                                🔍 Web Search
-                            </button>
-                            <button
-                                className={`chat-tool-pill ${activeBuiltinTools.includes('code_interpreter') ? 'chat-tool-pill--active' : ''}`}
-                                onClick={() => toggleBuiltinTool('code_interpreter')}
-                                title="Execute Python code for calculations"
-                            >
-                                💻 Code Exec
-                            </button>
-                            <button
-                                className={`chat-tool-pill ${activeBuiltinTools.includes('visit_website') ? 'chat-tool-pill--active' : ''}`}
-                                onClick={() => toggleBuiltinTool('visit_website')}
-                                title="Visit a URL and extract its content"
-                            >
-                                🌐 Visit URL
-                            </button>
-                            <button
-                                className={`chat-tool-pill ${activeBuiltinTools.includes('browser_automation') ? 'chat-tool-pill--active' : ''}`}
-                                onClick={() => toggleBuiltinTool('browser_automation')}
-                                title="Automate browser interactions"
-                            >
-                                🤖 Browser Auto
-                            </button>
-                            <button
-                                className={`chat-tool-pill ${activeBuiltinTools.includes('wolfram_alpha') ? 'chat-tool-pill--active' : ''}`}
-                                onClick={() => toggleBuiltinTool('wolfram_alpha')}
-                                title="Math, science, and data queries via Wolfram Alpha"
-                            >
-                                🧮 Wolfram
-                            </button>
-                        </div>
-                    </div>
-                    <div className="chat-tools-section">
-                        <span className="chat-tools-label">MCP Servers</span>
-                        <div className="chat-tools-pills">
-                            {connectedMcpServers.map(srv => (
-                                <button
-                                    key={srv.label}
-                                    className="chat-tool-pill chat-tool-pill--mcp chat-tool-pill--active"
-                                    onClick={() => removeMcpServer(srv.label)}
-                                    title={`${srv.description || srv.url} — click to disconnect`}
-                                >
-                                    <span className="mcp-connected-dot" />
-                                    {srv.label}
-                                    <span className="mcp-remove">×</span>
-                                </button>
-                            ))}
-                            <button
-                                className="chat-tool-pill chat-tool-pill--add"
-                                onClick={() => setShowMcpModal(true)}
-                                title="Connect an MCP server"
-                            >
-                                + Add MCP
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Input */}
-            <div className="chat-panel-input">
-                <button
-                    className={`chat-tools-toggle ${hasActiveTools ? 'chat-tools-toggle--active' : ''}`}
-                    onClick={() => setShowToolBar(prev => !prev)}
-                    title={showToolBar ? 'Hide tools' : 'Show tools'}
-                >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                    </svg>
-                    {hasActiveTools && <span className="chat-tools-badge">{activeBuiltinTools.length + connectedMcpServers.length}</span>}
-                </button>
-                <textarea
-                    ref={inputRef}
-                    className="chat-input"
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={hasActiveTools ? 'Ask with tools enabled...' : 'Ask Canvas AI...'}
-                    rows={1}
-                    disabled={chat.isStreaming}
-                />
-                {chat.isStreaming ? (
-                    <button className="chat-send-btn chat-send-btn--stop" onClick={chat.stopStreaming} title="Stop">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <rect x="6" y="6" width="12" height="12" rx="2" />
-                        </svg>
-                    </button>
-                ) : (
-                    <button
-                        className="chat-send-btn"
-                        onClick={handleSend}
-                        disabled={!input.trim()}
-                        title="Send (Enter)"
-                    >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <line x1="22" y1="2" x2="11" y2="13" />
-                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                        </svg>
-                    </button>
-                )}
             </div>
         </div>
     );
