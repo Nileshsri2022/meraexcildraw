@@ -88,12 +88,13 @@ interface HistoryTabPanelProps {
     setHistoryFilter: (f: AIHistoryType | "all") => void;
     deleteEntry: (id: string) => void;
     clearAll: () => void;
+    reuseEntry?: (entry: AIHistoryEntry) => void;
 }
 
 export const HistoryTabPanel = ({
     filteredHistory, allHistory,
     historyFilter, setHistoryFilter,
-    deleteEntry, clearAll,
+    deleteEntry, clearAll, reuseEntry,
 }: HistoryTabPanelProps) => (
     <div style={{ maxWidth: "560px" }}>
         {/* Filter bar */}
@@ -141,6 +142,15 @@ export const HistoryTabPanel = ({
                         </span>
                         <span className="ai-history-prompt">{entry.prompt}</span>
                         <span className="ai-history-time">{dateStr} {timeStr}</span>
+                        {reuseEntry && (
+                            <button
+                                className="ai-history-reuse"
+                                title="Add to canvas"
+                                onClick={() => reuseEntry(entry)}
+                            >
+                                ✓
+                            </button>
+                        )}
                         <button
                             className="ai-history-delete"
                             title="Delete"

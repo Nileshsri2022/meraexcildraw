@@ -1237,6 +1237,25 @@ body.dark {
   background: rgba(248, 113, 113, 0.18);
 }
 
+.ai-history-reuse {
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--success);
+  flex-shrink: 0;
+  line-height: 1;
+  transition: all var(--transition-fast);
+}
+
+.ai-history-reuse:hover {
+  background: rgba(52, 211, 153, 0.22);
+  transform: scale(1.1);
+}
+
 /* ─── Empty State ─────────────────────────────────────────────────────────── */
 
 .ai-empty-state {

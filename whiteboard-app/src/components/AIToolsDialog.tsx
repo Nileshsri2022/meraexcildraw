@@ -6,6 +6,10 @@ import { useTTS } from "../hooks/useTTS";
 import { useAIGeneration } from "../hooks/useAIGeneration";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import type { AITab, AIToolsDialogProps } from "../types/ai-tools";
+import type { AIHistoryEntry } from "../data/LocalStorage";
+import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import { addImageToCanvas } from "../utils/addImageToCanvas";
 
 // ─── Extracted UI Components ───
 import { IconDiagram, IconImage, IconSketch, IconOCR, IconTTS, IconHistory } from "./Icons";
@@ -47,6 +51,51 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
 
     // All generation logic extracted into a single hook
     const gen = useAIGeneration(excalidrawAPI, onClose);
+
+    // ── Reuse history entry: re-apply a past AI result to the canvas ──
+    const reuseHistoryEntry = useCallback(async (entry: AIHistoryEntry) => {
+        if (!excalidrawAPI) return;
+
+        try {
+            switch (entry.type) {
+                case "diagram": {
+                    // Re-parse stored Mermaid code into Excalidraw elements
+                    const { elements: skeleton } = await parseMermaidToExcalidraw(entry.result);
+                    const newElements = convertToExcalidrawElements(skeleton);
+                    const current = excalidrawAPI.getSceneElements();
+                    excalidrawAPI.updateScene({ elements: [...current, ...newElements] });
+                    excalidrawAPI.scrollToContent(newElements, { fitToContent: true });
+                    break;
+                }
+                case "image":
+                case "sketch": {
+                    // Re-add stored base64 image to canvas
+                    if (entry.result?.startsWith("data:")) {
+                        await addImageToCanvas(excalidrawAPI, entry.result, {
+                            x: 100, y: 100, width: 512, height: 512,
+                            idPrefix: `reuse-${entry.type}`,
+                        });
+                        excalidrawAPI.scrollToContent(undefined, { fitToContent: true });
+                    }
+                    break;
+                }
+                case "ocr": {
+                    // Copy extracted text to clipboard
+                    if (entry.result) {
+                        await navigator.clipboard.writeText(entry.result);
+                        alert("📋 OCR text copied to clipboard!");
+                    }
+                    break;
+                }
+                case "tts":
+                    // TTS doesn't have a visual canvas result
+                    break;
+            }
+        } catch (err) {
+            console.error("Failed to reuse history entry:", err);
+            alert(`Failed to reuse: ${(err as Error).message}`);
+        }
+    }, [excalidrawAPI]);
 
     // Per-tab voice-to-prompt (simple STT → fills textarea)
     const handleTranscript = useCallback(
@@ -251,6 +300,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                             setHistoryFilter={setHistoryFilter}
                             deleteEntry={deleteHistoryEntry}
                             clearAll={clearAllHistory}
+                            reuseEntry={reuseHistoryEntry}
                         />
                     )}
 
