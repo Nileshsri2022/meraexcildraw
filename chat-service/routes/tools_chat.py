@@ -14,6 +14,7 @@ import json
 import os
 from typing import Any, AsyncGenerator
 
+from langsmith import traceable
 import httpx
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -148,8 +149,63 @@ async def test_mcp_connection(req: McpTestRequest):
         return {"ok": False, "error": str(e)}
 
 
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
 def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, separators=(',', ':'))}\n\n"
+
+
+@traceable(name="Groq Built-in Tool Call")
+async def _call_builtin_tools(client: httpx.AsyncClient, message: str, enabled: list[str]):
+    """Execute a built-in tool call via groq/compound-mini."""
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+        "Groq-Model-Version": "latest",
+    }
+    payload: dict[str, Any] = {
+        "model": COMPOUND_MODEL,
+        "messages": [{"role": "user", "content": message}],
+        "compound_custom": {
+            "tools": {
+                "enabled_tools": enabled,
+            }
+        },
+    }
+    resp = await client.post(GROQ_CHAT_URL, headers=headers, json=payload)
+    resp.raise_for_status()
+    return resp.json()
+
+
+@traceable(name="Groq MCP Tool Call")
+async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: list[McpServerConfig]):
+    """Execute an MCP tool call via llama-3.3-70b-versatile."""
+    tools: list[dict[str, Any]] = []
+    for srv in mcp_servers:
+        tool_def: dict[str, Any] = {
+            "type": "mcp",
+            "server_label": srv.label,
+            "server_url": srv.url,
+            "require_approval": srv.require_approval,
+        }
+        if srv.description:
+            tool_def["server_description"] = srv.description
+        if srv.headers:
+            tool_def["headers"] = srv.headers
+        tools.append(tool_def)
+
+    payload = {
+        "model": MCP_MODEL,
+        "messages": [{"role": "user", "content": message}],
+        "tools": tools,
+    }
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    resp = await client.post(GROQ_CHAT_URL, headers=headers, json=payload)
+    resp.raise_for_status()
+    return resp.json()
 
 
 @router.post("/chat/tools")
@@ -178,25 +234,10 @@ async def tools_chat(req: ToolChatRequest):
                 if has_builtin and not has_mcp:
                     # ── Route 1: compound-mini for built-in tools ──
                     enabled = [t for t in req.builtin_tools if t in BUILT_IN_TOOLS]
-                    headers = {**base_headers, "Groq-Model-Version": "latest"}
-                    payload: dict[str, Any] = {
-                        "model": COMPOUND_MODEL,
-                        "messages": [
-                            {"role": "user", "content": req.message}
-                        ],
-                        "compound_custom": {
-                            "tools": {
-                                "enabled_tools": enabled,
-                            }
-                        },
-                    }
-
                     tool_names = ", ".join(enabled)
                     yield _sse({"type": "token", "token": f"🔧 Using {tool_names}...\n", "done": False})
 
-                    resp = await client.post(GROQ_CHAT_URL, headers=headers, json=payload)
-                    resp.raise_for_status()
-                    data = resp.json()
+                    data = await _call_builtin_tools(client, req.message, enabled)
 
                     msg = data.get("choices", [{}])[0].get("message", {})
                     content = msg.get("content", "")
@@ -216,34 +257,10 @@ async def tools_chat(req: ToolChatRequest):
 
                 elif has_mcp:
                     # ── Route 2: llama for MCP tools ──
-                    tools: list[dict[str, Any]] = []
-                    for srv in req.mcp_servers:
-                        tool_def: dict[str, Any] = {
-                            "type": "mcp",
-                            "server_label": srv.label,
-                            "server_url": srv.url,
-                            "require_approval": srv.require_approval,
-                        }
-                        if srv.description:
-                            tool_def["server_description"] = srv.description
-                        if srv.headers:
-                            tool_def["headers"] = srv.headers
-                        tools.append(tool_def)
-
-                    payload = {
-                        "model": MCP_MODEL,
-                        "messages": [
-                            {"role": "user", "content": req.message}
-                        ],
-                        "tools": tools,
-                    }
-
                     labels = ", ".join(s.label for s in req.mcp_servers)
                     yield _sse({"type": "token", "token": f"🔌 Connecting to {labels}...\n", "done": False})
 
-                    resp = await client.post(GROQ_CHAT_URL, headers=base_headers, json=payload)
-                    resp.raise_for_status()
-                    data = resp.json()
+                    data = await _call_mcp_tools(client, req.message, req.mcp_servers)
 
                     msg = data.get("choices", [{}])[0].get("message", {})
                     content = msg.get("content", "") or ""
