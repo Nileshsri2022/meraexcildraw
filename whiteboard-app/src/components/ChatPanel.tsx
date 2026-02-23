@@ -233,6 +233,43 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         chat.syncCanvasContext([...elements]);
     }, [isOpen, excalidrawAPI, chat.syncCanvasContext]);
 
+    // ── Resizability ──
+    const [panelWidth, setPanelWidth] = useState(() => {
+        const saved = localStorage.getItem("chat-panel-width");
+        return saved ? parseInt(saved, 10) : 400;
+    });
+    const isResizing = useRef(false);
+
+    const startResizing = useCallback((e: React.MouseEvent) => {
+        isResizing.current = true;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+    }, []);
+
+    const stopResizing = useCallback(() => {
+        isResizing.current = false;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+    }, []);
+
+    const resize = useCallback((e: MouseEvent) => {
+        if (!isResizing.current) return;
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth >= 300 && newWidth <= 1200) {
+            setPanelWidth(newWidth);
+            localStorage.setItem("chat-panel-width", newWidth.toString());
+        }
+    }, []);
+
+    useEffect(() => {
+        window.addEventListener("mousemove", resize);
+        window.addEventListener("mouseup", stopResizing);
+        return () => {
+            window.removeEventListener("mousemove", resize);
+            window.removeEventListener("mouseup", stopResizing);
+        };
+    }, [resize, stopResizing]);
+
     const handleSend = useCallback(() => {
         if (!input.trim() || chat.isStreaming) return;
         if (hasActiveTools) {
@@ -251,7 +288,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     }, [handleSend]);
 
     return (
-        <div className={`chat-panel ${isOpen ? "chat-panel--open" : ""}`}>
+        <div
+            className={`chat-panel ${isOpen ? "chat-panel--open" : ""}`}
+            style={{ width: isOpen ? `${panelWidth}px` : "0" } as React.CSSProperties}
+        >
+            {/* Resize Handle */}
+            <div className="chat-panel-resizer" onMouseDown={startResizing} />
+
             {/* Header */}
             <div className="chat-panel-header">
                 <div className="chat-panel-title">
