@@ -717,7 +717,9 @@ async def update_canvas_context(req: CanvasContextRequest):
     """
     session = _sessions.get(req.session_id)
     if session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+        # Auto-create session so canvas context can be synced before first chat message
+        session = ChatSession(req.session_id)
+        _sessions[req.session_id] = session
 
     if req.description:
         session.canvas_context = req.description
