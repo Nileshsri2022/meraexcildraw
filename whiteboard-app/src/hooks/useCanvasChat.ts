@@ -100,7 +100,6 @@ export function useCanvasChat() {
         typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null
     );
     const abortRef = useRef<AbortController | null>(null);
-    const isInitialLoadRef = useRef<boolean>(false);
 
     /**
      * Ref to an Excalidraw API instance for reading current canvas state.
@@ -137,23 +136,14 @@ export function useCanvasChat() {
         init();
     }, []);
 
-    /**
-     * Save messages to IndexedDB whenever they change.
-     */
     useEffect(() => {
         if (activeConversationId && messages.length > 0 && !isStreaming) {
-            // If we just loaded this conversation from DB, skip the save 
-            // to avoid updating the updatedAt timestamp unintentionally.
-            if (isInitialLoadRef.current) {
-                isInitialLoadRef.current = false;
-                return;
-            }
-
-            chatDb.saveMessages(activeConversationId, messages).catch(err => {
+            // Background sync messages to DB without affecting the sidebar position
+            chatDb.saveMessages(activeConversationId, messages, { skipTimestamp: true }).catch(err => {
                 console.error("[ChatDB] Failed to save messages:", err);
             });
 
-            // If this is the FIRST save for a "New Conversation", we might need to update title
+            // If this is the FIRST save for a "New Conversation", we need to update title and promote it
             const current = conversations.find(c => c.id === activeConversationId);
             if (current && current.title === "New Conversation" && messages.length > 0) {
                 const firstUserMsg = messages.find(m => m.role === "user");
@@ -164,9 +154,6 @@ export function useCanvasChat() {
                         chatDb.loadConversations().then(setConversations);
                     });
                 }
-            } else {
-                // Refresh conversation list to get latest updates (timestamps)
-                chatDb.loadConversations().then(setConversations);
             }
         }
     }, [messages, isStreaming, activeConversationId, conversations]);
@@ -175,7 +162,6 @@ export function useCanvasChat() {
         if (id === activeConversationId) return;
         try {
             const msgs = await chatDb.loadMessages(id);
-            isInitialLoadRef.current = true; // Mark as initial load to prevent save trigger
             setMessages(msgs);
             setActiveConversationId(id);
 
@@ -291,16 +277,23 @@ export function useCanvasChat() {
             timestamp: now + 1,
         };
 
-        // Create/Update conversation in the list if it's the first message
+        // Create/Update conversation in the list
         const currentConv = conversations.find(c => c.id === activeConversationId);
-        if (!currentConv && activeConversationId) {
-            const newConv: Conversation = {
-                id: activeConversationId,
-                title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
-                updatedAt: now,
-            };
-            await chatDb.saveConversation(newConv);
-            setConversations(prev => [newConv, ...prev]);
+        if (activeConversationId) {
+            if (!currentConv) {
+                const newConv: Conversation = {
+                    id: activeConversationId,
+                    title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
+                    updatedAt: now,
+                };
+                await chatDb.saveConversation(newConv);
+                setConversations(prev => [newConv, ...prev]);
+            } else {
+                // Promote existing conversation to the top
+                const updated = { ...currentConv, updatedAt: now };
+                await chatDb.saveConversation(updated);
+                chatDb.loadConversations().then(setConversations);
+            }
         }
 
         setMessages(prev => [...prev, userMsg, assistantMsg]);
@@ -468,16 +461,23 @@ export function useCanvasChat() {
             timestamp: now + 1,
         };
 
-        // Create/Update conversation in the list if it's the first message
+        // Create/Update conversation in the list
         const currentConv = conversations.find(c => c.id === activeConversationId);
-        if (!currentConv && activeConversationId) {
-            const newConv: Conversation = {
-                id: activeConversationId,
-                title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
-                updatedAt: now,
-            };
-            await chatDb.saveConversation(newConv);
-            setConversations(prev => [newConv, ...prev]);
+        if (activeConversationId) {
+            if (!currentConv) {
+                const newConv: Conversation = {
+                    id: activeConversationId,
+                    title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
+                    updatedAt: now,
+                };
+                await chatDb.saveConversation(newConv);
+                setConversations(prev => [newConv, ...prev]);
+            } else {
+                // Promote existing conversation to the top
+                const updated = { ...currentConv, updatedAt: now };
+                await chatDb.saveConversation(updated);
+                chatDb.loadConversations().then(setConversations);
+            }
         }
 
         setMessages(prev => [...prev, userMsg, assistantMsg]);
@@ -672,14 +672,26 @@ export function useCanvasChat() {
      * Used by tool actions (OCR, etc.) to show results in the conversation.
      */
     const appendAssistantMessage = useCallback((content: string) => {
+        const now = Date.now();
         const msg: ChatMessage = {
-            id: `tool-${Date.now()}`,
+            id: `tool-${now}`,
             role: "assistant",
             content,
-            timestamp: Date.now(),
+            timestamp: now,
         };
         setMessages(prev => [...prev, msg]);
-    }, []);
+
+        // Promote conversation when tool actions append results
+        if (activeConversationId) {
+            const current = conversations.find(c => c.id === activeConversationId);
+            if (current) {
+                const updated = { ...current, updatedAt: now };
+                chatDb.saveConversation(updated).then(() => {
+                    chatDb.loadConversations().then(setConversations);
+                });
+            }
+        }
+    }, [activeConversationId, conversations]);
 
     return {
         messages,

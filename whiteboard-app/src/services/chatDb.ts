@@ -13,7 +13,7 @@ const CONV_STORE = 'conversations';
 const VERSION = 2; // Bump version for conversion support
 
 export interface ChatDB {
-    saveMessages(conversationId: string, messages: ChatMessage[]): Promise<void>;
+    saveMessages(conversationId: string, messages: ChatMessage[], options?: { skipTimestamp?: boolean }): Promise<void>;
     loadMessages(conversationId: string): Promise<ChatMessage[]>;
     clearConversation(conversationId: string): Promise<void>;
 
@@ -47,7 +47,7 @@ class ChatDBImpl implements ChatDB {
         });
     }
 
-    async saveMessages(conversationId: string, messages: ChatMessage[]): Promise<void> {
+    async saveMessages(conversationId: string, messages: ChatMessage[], options?: { skipTimestamp?: boolean }): Promise<void> {
         const db = await this.dbPromise;
         const tx = db.transaction([MSG_STORE, CONV_STORE], 'readwrite');
         const msgStore = tx.objectStore(MSG_STORE);
@@ -68,15 +68,17 @@ class ChatDBImpl implements ChatDB {
             await msgStore.put({ ...msg, conversationId });
         }
 
-        // Update conversation's updatedAt
-        let conv = await convStore.get(conversationId);
-        if (!conv) {
-            // Fallback: This shouldn't happen usually but ensures robustness
-            conv = { id: conversationId, title: "New Conversation", updatedAt: Date.now() };
-        } else {
-            conv.updatedAt = Date.now();
+        // Update conversation's updatedAt unless skipped
+        if (!options?.skipTimestamp) {
+            let conv = await convStore.get(conversationId);
+            if (!conv) {
+                // Fallback: This shouldn't happen usually but ensures robustness
+                conv = { id: conversationId, title: "New Conversation", updatedAt: Date.now() };
+            } else {
+                conv.updatedAt = Date.now();
+            }
+            await convStore.put(conv);
         }
-        await convStore.put(conv);
 
         await tx.done;
     }
