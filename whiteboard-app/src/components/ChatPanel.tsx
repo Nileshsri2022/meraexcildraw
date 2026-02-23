@@ -146,15 +146,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         setToolStatus("📝 Extracting text...");
                         const ocrText = await aiGen.performOcr(action.prompt, capturedImage);
                         if (ocrText) {
-                            // 1. Show in chat
-                            chat.appendAssistantMessage(
-                                `📝 **Extracted Text:**\n\n${ocrText}`
-                            );
-                            // 2. Place text on canvas as Excalidraw text element
+                            // Place text on canvas inside a resizable container box
                             if (excalidrawAPI) {
                                 try {
                                     const currentEls = excalidrawAPI.getSceneElements() || [];
-                                    // Position text to the right of existing content
+                                    // Position to the right of existing content
                                     let maxX = 100;
                                     let minY = 100;
                                     for (const el of currentEls) {
@@ -164,24 +160,58 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                             if (minY === 100 || el.y < minY) minY = el.y;
                                         }
                                     }
-                                    const textEl = convertToExcalidrawElements([{
-                                        type: "text",
+
+                                    // Word-wrap text to fit ~400px width at 16px font
+                                    const BOX_WIDTH = 400;
+                                    const CHARS_PER_LINE = Math.floor(BOX_WIDTH / 8.5); // ~8.5px per char at 16px
+                                    const words = ocrText.split(/\s+/);
+                                    const lines: string[] = [];
+                                    let currentLine = "";
+                                    for (const word of words) {
+                                        if (currentLine.length + word.length + 1 > CHARS_PER_LINE && currentLine) {
+                                            lines.push(currentLine);
+                                            currentLine = word;
+                                        } else {
+                                            currentLine = currentLine ? `${currentLine} ${word}` : word;
+                                        }
+                                    }
+                                    if (currentLine) lines.push(currentLine);
+                                    const wrappedText = lines.join("\n");
+
+                                    // Create a rectangle container with the text as a label
+                                    const LINE_HEIGHT = 22;
+                                    const PADDING = 20;
+                                    const boxHeight = Math.max(100, lines.length * LINE_HEIGHT + PADDING * 2);
+
+                                    const containerElements = convertToExcalidrawElements([{
+                                        type: "rectangle",
                                         x: maxX + 60,
                                         y: minY,
-                                        text: ocrText,
-                                        fontSize: 16,
-                                        fontFamily: 1,
-                                        textAlign: "left",
+                                        width: BOX_WIDTH,
+                                        height: boxHeight,
+                                        strokeColor: "#495057",
+                                        backgroundColor: "#ffffff",
+                                        fillStyle: "solid",
+                                        strokeWidth: 1,
+                                        roundness: { type: 3 },
+                                        label: {
+                                            text: wrappedText,
+                                            fontSize: 16,
+                                            fontFamily: 1,
+                                            textAlign: "left",
+                                            verticalAlign: "top",
+                                        },
                                     }]);
+
                                     excalidrawAPI.updateScene({
-                                        elements: [...currentEls, ...textEl],
+                                        elements: [...currentEls, ...containerElements],
                                     });
-                                    excalidrawAPI.scrollToContent(textEl, { fitToContent: true });
+                                    excalidrawAPI.scrollToContent(containerElements, { fitToContent: true });
                                 } catch (canvasErr) {
                                     console.error("Failed to add OCR text to canvas:", canvasErr);
                                 }
                             }
-                            setToolStatus("✅ Text extracted & added to canvas!");
+                            setToolStatus("✅ Text added to canvas!");
                         } else {
                             chat.appendAssistantMessage(
                                 `❌ OCR failed — the service may be busy or timed out. Please try again.`
