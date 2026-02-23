@@ -1,14 +1,25 @@
 import { openDB, IDBPDatabase } from 'idb';
 import { ChatMessage } from '../hooks/useCanvasChat';
 
+export interface Conversation {
+    id: string;
+    title: string;
+    updatedAt: number;
+}
+
 const DB_NAME = 'CosmicChatDB';
-const STORE_NAME = 'messages';
-const VERSION = 1;
+const MSG_STORE = 'messages';
+const CONV_STORE = 'conversations';
+const VERSION = 2; // Bump version for conversion support
 
 export interface ChatDB {
-    saveMessages(messages: ChatMessage[]): Promise<void>;
-    loadMessages(): Promise<ChatMessage[]>;
-    clearMessages(): Promise<void>;
+    saveMessages(conversationId: string, messages: ChatMessage[]): Promise<void>;
+    loadMessages(conversationId: string): Promise<ChatMessage[]>;
+    clearConversation(conversationId: string): Promise<void>;
+
+    saveConversation(conv: Conversation): Promise<void>;
+    loadConversations(): Promise<Conversation[]>;
+    deleteConversation(conversationId: string): Promise<void>;
 }
 
 class ChatDBImpl implements ChatDB {
@@ -16,39 +27,107 @@ class ChatDBImpl implements ChatDB {
 
     constructor() {
         this.dbPromise = openDB(DB_NAME, VERSION, {
-            upgrade(db) {
-                if (!db.objectStoreNames.contains(STORE_NAME)) {
-                    db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            upgrade(db, oldVersion, newVersion, transaction) {
+                if (oldVersion < 1) {
+                    db.createObjectStore(MSG_STORE, { keyPath: 'id' });
+                }
+                if (oldVersion < 2) {
+                    if (!db.objectStoreNames.contains(CONV_STORE)) {
+                        db.createObjectStore(CONV_STORE, { keyPath: 'id' });
+                    }
+                    if (transaction) {
+                        const msgStore = transaction.objectStore(MSG_STORE);
+                        if (!msgStore.indexNames.contains('conversationId')) {
+                            msgStore.createIndex('conversationId', 'conversationId');
+                        }
+                    }
                 }
             },
         });
     }
 
-    async saveMessages(messages: ChatMessage[]): Promise<void> {
+    async saveMessages(conversationId: string, messages: ChatMessage[]): Promise<void> {
         const db = await this.dbPromise;
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
+        const tx = db.transaction([MSG_STORE, CONV_STORE], 'readwrite');
+        const msgStore = tx.objectStore(MSG_STORE);
+        const convStore = tx.objectStore(CONV_STORE);
 
-        // Clear old ones and save new ones to keep it simple and orderly
-        // Or we can just put/add individually. Given the context, we likely want a clean sync.
-        await store.clear();
+        // Delete existing messages for this conversation to overwrite
+        if (msgStore.indexNames.contains('conversationId')) {
+            const index = msgStore.index('conversationId');
+            let cursor = await index.openCursor(IDBKeyRange.only(conversationId));
+            while (cursor) {
+                await cursor.delete();
+                cursor = await cursor.continue();
+            }
+        }
+
+        // Add new ones
         for (const msg of messages) {
-            await store.put(msg);
+            await msgStore.put({ ...msg, conversationId });
+        }
+
+        // Update conversation's updatedAt
+        const conv = await convStore.get(conversationId);
+        if (conv) {
+            await convStore.put({ ...conv, updatedAt: Date.now() });
+        }
+
+        await tx.done;
+    }
+
+    async loadMessages(conversationId: string): Promise<ChatMessage[]> {
+        const db = await this.dbPromise;
+        if (!db.objectStoreNames.contains(MSG_STORE)) return [];
+
+        const tx = db.transaction(MSG_STORE, 'readonly');
+        const store = tx.objectStore(MSG_STORE);
+
+        if (!store.indexNames.contains('conversationId')) {
+            // Fallback for old schema if upgrade hasn't finished or something
+            return [];
+        }
+
+        const messages = await db.getAllFromIndex(MSG_STORE, 'conversationId', conversationId);
+        return messages.sort((a, b) => a.timestamp - b.timestamp);
+    }
+
+    async clearConversation(conversationId: string): Promise<void> {
+        const db = await this.dbPromise;
+        const tx = db.transaction(MSG_STORE, 'readwrite');
+        const index = tx.objectStore(MSG_STORE).index('conversationId');
+        let cursor = await index.openCursor(IDBKeyRange.only(conversationId));
+        while (cursor) {
+            await cursor.delete();
+            cursor = await cursor.continue();
         }
         await tx.done;
     }
 
-    async loadMessages(): Promise<ChatMessage[]> {
+    async saveConversation(conv: Conversation): Promise<void> {
         const db = await this.dbPromise;
-        const messages = await db.getAll(STORE_NAME);
-        // Sort by timestamp just in case
-        return messages.sort((a, b) => a.timestamp - b.timestamp);
+        await db.put(CONV_STORE, conv);
     }
 
-    async clearMessages(): Promise<void> {
+    async loadConversations(): Promise<Conversation[]> {
         const db = await this.dbPromise;
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        await tx.objectStore(STORE_NAME).clear();
+        if (!db.objectStoreNames.contains(CONV_STORE)) return [];
+        const convs = await db.getAll(CONV_STORE);
+        return convs.sort((a, b) => b.updatedAt - a.updatedAt);
+    }
+
+    async deleteConversation(conversationId: string): Promise<void> {
+        const db = await this.dbPromise;
+        const tx = db.transaction([MSG_STORE, CONV_STORE], 'readwrite');
+        await tx.objectStore(CONV_STORE).delete(conversationId);
+
+        const msgStore = tx.objectStore(MSG_STORE);
+        const index = msgStore.index('conversationId');
+        let cursor = await index.openCursor(IDBKeyRange.only(conversationId));
+        while (cursor) {
+            await cursor.delete();
+            cursor = await cursor.continue();
+        }
         await tx.done;
     }
 }

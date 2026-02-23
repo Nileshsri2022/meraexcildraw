@@ -17,7 +17,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { chatDb } from "../services/chatDb";
+import { chatDb, type Conversation } from "../services/chatDb";
 
 /**
  * Minimal shape of an Excalidraw scene element for canvas context sync.
@@ -89,6 +89,8 @@ export interface McpServerConfig {
 
 export function useCanvasChat() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [isStreaming, setIsStreaming] = useState(false);
     const isStreamingRef = useRef(false);
     const [error, setError] = useState<string | null>(null);
@@ -114,32 +116,80 @@ export function useCanvasChat() {
     }, []);
 
     /**
-     * Load messages from IndexedDB on mount.
+     * Load conversations and last active chat on mount.
      */
     useEffect(() => {
-        const load = async () => {
+        const init = async () => {
             try {
-                const stored = await chatDb.loadMessages();
-                if (stored && stored.length > 0) {
-                    setMessages(stored);
+                const convs = await chatDb.loadConversations();
+                setConversations(convs);
+                if (convs.length > 0) {
+                    const last = convs[0];
+                    setActiveConversationId(last.id);
+                    const msgs = await chatDb.loadMessages(last.id);
+                    setMessages(msgs);
                 }
             } catch (err) {
-                console.error("[ChatDB] Failed to load messages:", err);
+                console.error("[ChatDB] Init failed:", err);
             }
         };
-        load();
+        init();
     }, []);
 
     /**
      * Save messages to IndexedDB whenever they change.
      */
     useEffect(() => {
-        if (messages.length > 0 && !isStreaming) {
-            chatDb.saveMessages(messages).catch(err => {
+        if (activeConversationId && messages.length > 0 && !isStreaming) {
+            chatDb.saveMessages(activeConversationId, messages).catch(err => {
                 console.error("[ChatDB] Failed to save messages:", err);
             });
+
+            // Refresh conversation list to get latest updates (titles/timestamps)
+            chatDb.loadConversations().then(setConversations);
         }
-    }, [messages, isStreaming]);
+    }, [messages, isStreaming, activeConversationId]);
+
+    const selectConversation = useCallback(async (id: string) => {
+        if (id === activeConversationId) return;
+        try {
+            const msgs = await chatDb.loadMessages(id);
+            setMessages(msgs);
+            setActiveConversationId(id);
+            // Session ID rotation is handled by the backend if needed, 
+            // but we can rotate it here to be safe if switching contexts.
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                sessionIdRef.current = crypto.randomUUID();
+            }
+        } catch (err) {
+            console.error("[ChatDB] Failed to select conversation:", err);
+        }
+    }, [activeConversationId]);
+
+    const startNewConversation = useCallback(async () => {
+        const id = crypto.randomUUID();
+        const newConv: Conversation = {
+            id,
+            title: "New Conversation",
+            updatedAt: Date.now(),
+        };
+        await chatDb.saveConversation(newConv);
+        setConversations(prev => [newConv, ...prev]);
+        setActiveConversationId(id);
+        setMessages([]);
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            sessionIdRef.current = crypto.randomUUID();
+        }
+    }, []);
+
+    const deleteConversation = useCallback(async (id: string) => {
+        await chatDb.deleteConversation(id);
+        setConversations(prev => prev.filter(c => c.id !== id));
+        if (activeConversationId === id) {
+            setMessages([]);
+            setActiveConversationId(null);
+        }
+    }, [activeConversationId]);
 
     /**
      * Internal: send canvas context to the server (requires active session).
@@ -209,20 +259,35 @@ export function useCanvasChat() {
         setPendingActions(null);
         setPendingToolAction(null);
 
+        const now = Date.now();
         const userMsg: ChatMessage = {
-            id: `u-${Date.now()}`,
+            id: `u-${now}`,
             role: "user",
             content: content.trim(),
-            timestamp: Date.now(),
+            timestamp: now,
         };
 
-        const assistantId = `a-${Date.now()}`;
+        const assistantId = `a-${now + 1}`;
         const assistantMsg: ChatMessage = {
             id: assistantId,
             role: "assistant",
             content: "",
-            timestamp: Date.now(),
+            timestamp: now + 1,
         };
+
+        // Create a new conversation if none active
+        let targetConvId = activeConversationId;
+        if (!targetConvId) {
+            targetConvId = crypto.randomUUID();
+            const newConv: Conversation = {
+                id: targetConvId,
+                title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
+                updatedAt: now,
+            };
+            await chatDb.saveConversation(newConv);
+            setActiveConversationId(targetConvId);
+            setConversations(prev => [newConv, ...prev]);
+        }
 
         setMessages(prev => [...prev, userMsg, assistantMsg]);
         isStreamingRef.current = true;
@@ -373,20 +438,35 @@ export function useCanvasChat() {
         setPendingActions(null);
         setPendingToolAction(null);
 
+        const now = Date.now();
         const userMsg: ChatMessage = {
-            id: `u-${Date.now()}`,
+            id: `u-${now}`,
             role: "user",
             content: content.trim(),
-            timestamp: Date.now(),
+            timestamp: now,
         };
 
-        const assistantId = `a-${Date.now()}`;
+        const assistantId = `a-${now + 1}`;
         const assistantMsg: ChatMessage = {
             id: assistantId,
             role: "assistant",
             content: "",
-            timestamp: Date.now(),
+            timestamp: now + 1,
         };
+
+        // Create a new conversation if none active
+        let targetConvId = activeConversationId;
+        if (!targetConvId) {
+            targetConvId = crypto.randomUUID();
+            const newConv: Conversation = {
+                id: targetConvId,
+                title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
+                updatedAt: now,
+            };
+            await chatDb.saveConversation(newConv);
+            setActiveConversationId(targetConvId);
+            setConversations(prev => [newConv, ...prev]);
+        }
 
         setMessages(prev => [...prev, userMsg, assistantMsg]);
         isStreamingRef.current = true;
@@ -541,10 +621,11 @@ export function useCanvasChat() {
      * Also resets canvas context on the server.
      */
     const clearChat = useCallback(async () => {
+        if (!activeConversationId) return;
         setMessages([]);
         setError(null);
         setPendingActions(null);
-        await chatDb.clearMessages();
+        await chatDb.clearConversation(activeConversationId);
 
         if (sessionIdRef.current) {
             try {
@@ -582,6 +663,8 @@ export function useCanvasChat() {
 
     return {
         messages,
+        conversations,
+        activeConversationId,
         isStreaming,
         error,
         pendingActions,
@@ -591,6 +674,9 @@ export function useCanvasChat() {
         sendToolMessage,
         stopStreaming,
         clearChat,
+        startNewConversation,
+        selectConversation,
+        deleteConversation,
         syncCanvasContext,
         consumeActions,
         consumeToolAction,

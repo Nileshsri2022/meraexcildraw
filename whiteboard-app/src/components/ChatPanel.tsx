@@ -264,7 +264,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     // ── Resizability ──
     const [panelWidth, setPanelWidth] = useState(() => {
         const saved = localStorage.getItem("chat-panel-width");
-        return saved ? parseInt(saved, 10) : 400;
+        return saved ? parseInt(saved, 10) : 600;
     });
     const isResizing = useRef(false);
 
@@ -283,7 +283,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const resize = useCallback((e: MouseEvent) => {
         if (!isResizing.current) return;
         const newWidth = window.innerWidth - e.clientX;
-        if (newWidth >= 300 && newWidth <= 1200) {
+        if (newWidth >= 450 && newWidth <= 1200) {
             setPanelWidth(newWidth);
             localStorage.setItem("chat-panel-width", newWidth.toString());
         }
@@ -324,37 +324,69 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             <div className="chat-panel-resizer" onMouseDown={startResizing} />
 
             <div className="chat-panel-container">
-                {/* Left Mini Sidebar */}
+                {/* Left Action Sidebar */}
                 <div className="chat-panel-sidebar">
                     <button
                         className="chat-sidebar-btn chat-sidebar-btn--primary"
-                        onClick={() => {
-                            if (chat.messages.length > 0) {
-                                chat.clearChat();
-                            }
-                        }}
+                        onClick={chat.startNewConversation}
                         title="New conversation"
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                             <line x1="12" y1="5" x2="12" y2="19" />
                             <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
+                        <span>New Chat</span>
                     </button>
-                    <div className="chat-sidebar-spacer" />
-                    <button
-                        className="chat-sidebar-btn"
-                        onClick={() => {
-                            if (chat.messages.length > 0 && window.confirm("Clear all messages?")) {
-                                chat.clearChat();
-                            }
-                        }}
-                        disabled={chat.messages.length === 0}
-                        title="Clear history"
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                            <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                        </svg>
-                    </button>
+
+                    <div className="chat-sidebar-header">
+                        <span className="chat-sidebar-title">Recent Chats</span>
+                    </div>
+
+                    <div className="chat-conv-list">
+                        {chat.conversations.map(conv => (
+                            <div
+                                key={conv.id}
+                                className={`chat-conv-item ${chat.activeConversationId === conv.id ? 'chat-conv-item--active' : ''}`}
+                                onClick={() => chat.selectConversation(conv.id)}
+                            >
+                                <div className="chat-conv-title" title={conv.title}>
+                                    {conv.title}
+                                </div>
+                                <button
+                                    className="chat-conv-delete"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm("Delete this conversation?")) {
+                                            chat.deleteConversation(conv.id);
+                                        }
+                                    }}
+                                    title="Delete conversation"
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                        <path d="M18 6L6 18M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="chat-sidebar-footer">
+                        <button
+                            className="chat-sidebar-btn"
+                            onClick={() => {
+                                if (chat.messages.length > 0 && window.confirm("Clear all messages in this chat?")) {
+                                    chat.clearChat();
+                                }
+                            }}
+                            disabled={chat.messages.length === 0}
+                            title="Clear current history"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            </svg>
+                            <span>Clear Current</span>
+                        </button>
+                    </div>
                 </div>
 
                 <div className="chat-panel-main">
