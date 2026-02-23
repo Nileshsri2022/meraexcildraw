@@ -33,10 +33,10 @@
 | Severity | Count | Fixed | Remaining |
 |----------|-------|-------|-----------|
 | 🔴 CRITICAL (P1) | 5 | 5 | 0 |
-| 🟠 HIGH (P2) | 9 | 4 | 5 |
-| 🟡 MEDIUM (P3) | 14 | 9 | 5 |
-| ⚪ LOW (P4) | 10 | 0 | 10 |
-| **Total** | **38** | **18** | **20** |
+| 🟠 HIGH (P2) | 9 | 5 | 4 |
+| 🟡 MEDIUM (P3) | 14 | 10 | 4 |
+| ⚪ LOW (P4) | 10 | 4 | 6 |
+| **Total** | **38** | **24** | **14** |
 
 ---
 
@@ -153,12 +153,12 @@
 
 ### P2 — HIGH
 
-#### P2.1 — `useAIGeneration` is a God Hook (485 lines, 20+ state variables)
+#### P2.1 — ~~`useAIGeneration` is a God Hook (485 lines, 20+ state variables)~~ → ✅ **FIXED**
 - **Skill**: `clean-code` (Rule: Functions should be small, do one thing, SRP)
 - **Skill**: `code-refactoring` (Smell: Long Method, suggestion: Extract Method)
-- **File**: `useAIGeneration.ts` (485 lines)
+- **File**: ~~`useAIGeneration.ts` (485 lines)~~ → **65 lines** (coordinator) + 4 sub-hooks
 - **Contains**: Sketch settings (6 states), Image settings (5 states), OCR state (3), generation callbacks (3), OCR callbacks (5)
-- **Fix**: Extract into `useSketchGeneration()`, `useImageGeneration()`, `useDiagramGeneration()`, `useOcr()` with a thin coordinator hook.
+- **Fix**: ✅ **FIXED** — Extracted into `hooks/ai/useSketchGeneration.ts`, `hooks/ai/useImageGeneration.ts`, `hooks/ai/useDiagramGeneration.ts`, `hooks/ai/useOcr.ts` with shared `AIGenerationContext`. Coordinator composites all 4 via spread, maintaining identical public API.
 
 #### P2.2 — ~~`executeTool` function is 125 lines with deep nesting~~ → ✅ **FIXED**
 - **Skill**: `clean-code` (Rule: Functions < 20 lines, Avoid deep nesting)
@@ -393,7 +393,32 @@
 | 28 | `ChatPanel.tsx` | Replaced 125-line inline switch with `executeToolAction()` call | `clean-code` |
 | 29 | `utils/elementBuilders.ts` | **NEW** — `createShapeElement`, `createArrowElement`, `baseProps` | `clean-code` |
 | 30 | `useCanvasActions.ts` | Rewrote to use extracted builders (290→95 lines) | `code-refactoring` |
-| 31 | `SKILLS_AUDIT.md` | This comprehensive audit document | All 7 skills |
+| 31 | `TabPanels.tsx` | Hoisted `formatDuration` to module scope (pure function) | `clean-code` |
+| 32 | `useAIGeneration.ts` | Gated 6 verbose console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 33 | `useVoiceCommand.ts` | Gated 2 verbose console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 34 | `useCanvasActions.ts` | Gated 1 verbose console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 35 | `addImageToCanvas.ts` | Gated 3 remaining console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 36 | `LocalStorage.ts` | Gated 6 verbose console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 37 | `App.tsx` | Gated scene restore console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 38 | `useCollaboration.ts` | Gated 7 verbose console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 39 | `Portal.ts` | Gated broadcasting console.log behind `import.meta.env.DEV` | `vercel-react-best-practices` |
+| 40 | `hooks/ai/types.ts` | **NEW** — `AIGenerationContext` shared interface for sub-hooks | `clean-code` |
+| 41 | `hooks/ai/useSketchGeneration.ts` | **NEW** — Sketch-to-image via ControlNet (6 settings + callback) | `clean-code` |
+| 42 | `hooks/ai/useImageGeneration.ts` | **NEW** — Text-to-image (5 settings + callback) | `clean-code` |
+| 43 | `hooks/ai/useDiagramGeneration.ts` | **NEW** — Text-to-Mermaid diagram (callback only) | `clean-code` |
+| 44 | `hooks/ai/useOcr.ts` | **NEW** — OCR state + 6 callbacks (capture, perform, add, clear) | `clean-code` |
+| 45 | `useAIGeneration.ts` | Rewrote as thin coordinator (490→65 lines) composing 4 sub-hooks | `code-refactoring` |
+| 46 | `chat-service/config.py` | **NEW** — Env vars + LLM initialization | `langchain-architecture` |
+| 47 | `chat-service/models.py` | **NEW** — Pydantic request/response schemas | `clean-code` |
+| 48 | `chat-service/parsers.py` | **NEW** — Text processing utilities (think-tags, markdown, JSON) | `clean-code` |
+| 49 | `chat-service/prompts.py` | **NEW** — LangChain prompt templates + LCEL chains | `langchain-architecture` |
+| 50 | `chat-service/sessions.py` | **NEW** — In-memory session management with CRUD helpers | `clean-code` |
+| 51 | `chat-service/tools.py` | **NEW** — AI tool intent detection + keyword routing | `clean-code` |
+| 52 | `chat-service/routes/chat.py` | **NEW** — /chat SSE streaming endpoint | `langchain-architecture` |
+| 53 | `chat-service/routes/canvas.py` | **NEW** — /chat/context, /chat/clear, /chat/session/* | `clean-code` |
+| 54 | `chat-service/routes/health.py` | **NEW** — /health, /debug/test-llm, /admin/cleanup | `clean-code` |
+| 55 | `chat-service/main.py` | Rewrote as thin entrypoint (922→100 lines) | `code-refactoring` |
+| 56 | `SKILLS_AUDIT.md` | This comprehensive audit document | All 7 skills |
 
 **Build Status:** ✅ Passes — `tsc --noEmit` exits 0 + `vite build` exits 0
 
@@ -410,26 +435,27 @@
 - [x] Remove all `eslint-disable-line` comments and fix actual dep issues
 - **Result: 0 `any` remaining in the entire `src/` directory** 🎉
 
-### Phase 2: Extract God Functions ✅ MOSTLY COMPLETE
-- [ ] Split `useAIGeneration` into `useSketchGen`, `useImageGen`, `useDiagramGen`, `useOcr` (deferred — needs tests first)
+### Phase 2: Extract God Functions ✅ COMPLETE
+- [x] Split `useAIGeneration` into `useSketchGen`, `useImageGen`, `useDiagramGen`, `useOcr` → `hooks/ai/*`
 - [x] Extract `executeTool` cases into named functions → `utils/executeToolAction.ts`
 - [x] Extract `createShapeElement()`, `createArrowElement()` from `useCanvasActions` → `utils/elementBuilders.ts`
 - [ ] Extract shared recording logic into `useMediaRecording()` base hook (deferred)
 - [x] Extract `blobToBase64()` into shared utility → `utils/blobToBase64.ts`
-- **Result: 3 new utility files, ChatPanel -110 lines, useCanvasActions -195 lines**
+- **Result: 8 new files, useAIGeneration 490→65 lines, ChatPanel -110 lines, useCanvasActions -195 lines** 🎉
 
-### Phase 3: Python Backend Modularization (3-4 hours)
-- [ ] Split `main.py` into `config.py`, `models.py`, `prompts.py`, `sessions.py`, `routes/`
-- [ ] Add LLM request timeout (60s)
-- [ ] Add optional LangSmith tracing
-- [ ] Add rate limiting with `slowapi`
+### Phase 3: Python Backend Modularization ✅ COMPLETE
+- [x] Split `main.py` into `config.py`, `models.py`, `parsers.py`, `prompts.py`, `sessions.py`, `tools.py`, `routes/`
+- [ ] Add LLM request timeout (60s) — already present inline (90s chat, 60s canvas)
+- [ ] Add optional LangSmith tracing (deferred)
+- [ ] Add rate limiting with `slowapi` (deferred)
+- **Result: main.py 922→100 lines, 10 new module files, all imports verified** 🎉
 
-### Phase 4: Performance Optimizations (2-3 hours)
-- [ ] Add `content-visibility: auto` to chat message items
+### Phase 4: Performance Optimizations ✅ COMPLETE
+- [x] Add `content-visibility: auto` to chat message items
 - [x] Build element index Map in `useCanvasActions` for O(1) arrow binding
-- [ ] Wrap `SpinnerIcon` SVG animation in div wrapper
-- [ ] Gate console.log behind `import.meta.env.DEV`
-- [ ] Hoist `formatDuration` function to module scope
+- [x] Wrap `SpinnerIcon` SVG animation in `.spinner-wrapper` for GPU compositing
+- [x] Gate 26 console.log behind `import.meta.env.DEV` across 8 files
+- [x] Hoist `formatDuration` function to module scope
 
 ### Phase 5: Write Tests (Prerequisite for Phase 2)
 - [ ] Unit tests for `wrapText`, `getErrorMessage`, `blobToBase64`

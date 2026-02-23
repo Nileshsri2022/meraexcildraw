@@ -24,7 +24,7 @@ export async function addImageToCanvas(
     const fileId = `${opts.idPrefix || "ai-img"}-${Date.now()}`;
     const elementId = `${fileId}-el`;
 
-    console.log(`[addImageToCanvas] Starting. fileId=${fileId}, dataURL length=${dataURL.length}, size=${opts.width}x${opts.height}`);
+    if (import.meta.env.DEV) console.log(`[addImageToCanvas] Starting. fileId=${fileId}, dataURL length=${dataURL.length}, size=${opts.width}x${opts.height}`);
 
     // Register the binary file with Excalidraw's file store
     try {
@@ -34,7 +34,7 @@ export async function addImageToCanvas(
             mimeType: "image/png",
             created: Date.now(),
         }]);
-        console.log(`[addImageToCanvas] File registered successfully`);
+        if (import.meta.env.DEV) console.log(`[addImageToCanvas] File registered successfully`);
     } catch (err) {
         console.error(`[addImageToCanvas] Failed to register file:`, err);
         throw err;
@@ -86,7 +86,7 @@ export async function addImageToCanvas(
         scale: [1, 1] as [number, number],
     };
 
-    console.log(`[addImageToCanvas] Placing image at (${posX}, ${posY}), existing elements: ${currentElements.length}`);
+    if (import.meta.env.DEV) console.log(`[addImageToCanvas] Placing image at (${posX}, ${posY}), existing elements: ${currentElements.length}`);
 
     // Cast seed element to ExcalidrawElement at the API boundary.
     // Excalidraw hydrates missing computed fields internally.

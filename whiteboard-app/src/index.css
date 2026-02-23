@@ -1372,8 +1372,10 @@ body.dark {
   pointer-events: none;
 }
 
-.voice-mic-btn--transcribing svg {
+.voice-mic-btn--transcribing .spinner-wrapper {
+  display: inline-flex;
   animation: spin 0.8s linear infinite;
+  will-change: transform;
 }
 
 /* Pulse ring */
@@ -1668,6 +1670,9 @@ body.dark {
   gap: 10px;
   margin-bottom: 16px;
   animation: chatFadeIn 0.25s ease-out;
+  /* Skip rendering for off-screen messages (perf: long conversations) */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 80px;
 }
 
 @keyframes chatFadeIn {

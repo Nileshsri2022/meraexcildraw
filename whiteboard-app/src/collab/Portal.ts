@@ -95,7 +95,7 @@ class Portal {
         });
 
         // Debug: log what we're sending
-        if (syncableElements.length > 0) {
+        if (import.meta.env.DEV && syncableElements.length > 0) {
             console.log(`📤 Broadcasting ${syncableElements.length} elements (type: ${updateType}, syncAll: ${syncAll})`);
         }
 

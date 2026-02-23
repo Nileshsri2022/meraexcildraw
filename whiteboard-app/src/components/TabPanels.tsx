@@ -20,9 +20,11 @@ const StopIcon = () => (
 );
 
 const SpinnerIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-        <path d="M12 2a10 10 0 0 1 10 10" />
-    </svg>
+    <span className="spinner-wrapper">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 2a10 10 0 0 1 10 10" />
+        </svg>
+    </span>
 );
 
 // ─── Voice Mic Button ────────────────────────────────────────────────────────
@@ -35,9 +37,10 @@ interface VoiceMicButtonProps {
     onStop: () => void;
 }
 
-const VoiceMicButton = ({ isRecording, isTranscribing, duration, onStart, onStop }: VoiceMicButtonProps) => {
-    const formatDuration = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+/** Format seconds into m:ss string (pure — hoisted to module scope) */
+const formatDuration = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
+const VoiceMicButton = ({ isRecording, isTranscribing, duration, onStart, onStop }: VoiceMicButtonProps) => {
     const btnClass = [
         "voice-mic-btn",
         isRecording && "voice-mic-btn--recording",

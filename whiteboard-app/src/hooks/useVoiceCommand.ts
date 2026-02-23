@@ -98,7 +98,7 @@ export function useVoiceCommand({
             }
 
             const transcript = sttData.text.trim();
-            console.log(`[VoiceCommand] Transcript: "${transcript}"`);
+            if (import.meta.env.DEV) console.log(`[VoiceCommand] Transcript: "${transcript}"`);
 
             // ── Phase 2: Classify Intent ──────────────────────────────────
             setPhase("classifying");
@@ -108,7 +108,7 @@ export function useVoiceCommand({
                 body: JSON.stringify({ transcript }),
             });
 
-            console.log(`[VoiceCommand] Classification:`, classification);
+            if (import.meta.env.DEV) console.log(`[VoiceCommand] Classification:`, classification);
 
             const result: VoiceCommandResult = {
                 tool: classification.tool,

@@ -85,7 +85,7 @@ export function useCanvasActions(excalidrawAPI: ExcalidrawImperativeAPI | null) 
                 );
             }, 100);
 
-            console.log(`[CanvasActions] Added ${createdElements.length} elements to canvas`);
+            if (import.meta.env.DEV) console.log(`[CanvasActions] Added ${createdElements.length} elements to canvas`);
         }
 
         return createdElements.length;

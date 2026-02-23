@@ -83,13 +83,13 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
     const startCollaboration = useCallback(
         (targetRoomId?: string) => {
             if (!excalidrawAPI) {
-                console.log("❌ Cannot start: no excalidrawAPI");
+                if (import.meta.env.DEV) console.log("❌ Cannot start: no excalidrawAPI");
                 return;
             }
 
             // If already connected, skip
             if (portalRef.current?.isOpen()) {
-                console.log("⚠️ Already connected, skipping");
+                if (import.meta.env.DEV) console.log("⚠️ Already connected, skipping");
                 return;
             }
 
@@ -97,7 +97,7 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
             const urlRoomId = getRoomIdFromUrl();
             const room = targetRoomId || urlRoomId || generateRoomId();
 
-            console.log(`� JOINING room: ${room}`);
+            if (import.meta.env.DEV) console.log(`🔌 JOINING room: ${room}`);
 
             setRoomIdInUrl(room);
             setRoomId(room);
@@ -126,7 +126,7 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
                     if (parsed.type === WS_SUBTYPES.INIT || parsed.type === WS_SUBTYPES.UPDATE) {
                         const remoteElements = parsed.payload.elements as RemoteExcalidrawElement[];
                         if (remoteElements?.length) {
-                            console.log(`📥 Received ${remoteElements.length} elements`);
+                            if (import.meta.env.DEV) console.log(`📥 Received ${remoteElements.length} elements`);
                             // Reconcile remote elements with local elements
                             const localElements = excalidrawAPI.getSceneElementsIncludingDeleted();
                             const appState = excalidrawAPI.getAppState();
@@ -189,7 +189,7 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
         excalidrawAPI?.updateScene({ collaborators: new Map() });
         window.location.hash = "";
         hasAutoJoinedRef.current = false;
-        console.log("🔴 Left collaboration");
+        if (import.meta.env.DEV) console.log("🔴 Left collaboration");
     }, [excalidrawAPI, setIsCollaborating, setCollaboratorsState]);
 
     // Handle pointer updates
@@ -210,7 +210,7 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
             if (isOpen) {
                 portalRef.current!.broadcastScene(WS_SUBTYPES.UPDATE, elements, false);
             } else {
-                console.log(`⚠️ onSceneChange called but portal not open (isOpen: ${isOpen}, portal: ${!!portalRef.current})`);
+                if (import.meta.env.DEV) console.log(`⚠️ onSceneChange called but portal not open (isOpen: ${isOpen}, portal: ${!!portalRef.current})`);
             }
         },
         []
@@ -223,7 +223,7 @@ export function useCollaboration({ excalidrawAPI }: UseCollaborationProps) {
         const roomFromUrl = getRoomIdFromUrl();
         if (roomFromUrl && excalidrawAPI) {
             hasAutoJoinedRef.current = true;
-            console.log(`🔄 Auto-joining room: ${roomFromUrl}`);
+            if (import.meta.env.DEV) console.log(`🔄 Auto-joining room: ${roomFromUrl}`);
             // Use setTimeout to ensure React is done with initial render
             setTimeout(() => {
                 startCollaboration(roomFromUrl);

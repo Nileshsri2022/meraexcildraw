@@ -92,7 +92,7 @@ const App: React.FC = () => {
                         elements: savedData.elements as OrderedExcalidrawElement[],
                         appState: savedData.appState as unknown as AppState,
                     });
-                    console.log('[App] Restored saved scene with files');
+                    if (import.meta.env.DEV) console.log('[App] Restored saved scene with files');
                 }
                 setInitialDataLoaded(true);
             });

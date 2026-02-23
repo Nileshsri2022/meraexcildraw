@@ -91,10 +91,12 @@ export async function saveScene(
             timestamp: Date.now(),
         });
 
-        console.log('[LocalStorage] Scene saved', {
-            elementCount: elements.length,
-            fileCount: Object.keys(files).length,
-        });
+        if (import.meta.env.DEV) {
+            console.log('[LocalStorage] Scene saved', {
+                elementCount: elements.length,
+                fileCount: Object.keys(files).length,
+            });
+        }
     } catch (error) {
         console.error('[LocalStorage] Failed to save scene:', error);
     }
@@ -113,7 +115,7 @@ export async function loadScene(): Promise<{
         const scene = await db.get('scenes', SCENE_KEY);
 
         if (scene) {
-            console.log('[LocalStorage] Scene loaded', {
+            if (import.meta.env.DEV) console.log('[LocalStorage] Scene loaded', {
                 elementCount: scene.elements.length,
                 fileCount: Object.keys(scene.files || {}).length,
                 savedAt: new Date(scene.timestamp).toLocaleString(),
@@ -137,7 +139,7 @@ export async function deleteScene(): Promise<void> {
     try {
         const db = await getDB();
         await db.delete('scenes', SCENE_KEY);
-        console.log('[LocalStorage] Scene deleted');
+        if (import.meta.env.DEV) console.log('[LocalStorage] Scene deleted');
     } catch (error) {
         console.error('[LocalStorage] Failed to delete scene:', error);
     }
@@ -181,7 +183,7 @@ export async function saveAIResult(
         await tx.done;
     }
 
-    console.log(`[AI History] Saved ${entry.type} result (${newEntry.id})`);
+    if (import.meta.env.DEV) console.log(`[AI History] Saved ${entry.type} result (${newEntry.id})`);
     return newEntry;
 }
 
@@ -220,7 +222,7 @@ export async function deleteAIHistoryEntry(id: string): Promise<void> {
     try {
         const db = await getDB();
         await db.delete('ai-history', id);
-        console.log(`[AI History] Deleted entry ${id}`);
+        if (import.meta.env.DEV) console.log(`[AI History] Deleted entry ${id}`);
     } catch (error) {
         console.error('[AI History] Failed to delete entry:', error);
     }
@@ -233,7 +235,7 @@ export async function clearAIHistory(): Promise<void> {
     try {
         const db = await getDB();
         await db.clear('ai-history');
-        console.log('[AI History] Cleared all history');
+        if (import.meta.env.DEV) console.log('[AI History] Cleared all history');
     } catch (error) {
         console.error('[AI History] Failed to clear history:', error);
     }
