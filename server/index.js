@@ -510,7 +510,10 @@ app.post("/api/ai/ocr", async (req, res) => {
         // Remove data URL prefix if present
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
-        // Call PaddleOCR-VL API (layout-parsing endpoint)
+        // Call PaddleOCR-VL API (layout-parsing endpoint) with 30s timeout
+        const ocrController = new AbortController();
+        const ocrTimeout = setTimeout(() => ocrController.abort(), 30000);
+
         const response = await fetch(`${PADDLEOCR_SERVER}/layout-parsing`, {
             method: "POST",
             headers: {
@@ -522,7 +525,10 @@ app.post("/api/ai/ocr", async (req, res) => {
                 fileType: 1, // 1 = image
                 useLayoutDetection: false,
             }),
+            signal: ocrController.signal,
         });
+
+        clearTimeout(ocrTimeout);
 
         if (!response.ok) {
             const errorText = await response.text();
