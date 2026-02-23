@@ -110,6 +110,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [mcpForm, setMcpForm] = useState({ label: "", url: "", apiKey: "", description: "" });
     const [mcpTestStatus, setMcpTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
     const [mcpTestError, setMcpTestError] = useState("");
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
     const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
@@ -317,7 +318,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
     return (
         <div
-            className={`chat-panel ${isOpen ? "chat-panel--open" : ""}`}
+            className={`chat-panel ${isOpen ? "chat-panel--open" : ""} ${isSidebarCollapsed ? "chat-panel--sidebar-collapsed" : ""}`}
             style={{ width: isOpen ? `${panelWidth}px` : "0" } as React.CSSProperties}
         >
             {/* Resize Handle */}
@@ -325,7 +326,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
             <div className="chat-panel-container">
                 {/* Left Action Sidebar */}
-                <div className="chat-panel-sidebar">
+                <div className={`chat-panel-sidebar ${isSidebarCollapsed ? "chat-panel-sidebar--collapsed" : ""}`}>
                     <button
                         className="chat-sidebar-btn chat-sidebar-btn--primary"
                         onClick={chat.startNewConversation}
@@ -397,6 +398,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                             <span>Canvas AI</span>
                         </div>
                         <div className="chat-panel-actions">
+                            <button
+                                className={`chat-panel-action-btn ${isSidebarCollapsed ? '' : 'chat-panel-action-btn--active'}`}
+                                onClick={() => setIsSidebarCollapsed(p => !p)}
+                                title={isSidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+                            >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                    <line x1="9" y1="3" x2="9" y2="21" />
+                                </svg>
+                            </button>
                             <button className="chat-panel-action-btn" onClick={onClose} title="Close">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                     <line x1="18" y1="6" x2="6" y2="18" />
