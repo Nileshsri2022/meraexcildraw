@@ -113,6 +113,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [confirmClear, setConfirmClear] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
 
     const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
@@ -245,17 +246,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     }, [chat.pendingToolAction, chat, aiGen, excalidrawAPI]);
 
     // Auto-scroll logic
-    const prevMessagesLength = useRef(0);
     const prevActiveId = useRef<string | null>(null);
 
     useEffect(() => {
         const isNewChat = chat.activeConversationId !== prevActiveId.current;
         const behavior = isNewChat ? "auto" : "smooth";
 
-        messagesEndRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
+        // Use a tiny delay to ensure the DOM has updated with new messages
+        const timeout = setTimeout(() => {
+            if (messagesEndRef.current) {
+                messagesEndRef.current.scrollIntoView({ behavior: behavior as ScrollBehavior });
+            }
+        }, isNewChat ? 0 : 50);
 
-        prevMessagesLength.current = chat.messages.length;
         prevActiveId.current = chat.activeConversationId;
+        return () => clearTimeout(timeout);
     }, [chat.messages, actionCount, chat.activeConversationId]);
 
     // Focus input when panel opens
@@ -354,10 +359,33 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         <span className="chat-sidebar-title">Recent Chats</span>
                     </div>
 
+                    <div className="chat-sidebar-search">
+                        <div className="chat-search-input-wrapper">
+                            <svg className="chat-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            <input
+                                type="text"
+                                className="chat-search-input"
+                                placeholder="Search chats..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
                     <div className="chat-conv-list">
-                        {chat.conversations
-                            .filter(conv => conv.title !== "New Conversation" || chat.activeConversationId === conv.id)
-                            .map(conv => (
+                        {(() => {
+                            const filtered = chat.conversations
+                                .filter(conv => (conv.title !== "New Conversation" || chat.activeConversationId === conv.id))
+                                .filter(conv => !searchTerm || conv.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+                            if (filtered.length === 0 && searchTerm) {
+                                return <div className="chat-search-empty">No conversations found</div>;
+                            }
+
+                            return filtered.map(conv => (
                                 <div
                                     key={conv.id}
                                     className={`chat-conv-item ${chat.activeConversationId === conv.id ? 'chat-conv-item--active' : ''}`}
@@ -411,7 +439,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                         </button>
                                     )}
                                 </div>
-                            ))}
+                            ));
+                        })()}
                     </div>
 
                     <div className="chat-sidebar-footer">
