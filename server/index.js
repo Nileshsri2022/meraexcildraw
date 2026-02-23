@@ -25,9 +25,41 @@ const io = new Server(httpServer, {
     },
 });
 
-// Initialize Hugging Face Inference
+// Initialize Hugging Face Inference (still used for Gradio Space connections)
 const hf = new InferenceClient(process.env.HF_TOKEN || "");
-const MODEL = "moonshotai/Kimi-K2-Instruct";
+
+// Groq API for LLM tasks (diagram generation, voice commands)
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
+
+/**
+ * Call Groq's OpenAI-compatible chat completions API.
+ * Returns the assistant's message content string.
+ */
+async function groqChat(messages, { maxTokens = 500, temperature = 0.7 } = {}) {
+    const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model: GROQ_MODEL,
+            messages,
+            max_tokens: maxTokens,
+            temperature,
+        }),
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Groq API error ${response.status}: ${err}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content?.trim() || "";
+}
 
 // Track rooms and their users
 const rooms = new Map();
@@ -103,28 +135,21 @@ REQUEST: ${prompt}
 
 OUTPUT (Mermaid code only):`;
 
-        console.log(`[AI] Generating diagram with ${MODEL}...`);
+        console.log(`[AI] Generating diagram with Groq ${GROQ_MODEL}...`);
 
         let mermaidCode = "";
 
-        // Use chat completion (conversational task)
-        const response = await hf.chatCompletion({
-            model: MODEL,
-            messages: [
-                {
-                    role: "system",
-                    content: "You are a diagram expert. Generate ONLY Mermaid code, no explanations."
-                },
-                {
-                    role: "user",
-                    content: systemPrompt
-                }
-            ],
-            max_tokens: 500,
-            temperature: 0.7,
-        });
-
-        mermaidCode = response.choices[0]?.message?.content?.trim() || "";
+        // Use Groq chat completion (fast, free)
+        mermaidCode = await groqChat([
+            {
+                role: "system",
+                content: "You are a diagram expert. Generate ONLY Mermaid code, no explanations."
+            },
+            {
+                role: "user",
+                content: systemPrompt
+            }
+        ], { maxTokens: 500, temperature: 0.7 });
 
         console.log(`[AI] Raw response:\n${mermaidCode.substring(0, 500)}`);
 
@@ -642,17 +667,11 @@ Examples:
 
 IMPORTANT: Respond with ONLY the JSON, nothing else.`;
 
-        const response = await hf.chatCompletion({
-            model: MODEL,
-            messages: [
-                { role: "system", content: classifyPrompt },
-                { role: "user", content: transcript.trim() },
-            ],
-            max_tokens: 200,
-            temperature: 0.1,
-        });
-
-        let rawContent = response.choices[0]?.message?.content?.trim() || "";
+        // Use Groq for fast intent classification
+        let rawContent = await groqChat([
+            { role: "system", content: classifyPrompt },
+            { role: "user", content: transcript.trim() },
+        ], { maxTokens: 200, temperature: 0.1 });
 
         // Clean up — remove think tags and markdown code blocks
         rawContent = rawContent
@@ -856,14 +875,15 @@ app.get("/", (req, res) => {
         status: "ok",
         rooms: rooms.size,
         connections: io.engine.clientsCount,
-        aiEnabled: !!process.env.HF_TOKEN,
-        model: MODEL,
+        groqEnabled: !!GROQ_API_KEY,
+        groqModel: GROQ_MODEL,
+        hfEnabled: !!process.env.HF_TOKEN,
     });
 });
 
 const PORT = process.env.PORT || 3002;
 httpServer.listen(PORT, () => {
     console.log(`\n🚀 Collab server running at http://localhost:${PORT}`);
-    console.log(`🤖 AI enabled: ${!!process.env.HF_TOKEN}`);
-    console.log(`📦 Model: ${MODEL}\n`);
+    console.log(`🤖 Groq: ${!!GROQ_API_KEY ? GROQ_MODEL : "NOT CONFIGURED"}`);
+    console.log(`🖼️ HF Spaces: ${!!process.env.HF_TOKEN ? "enabled" : "NOT CONFIGURED"}\n`);
 });

@@ -104,41 +104,67 @@ def md_to_html(text: str) -> str:
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
-CHAT_MODEL: str = os.getenv("CHAT_MODEL", "arcee-ai/trinity-large-preview:free")
+GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+CHAT_MODEL_PRIMARY: str = os.getenv("CHAT_MODEL_PRIMARY", "llama-3.3-70b-versatile")
+CHAT_MODEL_FALLBACK: str = os.getenv("CHAT_MODEL_FALLBACK", "arcee-ai/trinity-large-preview:free")
 CHAT_PORT: int = int(os.getenv("CHAT_PORT", "3003"))
 MAX_HISTORY_MESSAGES: int = int(os.getenv("MAX_HISTORY_MESSAGES", "20"))
 SESSION_TTL_HOURS: int = int(os.getenv("SESSION_TTL_HOURS", "24"))
 
-if not OPENROUTER_API_KEY:
-    raise ValueError("OPENROUTER_API_KEY is required. Set it in .env")
+if not GROQ_API_KEY and not OPENROUTER_API_KEY:
+    raise ValueError("Either GROQ_API_KEY or OPENROUTER_API_KEY is required. Set in .env")
 
-# ─── OpenRouter LLMs via ChatOpenAI (OpenAI-compatible endpoint) ─────────────
+# ─── LLMs: Groq (primary) + OpenRouter (fallback) ────────────────────────────
 #
-# Using ChatOpenAI with OpenRouter's base_url gives us full LCEL chain
-# compatibility while accessing OpenRouter's model catalog.
-# Singleton instances reuse HTTP connection pools.
+# Primary: Groq with llama-3.3-70b-versatile (fast, free)
+# Fallback: OpenRouter with arcee-ai/trinity-large-preview:free
+# Both use ChatOpenAI since they expose OpenAI-compatible APIs.
 
+# Primary LLM — Groq
 chat_llm = ChatOpenAI(
-    model=CHAT_MODEL,
-    api_key=OPENROUTER_API_KEY,
+    model=CHAT_MODEL_PRIMARY,
+    api_key=GROQ_API_KEY or "unused",
+    base_url="https://api.groq.com/openai/v1",
+    temperature=0.8,
+    max_tokens=4096,
+    streaming=True,
+) if GROQ_API_KEY else None
+
+canvas_llm = ChatOpenAI(
+    model=CHAT_MODEL_PRIMARY,
+    api_key=GROQ_API_KEY or "unused",
+    base_url="https://api.groq.com/openai/v1",
+    temperature=0.2,
+    max_tokens=4096,
+    streaming=False,
+) if GROQ_API_KEY else None
+
+# Fallback LLM — OpenRouter
+fallback_chat_llm = ChatOpenAI(
+    model=CHAT_MODEL_FALLBACK,
+    api_key=OPENROUTER_API_KEY or "unused",
     base_url="https://openrouter.ai/api/v1",
     temperature=0.8,
     max_tokens=4096,
     streaming=True,
     model_kwargs={"extra_body": {"reasoning": {"enabled": True}}},
-)
+) if OPENROUTER_API_KEY else None
 
-canvas_llm = ChatOpenAI(
-    model=CHAT_MODEL,
-    api_key=OPENROUTER_API_KEY,
+fallback_canvas_llm = ChatOpenAI(
+    model=CHAT_MODEL_FALLBACK,
+    api_key=OPENROUTER_API_KEY or "unused",
     base_url="https://openrouter.ai/api/v1",
     temperature=0.2,
     max_tokens=4096,
     streaming=False,
-    # Canvas doesn't strictly need reasoning since it just outputs JSON,
-    # but we enable it to match the configured model's requirements if it strictly requires it.
     model_kwargs={"extra_body": {"reasoning": {"enabled": True}}},
-)
+) if OPENROUTER_API_KEY else None
+
+# Use primary if available, otherwise fallback
+if chat_llm is None:
+    chat_llm = fallback_chat_llm
+if canvas_llm is None:
+    canvas_llm = fallback_canvas_llm
 
 
 # ─── Pydantic Schemas (Validated structured output) ──────────────────────────
@@ -446,9 +472,9 @@ def _cleanup_stale_sessions() -> int:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup + shutdown hooks."""
-    print(f"[Boot] Canvas AI Chat Service v5.0")
-    print(f"[Boot] Model: {CHAT_MODEL}")
-    print(f"[Boot] API: OpenRouter (https://openrouter.ai/api/v1)")
+    print(f"[Boot] Canvas AI Chat Service v5.1")
+    print(f"[Boot] Primary: Groq ({CHAT_MODEL_PRIMARY})")
+    print(f"[Boot] Fallback: OpenRouter ({CHAT_MODEL_FALLBACK})")
     print(f"[Boot] Port: {CHAT_PORT}")
     yield
     print("[Shutdown] Chat service stopping")
@@ -485,11 +511,12 @@ async def health():
     """Health check with diagnostics."""
     return {
         "status": "ok",
-        "model": CHAT_MODEL,
+        "primary_model": CHAT_MODEL_PRIMARY,
+        "fallback_model": CHAT_MODEL_FALLBACK,
         "sessions": len(_sessions),
-        "version": "5.0.0",
-        "api": "openrouter",
-        "api_key_set": bool(OPENROUTER_API_KEY),
+        "version": "5.1.0",
+        "groq_key_set": bool(GROQ_API_KEY),
+        "openrouter_key_set": bool(OPENROUTER_API_KEY),
     }
 
 
@@ -502,13 +529,13 @@ async def test_llm():
             content = result.content if hasattr(result, "content") else str(result)
             return {
                 "status": "ok",
-                "model": CHAT_MODEL,
+                "model": CHAT_MODEL_PRIMARY,
                 "response": content[:200],
             }
     except asyncio.TimeoutError:
-        return {"status": "timeout", "model": CHAT_MODEL, "error": "LLM did not respond within 30s"}
+        return {"status": "timeout", "model": CHAT_MODEL_PRIMARY, "error": "LLM did not respond within 30s"}
     except Exception as e:
-        return {"status": "error", "model": CHAT_MODEL, "error": str(e)}
+        return {"status": "error", "model": CHAT_MODEL_PRIMARY, "error": str(e)}
 
 
 @app.post("/chat")
