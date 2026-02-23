@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
-import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import { convertToExcalidrawElements, exportToCanvas } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../utils/mathJaxParser";
@@ -295,15 +295,49 @@ export function useAIGeneration(
         }
     }, []);
 
-    const captureCanvas = useCallback((): string | null => {
+    const captureCanvas = useCallback(async (): Promise<string | null> => {
         if (!excalidrawAPI) return null;
-        const canvas = document.querySelector('.excalidraw canvas') as HTMLCanvasElement;
-        if (canvas) {
-            const dataUrl = canvas.toDataURL('image/png');
-            setOcrImage(dataUrl);
-            setOcrResult(null);
-            setError(null);
-            return dataUrl;
+
+        try {
+            // Get selected element IDs
+            const appState = excalidrawAPI.getAppState();
+            const selectedIds = appState.selectedElementIds || {};
+            const allElements = excalidrawAPI.getSceneElements() || [];
+            const files = excalidrawAPI.getFiles();
+
+            // Filter to selected elements only
+            const selectedElements = allElements.filter(
+                (el: any) => selectedIds[el.id] && !el.isDeleted
+            );
+
+            // If we have selected elements, export only those
+            if (selectedElements.length > 0) {
+                console.log(`[captureCanvas] Exporting ${selectedElements.length} selected element(s)`);
+                const canvas = await exportToCanvas({
+                    elements: selectedElements as any,
+                    appState: { viewBackgroundColor: "#ffffff", exportBackground: true } as any,
+                    files: files || null,
+                    exportPadding: 10,
+                });
+                const dataUrl = canvas.toDataURL('image/png');
+                setOcrImage(dataUrl);
+                setOcrResult(null);
+                setError(null);
+                return dataUrl;
+            }
+
+            // Fallback: capture entire visible canvas
+            console.log(`[captureCanvas] No selection, capturing full canvas`);
+            const canvasEl = document.querySelector('.excalidraw canvas') as HTMLCanvasElement;
+            if (canvasEl) {
+                const dataUrl = canvasEl.toDataURL('image/png');
+                setOcrImage(dataUrl);
+                setOcrResult(null);
+                setError(null);
+                return dataUrl;
+            }
+        } catch (err) {
+            console.error('[captureCanvas] Error:', err);
         }
         return null;
     }, [excalidrawAPI]);

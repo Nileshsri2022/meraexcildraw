@@ -138,7 +138,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
                     case "ocr":
                         setToolStatus("📝 Capturing canvas for OCR...");
-                        const capturedImage = aiGen.captureCanvas();
+                        const capturedImage = await aiGen.captureCanvas();
                         if (!capturedImage) {
                             setToolStatus("❌ No canvas content to capture");
                             break;

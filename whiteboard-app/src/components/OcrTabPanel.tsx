@@ -10,7 +10,7 @@ interface OcrTabPanelProps {
     ocrResult: string | null;
     ocrMarkdownRef: React.Ref<HTMLDivElement>;
     onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onCapture: () => void;
+    onCapture: () => void | Promise<unknown>;
     onAddAsImage: () => void;
     onAddAsText: () => void;
     onClear: () => void;
