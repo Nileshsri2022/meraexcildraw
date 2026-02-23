@@ -12,6 +12,7 @@ import { useCanvasChat } from "../hooks/useCanvasChat";
 import type { ChatMessage } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useAIGeneration } from "../hooks/useAIGeneration";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 
 // ─── Message Bubble ──────────────────────────────────────────────────────────
 
@@ -144,12 +145,43 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         }
                         setToolStatus("📝 Extracting text...");
                         const ocrText = await aiGen.performOcr(action.prompt, capturedImage);
-                        // Show the extracted text in the chat
                         if (ocrText) {
+                            // 1. Show in chat
                             chat.appendAssistantMessage(
                                 `📝 **Extracted Text:**\n\n${ocrText}`
                             );
-                            setToolStatus("✅ Text extracted!");
+                            // 2. Place text on canvas as Excalidraw text element
+                            if (excalidrawAPI) {
+                                try {
+                                    const currentEls = excalidrawAPI.getSceneElements() || [];
+                                    // Position text to the right of existing content
+                                    let maxX = 100;
+                                    let minY = 100;
+                                    for (const el of currentEls) {
+                                        if (!el.isDeleted) {
+                                            const right = (el.x || 0) + (el.width || 0);
+                                            if (right > maxX) maxX = right;
+                                            if (minY === 100 || el.y < minY) minY = el.y;
+                                        }
+                                    }
+                                    const textEl = convertToExcalidrawElements([{
+                                        type: "text",
+                                        x: maxX + 60,
+                                        y: minY,
+                                        text: ocrText,
+                                        fontSize: 16,
+                                        fontFamily: 1,
+                                        textAlign: "left",
+                                    }]);
+                                    excalidrawAPI.updateScene({
+                                        elements: [...currentEls, ...textEl],
+                                    });
+                                    excalidrawAPI.scrollToContent(textEl, { fitToContent: true });
+                                } catch (canvasErr) {
+                                    console.error("Failed to add OCR text to canvas:", canvasErr);
+                                }
+                            }
+                            setToolStatus("✅ Text extracted & added to canvas!");
                         } else {
                             chat.appendAssistantMessage(
                                 `❌ OCR failed — the service may be busy or timed out. Please try again.`
