@@ -12,7 +12,7 @@ import { useCanvasChat } from "../hooks/useCanvasChat";
 import type { ChatMessage } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useAIGeneration } from "../hooks/useAIGeneration";
-import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import { executeToolAction } from "../utils/executeToolAction";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 // ─── Message Bubble ──────────────────────────────────────────────────────────
@@ -112,124 +112,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         const action = chat.pendingToolAction;
         chat.consumeToolAction();
 
-        const executeTool = async () => {
+        const run = async () => {
             try {
-                // Set the prompt in the AI generation hook for UI consistency
-                aiGen.setPrompt(action.prompt);
-
-                switch (action.tool) {
-                    case "diagram":
-                        setToolStatus("🧩 Generating diagram...");
-                        if (action.style) aiGen.setStyle(action.style);
-                        await aiGen.generateDiagram(action.prompt, action.style);
-                        setToolStatus("✅ Diagram created!");
-                        break;
-
-                    case "image":
-                        setToolStatus("🖼️ Generating image...");
-                        await aiGen.generateImage(action.prompt);
-                        setToolStatus("✅ Image created!");
-                        break;
-
-                    case "sketch":
-                        setToolStatus("✏️ Converting sketch...");
-                        await aiGen.generateSketchImage(action.prompt);
-                        setToolStatus("✅ Sketch converted!");
-                        break;
-
-                    case "ocr":
-                        setToolStatus("📝 Capturing canvas for OCR...");
-                        const capturedImage = await aiGen.captureCanvas();
-                        if (!capturedImage) {
-                            setToolStatus("❌ No canvas content to capture");
-                            break;
-                        }
-                        setToolStatus("📝 Extracting text...");
-                        const ocrText = await aiGen.performOcr(action.prompt, capturedImage);
-                        if (ocrText) {
-                            // Place text on canvas inside a resizable container box
-                            if (excalidrawAPI) {
-                                try {
-                                    const currentEls = excalidrawAPI.getSceneElements() || [];
-                                    // Position to the right of existing content
-                                    let maxX = 100;
-                                    let minY = 100;
-                                    for (const el of currentEls) {
-                                        if (!el.isDeleted) {
-                                            const right = (el.x || 0) + (el.width || 0);
-                                            if (right > maxX) maxX = right;
-                                            if (minY === 100 || el.y < minY) minY = el.y;
-                                        }
-                                    }
-
-                                    // Word-wrap text to fit ~400px width at 16px font
-                                    const BOX_WIDTH = 400;
-                                    const CHARS_PER_LINE = Math.floor(BOX_WIDTH / 8.5); // ~8.5px per char at 16px
-                                    const words = ocrText.split(/\s+/);
-                                    const lines: string[] = [];
-                                    let currentLine = "";
-                                    for (const word of words) {
-                                        if (currentLine.length + word.length + 1 > CHARS_PER_LINE && currentLine) {
-                                            lines.push(currentLine);
-                                            currentLine = word;
-                                        } else {
-                                            currentLine = currentLine ? `${currentLine} ${word}` : word;
-                                        }
-                                    }
-                                    if (currentLine) lines.push(currentLine);
-                                    const wrappedText = lines.join("\n");
-
-                                    // Create a rectangle container with the text as a label
-                                    const LINE_HEIGHT = 22;
-                                    const PADDING = 20;
-                                    const boxHeight = Math.max(100, lines.length * LINE_HEIGHT + PADDING * 2);
-
-                                    const containerElements = convertToExcalidrawElements([{
-                                        type: "rectangle",
-                                        x: maxX + 60,
-                                        y: minY,
-                                        width: BOX_WIDTH,
-                                        height: boxHeight,
-                                        strokeColor: "#495057",
-                                        backgroundColor: "#ffffff",
-                                        fillStyle: "solid",
-                                        strokeWidth: 1,
-                                        roundness: { type: 3 },
-                                        label: {
-                                            text: wrappedText,
-                                            fontSize: 16,
-                                            fontFamily: 1,
-                                            textAlign: "left",
-                                            verticalAlign: "top",
-                                        },
-                                    }]);
-
-                                    excalidrawAPI.updateScene({
-                                        elements: [...currentEls, ...containerElements],
-                                    });
-                                    excalidrawAPI.scrollToContent(containerElements, { fitToContent: true });
-                                } catch (canvasErr) {
-                                    console.error("Failed to add OCR text to canvas:", canvasErr);
-                                }
-                            }
-                            setToolStatus("✅ Text added to canvas!");
-                        } else {
-                            chat.appendAssistantMessage(
-                                `❌ OCR failed — the service may be busy or timed out. Please try again.`
-                            );
-                            setToolStatus("❌ OCR failed");
-                        }
-                        break;
-
-                    case "tts":
-                        setToolStatus("🔊 Generating speech...");
-                        // TTS needs to be handled differently since it uses a separate hook
-                        setToolStatus("🔊 TTS requested — open AI Tools > TTS tab");
-                        break;
-
-                    default:
-                        setToolStatus(null);
-                }
+                await executeToolAction({
+                    action,
+                    aiGen,
+                    excalidrawAPI,
+                    setToolStatus,
+                    appendAssistantMessage: chat.appendAssistantMessage,
+                });
             } catch (err) {
                 console.error(`Tool ${action.tool} failed:`, err);
                 setToolStatus(`❌ ${action.tool} failed`);
@@ -239,7 +130,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             setTimeout(() => setToolStatus(null), 4000);
         };
 
-        executeTool();
+        run();
     }, [chat.pendingToolAction, chat, aiGen, excalidrawAPI]);
 
     // Auto-scroll to bottom

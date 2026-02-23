@@ -11,6 +11,7 @@
  */
 import { useState, useRef, useCallback } from "react";
 import { apiFetch, getErrorMessage } from "../utils/apiClient";
+import { blobToBase64 } from "../utils/blobToBase64";
 import type { STTResponse } from "../utils/apiClient";
 
 interface UseVoiceRecorderOptions {
@@ -59,11 +60,7 @@ export function useVoiceRecorder({
         setState("transcribing");
 
         try {
-            // Convert blob to base64
-            const buffer = await audioBlob.arrayBuffer();
-            const base64 = btoa(
-                new Uint8Array(buffer).reduce((s, b) => s + String.fromCharCode(b), "")
-            );
+            const base64 = await blobToBase64(audioBlob);
 
             const data = await apiFetch<STTResponse>("/api/ai/speech-to-text", {
                 method: "POST",

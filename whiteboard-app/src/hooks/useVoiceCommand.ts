@@ -8,6 +8,7 @@
  */
 import { useState, useRef, useCallback } from "react";
 import { apiFetch, getErrorMessage } from "../utils/apiClient";
+import { blobToBase64 } from "../utils/blobToBase64";
 import type { VoiceCommandResponse, STTResponse } from "../utils/apiClient";
 
 type VoiceCommandPhase =
@@ -83,10 +84,7 @@ export function useVoiceCommand({
             // ── Phase 1: Transcribe ───────────────────────────────────────
             setPhase("transcribing");
 
-            const buffer = await audioBlob.arrayBuffer();
-            const base64 = btoa(
-                new Uint8Array(buffer).reduce((s, b) => s + String.fromCharCode(b), "")
-            );
+            const base64 = await blobToBase64(audioBlob);
 
             const sttData = await apiFetch<STTResponse>("/api/ai/speech-to-text", {
                 method: "POST",
