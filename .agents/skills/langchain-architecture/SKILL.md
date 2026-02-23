@@ -486,7 +486,7 @@ from langchain_anthropic import ChatAnthropic
 # Enable LangSmith tracing
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_API_KEY"] = "your-api-key"
-os.environ["LANGCHAIN_PROJECT"] = "my-project"
+os.environ["LANGCHAIN_PROJECT"] = "Canvas-AI-Chat"
 
 # All LangChain/LangGraph operations are automatically traced
 llm = ChatAnthropic(model="claude-sonnet-4-6")

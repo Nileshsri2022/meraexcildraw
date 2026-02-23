@@ -14,9 +14,10 @@
  *   { type: "canvas_action", elements: [...] }
  *   { type: "error",  error: "..." }
  */
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { chatDb } from "../services/chatDb";
 
 /**
  * Minimal shape of an Excalidraw scene element for canvas context sync.
@@ -111,6 +112,34 @@ export function useCanvasChat() {
     const setExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI | null) => {
         excalidrawAPIRef.current = api;
     }, []);
+
+    /**
+     * Load messages from IndexedDB on mount.
+     */
+    useEffect(() => {
+        const load = async () => {
+            try {
+                const stored = await chatDb.loadMessages();
+                if (stored && stored.length > 0) {
+                    setMessages(stored);
+                }
+            } catch (err) {
+                console.error("[ChatDB] Failed to load messages:", err);
+            }
+        };
+        load();
+    }, []);
+
+    /**
+     * Save messages to IndexedDB whenever they change.
+     */
+    useEffect(() => {
+        if (messages.length > 0 && !isStreaming) {
+            chatDb.saveMessages(messages).catch(err => {
+                console.error("[ChatDB] Failed to save messages:", err);
+            });
+        }
+    }, [messages, isStreaming]);
 
     /**
      * Internal: send canvas context to the server (requires active session).
@@ -515,6 +544,7 @@ export function useCanvasChat() {
         setMessages([]);
         setError(null);
         setPendingActions(null);
+        await chatDb.clearMessages();
 
         if (sessionIdRef.current) {
             try {
