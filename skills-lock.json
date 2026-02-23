@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "clean-code": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "78cc52dda1fa19d4a49b71fa4e9733fe91cb370887a5b91b6e8b4781b56c428a"
+    },
     "langchain-architecture": {
       "source": "wshobson/agents",
       "sourceType": "github",

@@ -1,4 +1,5 @@
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ImageCanvasOptions } from "../types/ai-tools";
 import { toFileId, toDataURL, toFractionalIndex } from "../types/ai-tools";
 
@@ -11,7 +12,7 @@ import { toFileId, toDataURL, toFractionalIndex } from "../types/ai-tools";
  *  3. Updating the scene and scrolling to content
  *
  * Uses branded type helpers (toFileId, toDataURL, toFractionalIndex)
- * instead of scattered `as any` casts for type interop with Excalidraw.
+ * and ExcalidrawElement boundary casts for type interop with Excalidraw.
  *
  * Returns the created element ID.
  */
@@ -46,8 +47,8 @@ export async function addImageToCanvas(
 
     // If there are existing elements, place the new image to the right of the rightmost element
     if (currentElements.length > 0) {
-        const maxRight = Math.max(...currentElements.map((el: any) => (el.x || 0) + (el.width || 0)));
-        const avgY = currentElements.reduce((sum: number, el: any) => sum + (el.y || 0), 0) / currentElements.length;
+        const maxRight = Math.max(...currentElements.map(el => el.x + el.width));
+        const avgY = currentElements.reduce((sum, el) => sum + el.y, 0) / currentElements.length;
         posX = maxRight + 50; // 50px gap to the right
         posY = avgY;
     }
@@ -87,24 +88,30 @@ export async function addImageToCanvas(
 
     console.log(`[addImageToCanvas] Placing image at (${posX}, ${posY}), existing elements: ${currentElements.length}`);
 
+    // Cast seed element to ExcalidrawElement at the API boundary.
+    // Excalidraw hydrates missing computed fields internally.
+    const imageAsElement = imageElement as unknown as ExcalidrawElement;
+
     // Add to scene and scroll into view
     api.updateScene({
-        elements: [...currentElements, imageElement as any],
+        elements: [...currentElements, imageAsElement],
     });
 
     // Small delay to let Excalidraw process the scene update before scrolling
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    api.scrollToContent([imageElement as any], { fitToContent: true });
+    api.scrollToContent([imageAsElement], { fitToContent: true });
 
-    console.log(`[addImageToCanvas] Scene updated and scrolled. Total elements now: ${api.getSceneElements().length}`);
+    if (import.meta.env.DEV) {
+        console.log(`[addImageToCanvas] Scene updated and scrolled. Total elements now: ${api.getSceneElements().length}`);
 
-    // Verify the element was actually added
-    const addedEl = api.getSceneElements().find((el: any) => el.id === elementId);
-    if (!addedEl) {
-        console.error(`[addImageToCanvas] WARNING: Element ${elementId} was NOT found in scene after updateScene!`);
-    } else {
-        console.log(`[addImageToCanvas] Verified: element ${elementId} exists in scene, isDeleted=${(addedEl as any).isDeleted}`);
+        // Verify the element was actually added
+        const addedEl = api.getSceneElements().find(el => el.id === elementId);
+        if (!addedEl) {
+            console.error(`[addImageToCanvas] WARNING: Element ${elementId} was NOT found in scene after updateScene!`);
+        } else {
+            console.log(`[addImageToCanvas] Verified: element ${elementId} exists in scene, isDeleted=${addedEl.isDeleted}`);
+        }
     }
 
     return elementId;

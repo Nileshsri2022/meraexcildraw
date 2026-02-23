@@ -13,6 +13,7 @@ import type { ChatMessage } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useAIGeneration } from "../hooks/useAIGeneration";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 // ─── Message Bubble ──────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ MessageBubble.displayName = "MessageBubble";
 interface ChatPanelProps {
     isOpen: boolean;
     onClose: () => void;
-    excalidrawAPI: any;
+    excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidrawAPI }) => {
@@ -81,7 +82,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         if (excalidrawAPI) {
             chat.setExcalidrawAPI(excalidrawAPI);
         }
-    }, [excalidrawAPI]); // eslint-disable-line
+    }, [excalidrawAPI, chat.setExcalidrawAPI]);
 
     // Execute pending canvas actions from the backend
     useEffect(() => {
@@ -94,7 +95,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             setTimeout(() => {
                 const elements = excalidrawAPI?.getSceneElements?.() || [];
                 if (elements.length > 0) {
-                    chat.syncCanvasContext(elements);
+                    chat.syncCanvasContext([...elements]);
                 }
             }, 200);
 
@@ -102,7 +103,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             const timer = setTimeout(() => setActionCount(0), 4000);
             return () => clearTimeout(timer);
         }
-    }, [chat.pendingActions]); // eslint-disable-line
+    }, [chat.pendingActions, canvasActions, chat, excalidrawAPI]);
 
     // Execute pending AI tool actions from the backend
     useEffect(() => {
@@ -239,7 +240,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         };
 
         executeTool();
-    }, [chat.pendingToolAction]); // eslint-disable-line
+    }, [chat.pendingToolAction, chat, aiGen, excalidrawAPI]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -258,8 +259,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         if (!isOpen || !excalidrawAPI) return;
 
         const elements = excalidrawAPI.getSceneElements?.() || [];
-        chat.syncCanvasContext(elements);
-    }, [isOpen]); // eslint-disable-line — sync when panel opens
+        chat.syncCanvasContext([...elements]);
+    }, [isOpen, excalidrawAPI, chat.syncCanvasContext]);
 
     const handleSend = useCallback(() => {
         if (!input.trim() || chat.isStreaming) return;

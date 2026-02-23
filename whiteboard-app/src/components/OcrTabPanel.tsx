@@ -16,7 +16,7 @@ interface OcrTabPanelProps {
     onClear: () => void;
 }
 
-export const OcrTabPanel = ({
+export const OcrTabPanel = React.memo(({
     ocrImage, ocrResult, ocrMarkdownRef,
     onUpload, onCapture, onAddAsImage, onAddAsText, onClear,
 }: OcrTabPanelProps) => (
@@ -122,4 +122,6 @@ export const OcrTabPanel = ({
             </div>
         )}
     </div>
-);
+));
+
+OcrTabPanel.displayName = "OcrTabPanel";

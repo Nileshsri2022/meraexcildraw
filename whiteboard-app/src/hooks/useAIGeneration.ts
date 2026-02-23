@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import { convertToExcalidrawElements, exportToCanvas } from "@excalidraw/excalidraw";
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawImperativeAPI, AppState } from "@excalidraw/excalidraw/types";
 import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../utils/mathJaxParser";
 import { addImageToCanvas } from "../utils/addImageToCanvas";
@@ -307,15 +307,15 @@ export function useAIGeneration(
 
             // Filter to selected elements only
             const selectedElements = allElements.filter(
-                (el: any) => selectedIds[el.id] && !el.isDeleted
+                el => selectedIds[el.id] && !el.isDeleted
             );
 
             // If we have selected elements, export only those
             if (selectedElements.length > 0) {
                 console.log(`[captureCanvas] Exporting ${selectedElements.length} selected element(s)`);
                 const canvas = await exportToCanvas({
-                    elements: selectedElements as any,
-                    appState: { viewBackgroundColor: "#ffffff", exportBackground: true } as any,
+                    elements: [...selectedElements],
+                    appState: { viewBackgroundColor: "#ffffff", exportBackground: true } as Partial<AppState> as AppState,
                     files: files || null,
                     exportPadding: 10,
                 });

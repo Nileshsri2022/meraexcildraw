@@ -16,6 +16,27 @@
  */
 import { useState, useRef, useCallback } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+
+/**
+ * Minimal shape of an Excalidraw scene element for canvas context sync.
+ * Avoids `any` while only referencing the properties we actually read.
+ */
+interface ExcalidrawSceneElement {
+    readonly id: string;
+    readonly type: string;
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly isDeleted: boolean;
+    readonly text?: string;
+    readonly originalText?: string;
+    readonly strokeColor?: string;
+    readonly backgroundColor?: string;
+    readonly fillStyle?: string;
+    readonly fileId?: string | null;
+}
 
 const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
@@ -63,32 +84,29 @@ export function useCanvasChat() {
     const [error, setError] = useState<string | null>(null);
     const [pendingActions, setPendingActions] = useState<CanvasActionElement[] | null>(null);
     const [pendingToolAction, setPendingToolAction] = useState<ToolAction | null>(null);
-    const sessionIdRef = useRef<string | null>(null);
-
-    // Auto-initialize session ID so first message can sync canvas context
-    if (!sessionIdRef.current && typeof crypto !== 'undefined' && crypto.randomUUID) {
-        sessionIdRef.current = crypto.randomUUID();
-    }
+    const sessionIdRef = useRef<string | null>(
+        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null
+    );
     const abortRef = useRef<AbortController | null>(null);
 
     /**
      * Ref to an Excalidraw API instance for reading current canvas state.
      * Set via setExcalidrawAPI() from the ChatPanel.
      */
-    const excalidrawAPIRef = useRef<any>(null);
+    const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
 
     /**
      * Register the Excalidraw API so the hook can read canvas state
      * before every message.
      */
-    const setExcalidrawAPI = useCallback((api: any) => {
+    const setExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI | null) => {
         excalidrawAPIRef.current = api;
     }, []);
 
     /**
      * Internal: send canvas context to the server (requires active session).
      */
-    const flushCanvasContext = useCallback(async (elements: any[]) => {
+    const flushCanvasContext = useCallback(async (elements: readonly ExcalidrawSceneElement[]) => {
         if (!sessionIdRef.current) return;
 
         // Excalidraw keeps deleted elements in memory for undo/redo. Filter them out!
@@ -134,8 +152,8 @@ export function useCanvasChat() {
      * If no session exists yet, it's a no-op (context will be synced
      * right before the first message via sendMessage).
      */
-    const syncCanvasContext = useCallback(async (elements?: any[]) => {
-        const els = elements || excalidrawAPIRef.current?.getSceneElements?.() || [];
+    const syncCanvasContext = useCallback(async (elements?: readonly ExcalidrawSceneElement[]) => {
+        const els = elements || (excalidrawAPIRef.current?.getSceneElements?.() as unknown as readonly ExcalidrawSceneElement[]) || [];
         if (!sessionIdRef.current) return;
         await flushCanvasContext(els);
     }, [flushCanvasContext]);

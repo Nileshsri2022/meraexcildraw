@@ -7,6 +7,8 @@
  * No parsing needed — the backend sends clean, validated JSON.
  */
 import { useCallback } from "react";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { CanvasActionElement } from "./useCanvasChat";
 
 /** Generate a random ID compatible with Excalidraw elements */
@@ -14,9 +16,61 @@ function randomId(): string {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
+/**
+ * Shape of an element we construct before passing to `updateScene()`.
+ *
+ * Not a full ExcalidrawElement (which has computed fields) — this is the
+ * "seed" shape that Excalidraw accepts and hydrates internally.
+ */
+interface ExcalidrawElementSeed {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    strokeColor: string;
+    backgroundColor: string;
+    fillStyle: string;
+    strokeWidth: number;
+    roughness: number;
+    opacity: number;
+    angle: number;
+    groupIds: readonly string[];
+    frameId: null;
+    index: string;
+    roundness: { type: number } | null;
+    seed: number;
+    version: number;
+    versionNonce: number;
+    isDeleted: boolean;
+    boundElements: ReadonlyArray<{ id: string; type: string }> | null;
+    updated: number;
+    link: null;
+    locked: boolean;
+    // Text-specific
+    text?: string;
+    fontSize?: number;
+    fontFamily?: number;
+    textAlign?: string;
+    verticalAlign?: string;
+    originalText?: string;
+    autoResize?: boolean;
+    lineHeight?: number;
+    containerId?: string;
+    // Arrow-specific
+    points?: readonly (readonly [number, number])[];
+    lastCommittedPoint?: null;
+    startBinding?: { elementId: string; focus: number; gap: number; fixedPoint: null } | null;
+    endBinding?: { elementId: string; focus: number; gap: number; fixedPoint: null } | null;
+    startArrowhead?: string | null;
+    endArrowhead?: string | null;
+    elbowed?: boolean;
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
-export function useCanvasActions(excalidrawAPI: any) {
+export function useCanvasActions(excalidrawAPI: ExcalidrawImperativeAPI | null) {
 
     /**
      * Convert structured canvas elements into Excalidraw elements and add to canvas.
@@ -38,7 +92,7 @@ export function useCanvasActions(excalidrawAPI: any) {
 
         // Map from AI element IDs to generated Excalidraw IDs
         const idMap: Record<string, string> = {};
-        const createdElements: any[] = [];
+        const createdElements: ExcalidrawElementSeed[] = [];
 
         // First pass: create shapes (non-arrows)
         const shapes = actionElements.filter(el => el.type !== "arrow" && el.type !== "line");
@@ -53,7 +107,7 @@ export function useCanvasActions(excalidrawAPI: any) {
             const width = action.width ?? 200;
             const height = action.height ?? (action.type === "text" ? 40 : 100);
 
-            const baseElement: any = {
+            const baseElement: ExcalidrawElementSeed = {
                 id: excalId,
                 type: action.type === "diamond" ? "diamond" : action.type === "ellipse" ? "ellipse" : action.type === "text" ? "text" : "rectangle",
                 x, y, width, height,
@@ -80,7 +134,7 @@ export function useCanvasActions(excalidrawAPI: any) {
 
             if (action.text && action.type !== "text") {
                 const textId = randomId();
-                const textElement: any = {
+                const textElement: ExcalidrawElementSeed = {
                     id: textId,
                     type: "text",
                     x: x + 10, y: y + height / 2 - 12,
@@ -128,6 +182,8 @@ export function useCanvasActions(excalidrawAPI: any) {
                 createdElements.push(baseElement);
             }
         }
+        // Build index Map for O(1) lookups during arrow binding (Vercel: js-index-maps)
+        const elementById = new Map<string, ExcalidrawElementSeed>(createdElements.map(el => [el.id, el]));
 
         // Second pass: create arrows with bindings
         for (const action of arrows) {
@@ -137,15 +193,15 @@ export function useCanvasActions(excalidrawAPI: any) {
             const startElementId = action.startId ? idMap[action.startId] : null;
             const endElementId = action.endId ? idMap[action.endId] : null;
 
-            const startEl = startElementId ? createdElements.find(e => e.id === startElementId) : null;
-            const endEl = endElementId ? createdElements.find(e => e.id === endElementId) : null;
+            const startEl = startElementId ? elementById.get(startElementId) ?? null : null;
+            const endEl = endElementId ? elementById.get(endElementId) ?? null : null;
 
             const startX = startEl ? startEl.x + (startEl.width || 200) / 2 : (action.x ?? viewportCenterX);
             const startY = startEl ? startEl.y + (startEl.height || 100) : (action.y ?? viewportCenterY);
             const endX = endEl ? endEl.x + (endEl.width || 200) / 2 : startX;
             const endY = endEl ? endEl.y : startY + 150;
 
-            const arrowElement: any = {
+            const arrowElement: ExcalidrawElementSeed = {
                 id: excalId,
                 type: "arrow",
                 x: startX, y: startY,
@@ -171,20 +227,20 @@ export function useCanvasActions(excalidrawAPI: any) {
                 elbowed: false,
             };
 
-            // Update bound elements
+            // Update bound elements via index Map (O(1) lookup)
             if (startElementId) {
-                const src = createdElements.find(e => e.id === startElementId);
+                const src = elementById.get(startElementId);
                 if (src) src.boundElements = [...(src.boundElements || []), { id: excalId, type: "arrow" }];
             }
             if (endElementId) {
-                const tgt = createdElements.find(e => e.id === endElementId);
+                const tgt = elementById.get(endElementId);
                 if (tgt) tgt.boundElements = [...(tgt.boundElements || []), { id: excalId, type: "arrow" }];
             }
 
             // Arrow label
             if (action.text) {
                 const labelId = randomId();
-                const labelElement: any = {
+                const labelElement: ExcalidrawElementSeed = {
                     id: labelId, type: "text",
                     x: startX + (endX - startX) / 2 - 20,
                     y: startY + (endY - startY) / 2 - 12,
@@ -214,13 +270,18 @@ export function useCanvasActions(excalidrawAPI: any) {
         }
 
         // Add to canvas
+        // Cast seed elements to ExcalidrawElement at the API boundary.
+        // Excalidraw hydrates missing computed fields (strokeStyle, etc.) internally.
         if (createdElements.length > 0) {
             excalidrawAPI.updateScene({
-                elements: [...existingElements, ...createdElements],
+                elements: [...existingElements, ...createdElements as unknown as ExcalidrawElement[]],
             });
 
             setTimeout(() => {
-                excalidrawAPI.scrollToContent?.(createdElements, { fitToViewport: true, animate: true });
+                excalidrawAPI.scrollToContent?.(
+                    createdElements as unknown as ExcalidrawElement[],
+                    { fitToViewport: true, animate: true },
+                );
             }, 100);
 
             console.log(`[CanvasActions] Added ${createdElements.length} elements to canvas`);

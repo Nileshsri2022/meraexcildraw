@@ -20,7 +20,7 @@ interface TtsTabPanelProps {
     loading: boolean;
 }
 
-export const TtsTabPanel = ({ tts, loading }: TtsTabPanelProps) => (
+export const TtsTabPanel = React.memo(({ tts, loading }: TtsTabPanelProps) => (
     <div style={{ marginBottom: "14px", maxWidth: "480px" }}>
         <audio ref={tts.audioRef} style={{ display: "none" }} />
 
@@ -67,7 +67,9 @@ export const TtsTabPanel = ({ tts, loading }: TtsTabPanelProps) => (
             </div>
         )}
     </div>
-);
+));
+
+TtsTabPanel.displayName = "TtsTabPanel";
 
 // ─── History Tab Panel ───────────────────────────────────────────────────────
 
@@ -91,7 +93,7 @@ interface HistoryTabPanelProps {
     reuseEntry?: (entry: AIHistoryEntry) => void;
 }
 
-export const HistoryTabPanel = ({
+export const HistoryTabPanel = React.memo(({
     filteredHistory, allHistory,
     historyFilter, setHistoryFilter,
     deleteEntry, clearAll, reuseEntry,
@@ -163,4 +165,6 @@ export const HistoryTabPanel = ({
             })}
         </div>
     </div>
-);
+));
+
+HistoryTabPanel.displayName = "HistoryTabPanel";

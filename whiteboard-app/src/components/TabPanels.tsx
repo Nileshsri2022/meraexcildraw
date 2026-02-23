@@ -85,7 +85,7 @@ interface PromptSectionProps {
  * Prompt textarea shared by Diagram, Image, and Sketch tabs.
  * Includes an optional mic button for voice-to-prompt.
  */
-export const PromptSection = ({ activeTab, prompt, setPrompt, voice }: PromptSectionProps) => (
+export const PromptSection = React.memo(({ activeTab, prompt, setPrompt, voice }: PromptSectionProps) => (
     <div style={{ marginBottom: "14px", maxWidth: LAYOUT.formMaxWidth }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <FormLabel>
@@ -117,7 +117,9 @@ export const PromptSection = ({ activeTab, prompt, setPrompt, voice }: PromptSec
             }
         />
     </div>
-);
+));
+
+PromptSection.displayName = "PromptSection";
 
 // ─── Image Tab Settings ──────────────────────────────────────────────────────
 
@@ -129,7 +131,7 @@ interface ImageSettingsProps {
     imgRandomSeed: boolean; setImgRandomSeed: (v: boolean) => void;
 }
 
-export const ImageSettings = ({
+export const ImageSettings = React.memo(({
     imgWidth, setImgWidth, imgHeight, setImgHeight,
     imgSteps, setImgSteps, imgSeed, setImgSeed,
     imgRandomSeed, setImgRandomSeed,
@@ -163,7 +165,9 @@ export const ImageSettings = ({
             <FormInput type="number" value={imgSeed} onChange={(v) => setImgSeed(Number(v))} disabled={imgRandomSeed} min={0} max={2147483647} />
         </div>
     </div>
-);
+));
+
+ImageSettings.displayName = "ImageSettings";
 
 // ─── Sketch Tab Settings ─────────────────────────────────────────────────────
 
@@ -176,7 +180,7 @@ interface SketchSettingsProps {
     sketchSeed: number; setSketchSeed: (v: number) => void;
 }
 
-export const SketchSettings = ({
+export const SketchSettings = React.memo(({
     sketchPipeline, setSketchPipeline,
     sketchPreprocessor, setSketchPreprocessor,
     sketchResolution, setSketchResolution,
@@ -237,7 +241,9 @@ export const SketchSettings = ({
             <FormInput type="number" value={sketchSeed} onChange={(v) => setSketchSeed(Number(v))} min={0} max={2147483647} />
         </div>
     </div>
-);
+));
+
+SketchSettings.displayName = "SketchSettings";
 
 // ─── Diagram Tab Settings ────────────────────────────────────────────────────
 
@@ -246,7 +252,7 @@ interface DiagramSettingsProps {
     setStyle: (v: string) => void;
 }
 
-export const DiagramSettings = ({ style, setStyle }: DiagramSettingsProps) => (
+export const DiagramSettings = React.memo(({ style, setStyle }: DiagramSettingsProps) => (
     <div style={{ marginBottom: "14px", maxWidth: LAYOUT.formMaxWidth }}>
         <FormLabel>Diagram Type:</FormLabel>
         <FormSelect value={style} onChange={setStyle}>
@@ -256,4 +262,6 @@ export const DiagramSettings = ({ style, setStyle }: DiagramSettingsProps) => (
             <option value="mindmap">Mind Map</option>
         </FormSelect>
     </div>
-);
+));
+
+DiagramSettings.displayName = "DiagramSettings";
