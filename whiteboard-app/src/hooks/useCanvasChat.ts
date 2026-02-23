@@ -75,6 +75,15 @@ export interface ToolAction {
     text?: string;    // for TTS tool
 }
 
+/** MCP server connection config sent to /chat/tools */
+export interface McpServerConfig {
+    label: string;
+    url: string;
+    description?: string;
+    headers?: Record<string, string>;
+    require_approval?: string;
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useCanvasChat() {
@@ -327,7 +336,7 @@ export function useCanvasChat() {
     const sendToolMessage = useCallback(async (
         content: string,
         builtinTools: string[],
-        mcpServers: string[],
+        mcpServers: McpServerConfig[],
     ) => {
         if (!content.trim() || isStreamingRef.current) return;
 
@@ -365,7 +374,13 @@ export function useCanvasChat() {
                     message: content.trim(),
                     session_id: sessionIdRef.current,
                     builtin_tools: builtinTools,
-                    mcp_servers: mcpServers,
+                    mcp_servers: mcpServers.map(s => ({
+                        label: s.label,
+                        url: s.url,
+                        description: s.description || "",
+                        headers: s.headers || {},
+                        require_approval: s.require_approval || "never",
+                    })),
                 }),
                 signal: controller.signal,
 

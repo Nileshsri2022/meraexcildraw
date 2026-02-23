@@ -9,7 +9,7 @@
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useCanvasChat } from "../hooks/useCanvasChat";
-import type { ChatMessage } from "../hooks/useCanvasChat";
+import type { ChatMessage, McpServerConfig } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useAIGeneration } from "../hooks/useAIGeneration";
 import { executeToolAction } from "../utils/executeToolAction";
@@ -77,9 +77,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     // ─── Tool Selection State ────────────────────────────────────────
     const [showToolBar, setShowToolBar] = useState(false);
     const [activeBuiltinTools, setActiveBuiltinTools] = useState<string[]>([]);
-    const [activeMcpServers, setActiveMcpServers] = useState<string[]>([]);
+    const [connectedMcpServers, setConnectedMcpServers] = useState<McpServerConfig[]>([]);
+    const [showMcpModal, setShowMcpModal] = useState(false);
+    const [mcpForm, setMcpForm] = useState({ label: "", url: "", apiKey: "", description: "" });
+    const [mcpTestStatus, setMcpTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
+    const [mcpTestError, setMcpTestError] = useState("");
 
-    const hasActiveTools = activeBuiltinTools.length > 0 || activeMcpServers.length > 0;
+    const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
+
+    const hasActiveTools = activeBuiltinTools.length > 0 || connectedMcpServers.length > 0;
 
     const toggleBuiltinTool = useCallback((id: string) => {
         setActiveBuiltinTools(prev =>
@@ -87,11 +93,66 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         );
     }, []);
 
-    const toggleMcpServer = useCallback((id: string) => {
-        setActiveMcpServers(prev =>
-            prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-        );
+    const removeMcpServer = useCallback((label: string) => {
+        setConnectedMcpServers(prev => prev.filter(s => s.label !== label));
     }, []);
+
+    const handleTestMcp = useCallback(async () => {
+        if (!mcpForm.label.trim() || !mcpForm.url.trim()) return;
+        setMcpTestStatus("testing");
+        setMcpTestError("");
+        try {
+            // Build the actual URL (replace <APIKEY> placeholder if present)
+            let serverUrl = mcpForm.url;
+            if (mcpForm.apiKey && serverUrl.includes("<APIKEY>")) {
+                serverUrl = serverUrl.replace("<APIKEY>", mcpForm.apiKey);
+            }
+
+            const resp = await fetch(`${CHAT_SERVICE_URL}/chat/test-mcp`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    label: mcpForm.label,
+                    url: serverUrl,
+                    headers: mcpForm.apiKey && !serverUrl.includes(mcpForm.apiKey)
+                        ? { "Authorization": `Bearer ${mcpForm.apiKey}` }
+                        : {},
+                }),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                setMcpTestStatus("ok");
+            } else {
+                setMcpTestStatus("error");
+                setMcpTestError(data.error?.slice(0, 150) || "Connection failed");
+            }
+        } catch (e) {
+            setMcpTestStatus("error");
+            setMcpTestError(e instanceof Error ? e.message : "Network error");
+        }
+    }, [mcpForm, CHAT_SERVICE_URL]);
+
+    const handleAddMcp = useCallback(() => {
+        if (!mcpForm.label.trim() || !mcpForm.url.trim()) return;
+
+        let serverUrl = mcpForm.url;
+        if (mcpForm.apiKey && serverUrl.includes("<APIKEY>")) {
+            serverUrl = serverUrl.replace("<APIKEY>", mcpForm.apiKey);
+        }
+
+        const config: McpServerConfig = {
+            label: mcpForm.label.trim(),
+            url: serverUrl,
+            description: mcpForm.description.trim(),
+            headers: mcpForm.apiKey && !serverUrl.includes(mcpForm.apiKey)
+                ? { "Authorization": `Bearer ${mcpForm.apiKey}` }
+                : {},
+        };
+        setConnectedMcpServers(prev => [...prev.filter(s => s.label !== config.label), config]);
+        setShowMcpModal(false);
+        setMcpForm({ label: "", url: "", apiKey: "", description: "" });
+        setMcpTestStatus("idle");
+    }, [mcpForm]);
 
     // AI generation hook — used when chatbot routes to real AI tools
     const aiGen = useAIGeneration(excalidrawAPI, () => {/* no-op: we don't close the chat panel */ });
@@ -175,12 +236,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const handleSend = useCallback(() => {
         if (!input.trim() || chat.isStreaming) return;
         if (hasActiveTools) {
-            chat.sendToolMessage(input, activeBuiltinTools, activeMcpServers);
+            chat.sendToolMessage(input, activeBuiltinTools, connectedMcpServers);
         } else {
             chat.sendMessage(input);
         }
         setInput("");
-    }, [input, chat, hasActiveTools, activeBuiltinTools, activeMcpServers]);
+    }, [input, chat, hasActiveTools, activeBuiltinTools, connectedMcpServers]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -282,6 +343,76 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                 <div ref={messagesEndRef} />
             </div>
 
+            {/* MCP Connection Modal */}
+            {showMcpModal && (
+                <div className="mcp-modal-overlay" onClick={() => setShowMcpModal(false)}>
+                    <div className="mcp-modal" onClick={e => e.stopPropagation()}>
+                        <div className="mcp-modal-header">
+                            <h3>Connect MCP Server</h3>
+                            <button className="mcp-modal-close" onClick={() => setShowMcpModal(false)}>×</button>
+                        </div>
+                        <div className="mcp-modal-body">
+                            <label className="mcp-field">
+                                <span>Label *</span>
+                                <input
+                                    value={mcpForm.label}
+                                    onChange={e => setMcpForm(p => ({ ...p, label: e.target.value }))}
+                                    placeholder="e.g. firecrawl"
+                                />
+                            </label>
+                            <label className="mcp-field">
+                                <span>Server URL *</span>
+                                <input
+                                    value={mcpForm.url}
+                                    onChange={e => setMcpForm(p => ({ ...p, url: e.target.value }))}
+                                    placeholder="https://mcp.firecrawl.dev/<APIKEY>/v2/mcp"
+                                />
+                            </label>
+                            <label className="mcp-field">
+                                <span>API Key <small>(replaces {'<APIKEY>'} in URL or sent as Bearer token)</small></span>
+                                <input
+                                    type="password"
+                                    value={mcpForm.apiKey}
+                                    onChange={e => setMcpForm(p => ({ ...p, apiKey: e.target.value }))}
+                                    placeholder="fc-..."
+                                />
+                            </label>
+                            <label className="mcp-field">
+                                <span>Description</span>
+                                <input
+                                    value={mcpForm.description}
+                                    onChange={e => setMcpForm(p => ({ ...p, description: e.target.value }))}
+                                    placeholder="Web scraping and content extraction"
+                                />
+                            </label>
+
+                            {/* Connection test status */}
+                            <div className="mcp-test-row">
+                                <button
+                                    className="mcp-test-btn"
+                                    onClick={handleTestMcp}
+                                    disabled={!mcpForm.label.trim() || !mcpForm.url.trim() || mcpTestStatus === "testing"}
+                                >
+                                    {mcpTestStatus === "testing" ? "Testing..." : "Test Connection"}
+                                </button>
+                                {mcpTestStatus === "ok" && <span className="mcp-status mcp-status--ok">✓ Connected</span>}
+                                {mcpTestStatus === "error" && <span className="mcp-status mcp-status--error" title={mcpTestError}>✗ Failed</span>}
+                            </div>
+                        </div>
+                        <div className="mcp-modal-footer">
+                            <button className="mcp-cancel-btn" onClick={() => setShowMcpModal(false)}>Cancel</button>
+                            <button
+                                className="mcp-add-btn"
+                                onClick={handleAddMcp}
+                                disabled={!mcpForm.label.trim() || !mcpForm.url.trim()}
+                            >
+                                Add Server
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Tools Bar */}
             {showToolBar && (
                 <div className="chat-tools-bar">
@@ -328,12 +459,24 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                     <div className="chat-tools-section">
                         <span className="chat-tools-label">MCP Servers</span>
                         <div className="chat-tools-pills">
+                            {connectedMcpServers.map(srv => (
+                                <button
+                                    key={srv.label}
+                                    className="chat-tool-pill chat-tool-pill--mcp chat-tool-pill--active"
+                                    onClick={() => removeMcpServer(srv.label)}
+                                    title={`${srv.description || srv.url} — click to disconnect`}
+                                >
+                                    <span className="mcp-connected-dot" />
+                                    {srv.label}
+                                    <span className="mcp-remove">×</span>
+                                </button>
+                            ))}
                             <button
-                                className={`chat-tool-pill chat-tool-pill--mcp ${activeMcpServers.includes('firecrawl') ? 'chat-tool-pill--active' : ''}`}
-                                onClick={() => toggleMcpServer('firecrawl')}
-                                title="Web scraping and content extraction via Firecrawl"
+                                className="chat-tool-pill chat-tool-pill--add"
+                                onClick={() => setShowMcpModal(true)}
+                                title="Connect an MCP server"
                             >
-                                🔥 Firecrawl
+                                + Add MCP
                             </button>
                         </div>
                     </div>
@@ -350,7 +493,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                         <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
                     </svg>
-                    {hasActiveTools && <span className="chat-tools-badge">{activeBuiltinTools.length + activeMcpServers.length}</span>}
+                    {hasActiveTools && <span className="chat-tools-badge">{activeBuiltinTools.length + connectedMcpServers.length}</span>}
                 </button>
                 <textarea
                     ref={inputRef}
