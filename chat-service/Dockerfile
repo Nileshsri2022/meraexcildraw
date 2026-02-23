@@ -7,7 +7,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY main.py .
+COPY main.py config.py models.py parsers.py prompts.py sessions.py tools.py ./
+COPY routes/ ./routes/
 
 # Expose the port (Railway uses $PORT, fallback to 3003)
 EXPOSE 3003
