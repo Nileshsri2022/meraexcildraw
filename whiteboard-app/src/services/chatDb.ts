@@ -20,6 +20,7 @@ export interface ChatDB {
     saveConversation(conv: Conversation): Promise<void>;
     loadConversations(): Promise<Conversation[]>;
     deleteConversation(conversationId: string): Promise<void>;
+    searchConversations(query: string): Promise<string[]>; // Returns list of conversation IDs that match
 }
 
 class ChatDBImpl implements ChatDB {
@@ -68,10 +69,14 @@ class ChatDBImpl implements ChatDB {
         }
 
         // Update conversation's updatedAt
-        const conv = await convStore.get(conversationId);
-        if (conv) {
-            await convStore.put({ ...conv, updatedAt: Date.now() });
+        let conv = await convStore.get(conversationId);
+        if (!conv) {
+            // Fallback: This shouldn't happen usually but ensures robustness
+            conv = { id: conversationId, title: "New Conversation", updatedAt: Date.now() };
+        } else {
+            conv.updatedAt = Date.now();
         }
+        await convStore.put(conv);
 
         await tx.done;
     }
@@ -129,6 +134,25 @@ class ChatDBImpl implements ChatDB {
             cursor = await cursor.continue();
         }
         await tx.done;
+    }
+
+    async searchConversations(query: string): Promise<string[]> {
+        const db = await this.dbPromise;
+        const tx = db.transaction(MSG_STORE, 'readonly');
+        const store = tx.objectStore(MSG_STORE);
+        const matchingIds = new Set<string>();
+        const lowerQuery = query.toLowerCase();
+
+        let cursor = await store.openCursor();
+        while (cursor) {
+            const msg = cursor.value;
+            if (msg.content && msg.content.toLowerCase().includes(lowerQuery)) {
+                matchingIds.add(msg.conversationId);
+            }
+            cursor = await cursor.continue();
+        }
+
+        return Array.from(matchingIds);
     }
 }
 

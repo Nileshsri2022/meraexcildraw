@@ -169,15 +169,23 @@ export function useCanvasChat() {
             const msgs = await chatDb.loadMessages(id);
             setMessages(msgs);
             setActiveConversationId(id);
+
+            // Update timestamp so it moves to top
+            const conv = conversations.find(c => c.id === id);
+            if (conv) {
+                const updated = { ...conv, updatedAt: Date.now() };
+                await chatDb.saveConversation(updated);
+                await chatDb.loadConversations().then(setConversations);
+            }
+
             // Session ID rotation is handled by the backend if needed, 
-            // but we can rotate it here to be safe if switching contexts.
             if (typeof crypto !== 'undefined' && crypto.randomUUID) {
                 sessionIdRef.current = crypto.randomUUID();
             }
         } catch (err) {
             console.error("[ChatDB] Failed to select conversation:", err);
         }
-    }, [activeConversationId]);
+    }, [activeConversationId, conversations]);
 
     const startNewConversation = useCallback(async () => {
         const id = crypto.randomUUID();
@@ -629,6 +637,14 @@ export function useCanvasChat() {
         setError(null);
         setPendingActions(null);
         await chatDb.clearConversation(activeConversationId);
+
+        // Update timestamp so it stays at the top
+        const conv = conversations.find(c => c.id === activeConversationId);
+        if (conv) {
+            const updated = { ...conv, updatedAt: Date.now() };
+            await chatDb.saveConversation(updated);
+            await chatDb.loadConversations().then(setConversations);
+        }
 
         if (sessionIdRef.current) {
             try {

@@ -14,6 +14,7 @@ import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useAIGeneration } from "../hooks/useAIGeneration";
 import { executeToolAction } from "../utils/executeToolAction";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { chatDb } from "../services/chatDb";
 
 // ─── Message Bubble ──────────────────────────────────────────────────────────
 
@@ -114,6 +115,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [confirmClear, setConfirmClear] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [matchingSearchIds, setMatchingSearchIds] = useState<string[]>([]);
 
     const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
@@ -128,6 +130,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const removeMcpServer = useCallback((label: string) => {
         setConnectedMcpServers(prev => prev.filter(s => s.label !== label));
     }, []);
+
+    // Search effect for message content
+    useEffect(() => {
+        if (!searchTerm.trim()) {
+            setMatchingSearchIds([]);
+            return;
+        }
+
+        const runSearch = async () => {
+            const ids = await chatDb.searchConversations(searchTerm);
+            setMatchingSearchIds(ids);
+        };
+
+        const timer = setTimeout(runSearch, 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
     const handleTestMcp = useCallback(async () => {
         if (!mcpForm.label.trim() || !mcpForm.url.trim()) return;
@@ -379,7 +397,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                         {(() => {
                             const filtered = chat.conversations
                                 .filter(conv => (conv.title !== "New Conversation" || chat.activeConversationId === conv.id))
-                                .filter(conv => !searchTerm || conv.title.toLowerCase().includes(searchTerm.toLowerCase()));
+                                .filter(conv => {
+                                    if (!searchTerm) return true;
+                                    const titleMatch = conv.title.toLowerCase().includes(searchTerm.toLowerCase());
+                                    const contentMatch = matchingSearchIds.includes(conv.id);
+                                    return titleMatch || contentMatch;
+                                })
+                                .sort((a, b) => b.updatedAt - a.updatedAt);
 
                             if (filtered.length === 0 && searchTerm) {
                                 return <div className="chat-search-empty">No conversations found</div>;
