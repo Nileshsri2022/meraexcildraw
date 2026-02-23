@@ -321,6 +321,153 @@ export function useCanvasChat() {
     }, [sendMessage, flushCanvasContext]);
 
     /**
+     * Send a message using the tools-augmented endpoint.
+     * Uses Groq's built-in tools and/or remote MCP servers.
+     */
+    const sendToolMessage = useCallback(async (
+        content: string,
+        builtinTools: string[],
+        mcpServers: string[],
+    ) => {
+        if (!content.trim() || isStreamingRef.current) return;
+
+        setError(null);
+        setPendingActions(null);
+        setPendingToolAction(null);
+
+        const userMsg: ChatMessage = {
+            id: `u-${Date.now()}`,
+            role: "user",
+            content: content.trim(),
+            timestamp: Date.now(),
+        };
+
+        const assistantId = `a-${Date.now()}`;
+        const assistantMsg: ChatMessage = {
+            id: assistantId,
+            role: "assistant",
+            content: "",
+            timestamp: Date.now(),
+        };
+
+        setMessages(prev => [...prev, userMsg, assistantMsg]);
+        isStreamingRef.current = true;
+        setIsStreaming(true);
+
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        try {
+            await fetchEventSource(`${CHAT_SERVICE_URL}/chat/tools`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: content.trim(),
+                    session_id: sessionIdRef.current,
+                    builtin_tools: builtinTools,
+                    mcp_servers: mcpServers,
+                }),
+                signal: controller.signal,
+
+                onmessage(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        switch (data.type) {
+                            case "token":
+                                if (data.token) {
+                                    setMessages(prev =>
+                                        prev.map(m =>
+                                            m.id === assistantId
+                                                ? { ...m, content: m.content + data.token }
+                                                : m
+                                        )
+                                    );
+                                }
+                                break;
+
+                            case "tool_info":
+                                // MCP server discovered tools
+                                if (import.meta.env.DEV) {
+                                    console.log(`[ToolChat] ${data.server} tools:`, data.tools);
+                                }
+                                break;
+
+                            case "tool_call":
+                                // A tool was executed
+                                setMessages(prev =>
+                                    prev.map(m =>
+                                        m.id === assistantId
+                                            ? {
+                                                ...m,
+                                                content: m.content +
+                                                    `\n🔧 *Used ${data.tool}*` +
+                                                    (data.server ? ` (${data.server})` : "") +
+                                                    "\n",
+                                            }
+                                            : m
+                                    )
+                                );
+                                break;
+
+                            case "done":
+                                if (data.session_id) {
+                                    sessionIdRef.current = data.session_id;
+                                }
+                                if (data.html) {
+                                    setMessages(prev =>
+                                        prev.map(m =>
+                                            m.id === assistantId
+                                                ? { ...m, html: data.html }
+                                                : m
+                                        )
+                                    );
+                                }
+                                break;
+
+                            case "error":
+                                setError(data.error || "Tool error");
+                                break;
+                        }
+                    } catch {
+                        // Skip malformed JSON
+                    }
+                },
+
+                onopen: async (response) => {
+                    if (!response.ok) {
+                        throw new Error(`Tool chat error: ${response.status}`);
+                    }
+                },
+
+                onerror(err) {
+                    if (err instanceof DOMException && err.name === "AbortError") {
+                        throw err;
+                    }
+                    setError(err instanceof Error ? err.message : "Tool chat failed");
+                    throw err;
+                },
+
+                openWhenHidden: true,
+            });
+        } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") {
+                // User cancelled
+            } else {
+                const msg = err instanceof Error ? err.message : "Tool chat failed";
+                setError(msg);
+                setMessages(prev =>
+                    prev.filter(m => m.id !== assistantId || m.content.length > 0)
+                );
+            }
+        } finally {
+            isStreamingRef.current = false;
+            setIsStreaming(false);
+            abortRef.current = null;
+        }
+    }, []);
+
+    /**
      * Stop the current stream.
      */
     const stopStreaming = useCallback(() => {
@@ -396,6 +543,7 @@ export function useCanvasChat() {
         pendingToolAction,
         sessionId: sessionIdRef.current,
         sendMessage: sendMessageWithSync,
+        sendToolMessage,
         stopStreaming,
         clearChat,
         syncCanvasContext,

@@ -74,6 +74,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const [toolStatus, setToolStatus] = useState<string | null>(null);
 
+    // ─── Tool Selection State ────────────────────────────────────────
+    const [showToolBar, setShowToolBar] = useState(false);
+    const [activeBuiltinTools, setActiveBuiltinTools] = useState<string[]>([]);
+    const [activeMcpServers, setActiveMcpServers] = useState<string[]>([]);
+
+    const hasActiveTools = activeBuiltinTools.length > 0 || activeMcpServers.length > 0;
+
+    const toggleBuiltinTool = useCallback((id: string) => {
+        setActiveBuiltinTools(prev =>
+            prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+        );
+    }, []);
+
+    const toggleMcpServer = useCallback((id: string) => {
+        setActiveMcpServers(prev =>
+            prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+        );
+    }, []);
+
     // AI generation hook — used when chatbot routes to real AI tools
     const aiGen = useAIGeneration(excalidrawAPI, () => {/* no-op: we don't close the chat panel */ });
 
@@ -155,9 +174,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
     const handleSend = useCallback(() => {
         if (!input.trim() || chat.isStreaming) return;
-        chat.sendMessage(input);
+        if (hasActiveTools) {
+            chat.sendToolMessage(input, activeBuiltinTools, activeMcpServers);
+        } else {
+            chat.sendMessage(input);
+        }
         setInput("");
-    }, [input, chat]);
+    }, [input, chat, hasActiveTools, activeBuiltinTools, activeMcpServers]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -259,15 +282,62 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                 <div ref={messagesEndRef} />
             </div>
 
+            {/* Tools Bar */}
+            {showToolBar && (
+                <div className="chat-tools-bar">
+                    <div className="chat-tools-section">
+                        <span className="chat-tools-label">Built-in Tools</span>
+                        <div className="chat-tools-pills">
+                            <button
+                                className={`chat-tool-pill ${activeBuiltinTools.includes('browser_search') ? 'chat-tool-pill--active' : ''}`}
+                                onClick={() => toggleBuiltinTool('browser_search')}
+                                title="Search the web for current information"
+                            >
+                                🔍 Web Search
+                            </button>
+                            <button
+                                className={`chat-tool-pill ${activeBuiltinTools.includes('code_interpreter') ? 'chat-tool-pill--active' : ''}`}
+                                onClick={() => toggleBuiltinTool('code_interpreter')}
+                                title="Execute Python code for calculations"
+                            >
+                                💻 Code Exec
+                            </button>
+                        </div>
+                    </div>
+                    <div className="chat-tools-section">
+                        <span className="chat-tools-label">MCP Servers</span>
+                        <div className="chat-tools-pills">
+                            <button
+                                className={`chat-tool-pill chat-tool-pill--mcp ${activeMcpServers.includes('firecrawl') ? 'chat-tool-pill--active' : ''}`}
+                                onClick={() => toggleMcpServer('firecrawl')}
+                                title="Web scraping and content extraction via Firecrawl"
+                            >
+                                🔥 Firecrawl
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Input */}
             <div className="chat-panel-input">
+                <button
+                    className={`chat-tools-toggle ${hasActiveTools ? 'chat-tools-toggle--active' : ''}`}
+                    onClick={() => setShowToolBar(prev => !prev)}
+                    title={showToolBar ? 'Hide tools' : 'Show tools'}
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                    </svg>
+                    {hasActiveTools && <span className="chat-tools-badge">{activeBuiltinTools.length + activeMcpServers.length}</span>}
+                </button>
                 <textarea
                     ref={inputRef}
                     className="chat-input"
                     value={input}
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Ask Canvas AI..."
+                    placeholder={hasActiveTools ? 'Ask with tools enabled...' : 'Ask Canvas AI...'}
                     rows={1}
                     disabled={chat.isStreaming}
                 />
