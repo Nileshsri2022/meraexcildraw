@@ -415,7 +415,7 @@ export function useCanvasChat() {
             setIsStreaming(false);
             abortRef.current = null;
         }
-    }, [flushCanvasContext]);
+    }, [activeConversationId, conversations, flushCanvasContext]);
 
     /**
      * Send a message with a fresh canvas sync.
@@ -594,7 +594,7 @@ export function useCanvasChat() {
             setIsStreaming(false);
             abortRef.current = null;
         }
-    }, []);
+    }, [activeConversationId, conversations]);
 
     /**
      * Stop the current stream.
@@ -658,7 +658,7 @@ export function useCanvasChat() {
                 // Non-critical
             }
         }
-    }, []);
+    }, [activeConversationId, conversations]);
 
     /**
      * Programmatically append an assistant message to the chat.

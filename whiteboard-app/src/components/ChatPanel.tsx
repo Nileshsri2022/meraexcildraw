@@ -270,18 +270,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     useLayoutEffect(() => {
         const isSwitchingChat = chat.activeConversationId !== prevActiveId.current;
 
-        // If switching, do it instantly to avoid seeing the top
-        if (isSwitchingChat && messagesContainerRef.current) {
-            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        const forceScrollToBottom = (behavior: ScrollBehavior = "auto") => {
+            if (messagesContainerRef.current) {
+                messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+            }
+            messagesEndRef.current?.scrollIntoView({ behavior });
+        };
+
+        if (isSwitchingChat) {
+            // When switching chats, we MUST scroll instantly before the next paint
+            forceScrollToBottom("auto");
+        } else if (chat.messages.length > 0) {
+            // For new messages in the SAME chat, smooth scroll after a tiny delay
+            const timer = setTimeout(() => forceScrollToBottom("smooth"), 50);
+            return () => clearTimeout(timer);
         }
 
-        const behavior = isSwitchingChat ? "auto" : "smooth";
-        const timeout = setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: behavior as ScrollBehavior });
-        }, isSwitchingChat ? 0 : 50);
-
         prevActiveId.current = chat.activeConversationId;
-        return () => clearTimeout(timeout);
     }, [chat.messages, actionCount, chat.activeConversationId]);
 
     // Focus input when panel opens
@@ -364,17 +369,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             <div className="chat-panel-container">
                 {/* Left Action Sidebar */}
                 <div className={`chat-panel-sidebar ${isSidebarCollapsed ? "chat-panel-sidebar--collapsed" : ""}`}>
-                    <button
-                        className="chat-sidebar-btn chat-sidebar-btn--primary"
-                        onClick={chat.startNewConversation}
-                        title="New conversation"
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                        <span>New Chat</span>
-                    </button>
+                    <div className="chat-sidebar-new-container">
+                        <button
+                            className="chat-sidebar-btn chat-sidebar-btn--primary"
+                            onClick={chat.startNewConversation}
+                            title="New conversation"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            <span>New Chat</span>
+                        </button>
+                    </div>
 
                     <div className="chat-sidebar-header">
                         <span className="chat-sidebar-title">Recent Chats</span>
