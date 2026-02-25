@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from config import GROQ_API_KEY
 from sessions import get_or_create_session
 from parsers import strip_think_tags, md_to_html
+from mcp_client import list_tools, call_tool, mcp_tools_to_openai_functions, MCP_TIMEOUT
 
 router = APIRouter()
 
@@ -247,7 +248,6 @@ async def _call_mcp_direct(client: httpx.AsyncClient, message: str, mcp_servers:
       3. When Groq picks a tool, execute it directly on the MCP server
       4. Send the result back to Groq for formatting
     """
-    from mcp_client import list_tools, call_tool, mcp_tools_to_openai_functions, MCP_TIMEOUT
 
     # ── Step 1: List tools from all MCP servers ──
     all_tools: list[dict] = []
