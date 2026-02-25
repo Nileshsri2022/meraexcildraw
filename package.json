@@ -1,7 +1,7 @@
 {
     "name": "whiteboard-monorepo",
     "private": true,
-    "packageManager": "yarn@1.22.22",
+    "packageManager": "bun@1.3.8",
     "workspaces": [
         "whiteboard-app",
         "server"
@@ -10,10 +10,10 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "start": "yarn --cwd ./whiteboard-app start",
+        "start": "bun run --cwd ./whiteboard-app start",
         "server": "node ./server/index.js",
-        "dev": "concurrently \"yarn start\" \"yarn server\"",
-        "build": "yarn --cwd ./whiteboard-app build",
+        "dev": "concurrently \"bun run start\" \"bun run server\"",
+        "build": "bun run --cwd ./whiteboard-app build",
         "typecheck": "tsc --noEmit",
         "lint": "eslint --ext .js,.ts,.tsx .",
         "fix": "eslint --ext .js,.ts,.tsx . --fix && prettier --write .",
