@@ -13,6 +13,7 @@ import type { ChatMessage, McpServerConfig } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useAIGeneration } from "../hooks/useAIGeneration";
 import { executeToolAction } from "../utils/executeToolAction";
+import MarkdownRenderer from "./MarkdownRenderer";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { chatDb } from "../services/chatDb";
 
@@ -51,8 +52,8 @@ const MessageBubble = React.memo(({ message, isStreaming }: {
             <div className="chat-message-content">
                 {isUser ? (
                     <p>{message.content}</p>
-                ) : message.html ? (
-                    <div className="chat-rendered" dangerouslySetInnerHTML={{ __html: message.html }} />
+                ) : message.content && !isStreaming ? (
+                    <MarkdownRenderer content={message.content} />
                 ) : message.content ? (
                     <p className="chat-streaming-text">{message.content}</p>
                 ) : isStreaming ? (

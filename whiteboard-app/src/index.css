@@ -2310,6 +2310,36 @@ body.dark {
   font-size: 12px;
 }
 
+.chat-rendered tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.chat-rendered tr:hover td {
+  background: rgba(139, 92, 246, 0.04);
+}
+
+.chat-blockquote {
+  border-left: 3px solid var(--aurora-violet);
+  padding: 8px 14px;
+  margin: 12px 0;
+  background: rgba(139, 92, 246, 0.04);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.chat-hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+  margin: 16px 0;
+}
+
+.chat-rendered strong {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
 /* Typing indicator */
 .chat-typing {
   display: flex;
