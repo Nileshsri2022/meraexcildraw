@@ -113,7 +113,7 @@ export function useChatStreaming(deps: StreamingDeps) {
                 body: JSON.stringify(payload),
                 signal: controller.signal,
 
-                onmessage(event) {
+                onmessage(event: { data: string }) {
                     try {
                         const data = JSON.parse(event.data) as Record<string, unknown>;
 
@@ -185,13 +185,13 @@ export function useChatStreaming(deps: StreamingDeps) {
                     }
                 },
 
-                onopen: async (response) => {
+                onopen: async (response: Response) => {
                     if (!response.ok) {
                         throw new Error(`Chat service error: ${response.status}`);
                     }
                 },
 
-                onerror(err) {
+                onerror(err: unknown) {
                     if (err instanceof DOMException && err.name === "AbortError") {
                         throw err;
                     }

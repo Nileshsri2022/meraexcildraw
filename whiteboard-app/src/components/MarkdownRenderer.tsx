@@ -124,7 +124,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({ content }) => 
                 rehypePlugins={[rehypeKatex]}
                 components={{
                     // ─── Tables ─────────────────────────────────────────
-                    table: ({ children, ...props }) => (
+                    table: ({ children, ref: _ref, node: _node, ...props }) => (
                         <div className="table-wrapper">
                             <table {...props}>{children}</table>
                         </div>
@@ -176,14 +176,14 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({ content }) => 
 
                         // Inline code
                         return (
-                            <code className="chat-inline-code" {...props}>
+                            <code className="chat-inline-code">
                                 {children}
                             </code>
                         );
                     },
 
                     // ─── Links ──────────────────────────────────────────
-                    a: ({ children, href, ...props }) => (
+                    a: ({ children, href, ref: _ref, node: _node, ...props }) => (
                         <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
                             {children}
                         </a>
@@ -212,7 +212,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({ content }) => 
                     hr: () => <hr className="chat-hr" />,
 
                     // ─── Images ─────────────────────────────────────────
-                    img: ({ src, alt, ...props }) => (
+                    img: ({ src, alt, ref: _ref, node: _node, ...props }) => (
                         <img
                             src={src}
                             alt={alt || ""}
