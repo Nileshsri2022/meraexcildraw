@@ -4,20 +4,17 @@
  * Connects to the Python chat microservice via typed SSE events
  * using @microsoft/fetch-event-source (no manual SSE parsing).
  *
- * Manages conversation state, message history, and canvas context sync.
- * Syncs canvas context before EVERY message so the AI always knows
- * the current state of the canvas.
- *
- * SSE Event Types:
- *   { type: "token",  token: "...", done: false }
- *   { type: "done",   html: "...", session_id: "..." }
- *   { type: "canvas_action", elements: [...] }
- *   { type: "error",  error: "..." }
+ * Refactored: Split into focused sub-hooks (Clean Code §2, §8):
+ *   - useChatConversations: conversation CRUD, persistence, session
+ *   - useChatStreaming: unified SSE streaming (deduplicates two endpoints)
+ *   - useCanvasChat: thin orchestrator that composes the above
  */
-import { useState, useRef, useCallback, useEffect } from "react";
-import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { chatDb, type Conversation } from "../services/chatDb";
+import { useChatConversations } from "./useChatConversations";
+import { useChatStreaming } from "./useChatStreaming";
+
+const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
 /**
  * Minimal shape of an Excalidraw scene element for canvas context sync.
@@ -38,8 +35,6 @@ interface ExcalidrawSceneElement {
     readonly fillStyle?: string;
     readonly fileId?: string | null;
 }
-
-const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -90,18 +85,7 @@ export interface McpServerConfig {
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useCanvasChat() {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [conversations, setConversations] = useState<Conversation[]>([]);
-    const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     const [isStreaming, setIsStreaming] = useState(false);
-    const isStreamingRef = useRef(false);
-    const [error, setError] = useState<string | null>(null);
-    const [pendingActions, setPendingActions] = useState<CanvasActionElement[] | null>(null);
-    const [pendingToolAction, setPendingToolAction] = useState<ToolAction | null>(null);
-    const sessionIdRef = useRef<string | null>(
-        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null
-    );
-    const abortRef = useRef<AbortController | null>(null);
 
     /**
      * Ref to an Excalidraw API instance for reading current canvas state.
@@ -109,102 +93,18 @@ export function useCanvasChat() {
      */
     const excalidrawAPIRef = useRef<ExcalidrawImperativeAPI | null>(null);
 
-    /**
-     * Register the Excalidraw API so the hook can read canvas state
-     * before every message.
-     */
     const setExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI | null) => {
         excalidrawAPIRef.current = api;
     }, []);
 
-    /**
-     * Load conversations and last active chat on mount.
-     */
-    useEffect(() => {
-        const init = async () => {
-            try {
-                const convs = await chatDb.loadConversations();
-                setConversations(convs);
-                if (convs.length > 0) {
-                    const last = convs[0];
-                    setActiveConversationId(last.id);
-                    const msgs = await chatDb.loadMessages(last.id);
-                    setMessages(msgs);
-                }
-            } catch (err) {
-                console.error("[ChatDB] Init failed:", err);
-            }
-        };
-        init();
-    }, []);
+    // ── Conversation management ──
+    const convos = useChatConversations();
 
-    useEffect(() => {
-        if (activeConversationId && messages.length > 0 && !isStreaming) {
-            // Background sync messages to DB without affecting the sidebar position
-            chatDb.saveMessages(activeConversationId, messages, { skipTimestamp: true }).catch(err => {
-                console.error("[ChatDB] Failed to save messages:", err);
-            });
-
-            // If this is the FIRST save for a "New Conversation", we need to update title and promote it
-            const current = conversations.find(c => c.id === activeConversationId);
-            if (current && current.title === "New Conversation" && messages.length > 0) {
-                const firstUserMsg = messages.find(m => m.role === "user");
-                if (firstUserMsg) {
-                    const newTitle = firstUserMsg.content.substring(0, 40) + (firstUserMsg.content.length > 40 ? "..." : "");
-                    const updated = { ...current, title: newTitle, updatedAt: Date.now() };
-                    chatDb.saveConversation(updated).then(() => {
-                        chatDb.loadConversations().then(setConversations);
-                    });
-                }
-            }
-        }
-    }, [messages, isStreaming, activeConversationId, conversations]);
-
-    const selectConversation = useCallback(async (id: string) => {
-        if (id === activeConversationId) return;
-        try {
-            const msgs = await chatDb.loadMessages(id);
-            setMessages(msgs);
-            setActiveConversationId(id);
-
-            // Session ID rotation is handled by the backend if needed, 
-            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-                sessionIdRef.current = crypto.randomUUID();
-            }
-        } catch (err) {
-            console.error("[ChatDB] Failed to select conversation:", err);
-        }
-    }, [activeConversationId]);
-
-    const startNewConversation = useCallback(async () => {
-        const id = crypto.randomUUID();
-        // Just set the state, don't save to DB yet
-        setActiveConversationId(id);
-        setMessages([]);
-        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            sessionIdRef.current = crypto.randomUUID();
-        }
-    }, []);
-
-    const deleteConversation = useCallback(async (id: string) => {
-        await chatDb.deleteConversation(id);
-        setConversations(prev => prev.filter(c => c.id !== id));
-        if (activeConversationId === id) {
-            setMessages([]);
-            setActiveConversationId(null);
-        }
-    }, [activeConversationId]);
-
-    /**
-     * Internal: send canvas context to the server (requires active session).
-     */
+    // ── Canvas context sync ──
     const flushCanvasContext = useCallback(async (elements: readonly ExcalidrawSceneElement[]) => {
-        if (!sessionIdRef.current) return;
+        if (!convos.sessionIdRef.current) return;
 
-        // Excalidraw keeps deleted elements in memory for undo/redo. Filter them out!
         const activeElements = elements.filter(el => !el.isDeleted);
-
-        // Get currently selected elements for "this" / "that" references
         const selectedIds = new Set(
             excalidrawAPIRef.current?.getAppState?.()?.selectedElementIds
                 ? Object.keys(excalidrawAPIRef.current.getAppState().selectedElementIds)
@@ -216,7 +116,7 @@ export function useCanvasChat() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    session_id: sessionIdRef.current,
+                    session_id: convos.sessionIdRef.current,
                     elements: activeElements.map(el => ({
                         id: el.id,
                         type: el.type,
@@ -229,507 +129,76 @@ export function useCanvasChat() {
                         backgroundColor: el.backgroundColor || "",
                         fillStyle: el.fillStyle || "",
                         isSelected: selectedIds.has(el.id),
-                        fileId: el.fileId || null,       // for images
-                        label: el.text?.substring(0, 50) || el.type, // human-readable label
+                        fileId: el.fileId || null,
+                        label: el.text?.substring(0, 50) || el.type,
                     })),
                 }),
             });
         } catch {
             // Non-critical
         }
-    }, []);
+    }, [convos.sessionIdRef]);
 
-    /**
-     * Sync current canvas context to the server.
-     * If no session exists yet, it's a no-op (context will be synced
-     * right before the first message via sendMessage).
-     */
     const syncCanvasContext = useCallback(async (elements?: readonly ExcalidrawSceneElement[]) => {
         const els = elements || (excalidrawAPIRef.current?.getSceneElements?.() as unknown as readonly ExcalidrawSceneElement[]) || [];
-        if (!sessionIdRef.current) return;
+        if (!convos.sessionIdRef.current) return;
         await flushCanvasContext(els);
-    }, [flushCanvasContext]);
+    }, [flushCanvasContext, convos.sessionIdRef]);
 
-    /**
-     * Send a message and stream the response via typed SSE events.
-     *
-     * Before sending, automatically syncs the current canvas state
-     * so the AI always has up-to-date context.
-     */
-    const sendMessage = useCallback(async (content: string, imageBase64?: string) => {
-        if ((!content.trim() && !imageBase64) || isStreamingRef.current) return;
+    // ── Streaming ──
+    const streaming = useChatStreaming({
+        sessionIdRef: convos.sessionIdRef,
+        excalidrawAPIRef,
+        setMessages: convos.setMessages,
+        setError: convos.setError,
+        setPendingActions: convos.setPendingActions,
+        setPendingToolAction: convos.setPendingToolAction,
+        ensureConversation: convos.ensureConversation,
+        flushCanvasContext,
+    });
 
-        setError(null);
-        setPendingActions(null);
-        setPendingToolAction(null);
+    // Sync the isStreaming state from the ref
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setIsStreaming(streaming.isStreamingRef.current);
+        }, 100);
+        return () => clearInterval(interval);
+    }, [streaming.isStreamingRef]);
 
-        const now = Date.now();
-        const userMsg: ChatMessage = {
-            id: `u-${now}`,
-            role: "user",
-            content: content.trim(),
-            imageBase64,
-            timestamp: now,
-        };
+    // Auto-persist messages when streaming completes
+    useEffect(() => {
+        convos.persistMessages(isStreaming);
+    }, [convos.messages, isStreaming, convos.persistMessages]);
 
-        const assistantId = `a-${now + 1}`;
-        const assistantMsg: ChatMessage = {
-            id: assistantId,
-            role: "assistant",
-            content: "",
-            timestamp: now + 1,
-        };
-
-        // Create/Update conversation in the list
-        const currentConv = conversations.find(c => c.id === activeConversationId);
-        if (activeConversationId) {
-            if (!currentConv) {
-                const newConv: Conversation = {
-                    id: activeConversationId,
-                    title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
-                    updatedAt: now,
-                };
-                await chatDb.saveConversation(newConv);
-                setConversations(prev => [newConv, ...prev]);
-            } else {
-                // Promote existing conversation to the top
-                const updated = { ...currentConv, updatedAt: now };
-                await chatDb.saveConversation(updated);
-                chatDb.loadConversations().then(setConversations);
-            }
-        }
-
-        setMessages(prev => [...prev, userMsg, assistantMsg]);
-        isStreamingRef.current = true;
-        setIsStreaming(true);
-
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        try {
-            await fetchEventSource(`${CHAT_SERVICE_URL}/chat`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message: content.trim(),
-                    session_id: sessionIdRef.current,
-                    image_data: imageBase64 || undefined,
-                }),
-                signal: controller.signal,
-
-                // Called for each SSE event — data is already extracted
-                onmessage(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-
-                        switch (data.type) {
-                            case "token":
-                                if (data.token) {
-                                    setMessages(prev =>
-                                        prev.map(m =>
-                                            m.id === assistantId
-                                                ? { ...m, content: m.content + data.token }
-                                                : m
-                                        )
-                                    );
-                                }
-                                break;
-
-                            case "done":
-                                if (data.session_id) {
-                                    const isNewSession = !sessionIdRef.current;
-                                    sessionIdRef.current = data.session_id;
-
-                                    // If this is a brand-new session, sync canvas context now
-                                    if (isNewSession) {
-                                        const els = excalidrawAPIRef.current?.getSceneElements?.() || [];
-                                        if (els.length > 0) {
-                                            flushCanvasContext(els);
-                                        }
-                                    }
-                                }
-                                if (data.html) {
-                                    setMessages(prev =>
-                                        prev.map(m =>
-                                            m.id === assistantId
-                                                ? { ...m, html: data.html }
-                                                : m
-                                        )
-                                    );
-                                }
-                                break;
-
-                            case "canvas_action":
-                                if (data.elements && data.elements.length > 0) {
-                                    setPendingActions(data.elements);
-                                }
-                                break;
-
-                            case "tool_action":
-                                // Route to a real AI tool (diagram, image, sketch, ocr, tts)
-                                if (data.tool) {
-                                    setPendingToolAction({
-                                        tool: data.tool,
-                                        prompt: data.prompt || "",
-                                        style: data.style,
-                                        text: data.text,
-                                    });
-                                }
-                                break;
-
-                            case "error":
-                                setError(data.error || "Unknown error");
-                                break;
-                        }
-                    } catch {
-                        // Skip malformed JSON
-                    }
-                },
-
-                // Connection opened successfully
-                onopen: async (response) => {
-                    if (!response.ok) {
-                        throw new Error(`Chat service error: ${response.status}`);
-                    }
-                },
-
-                // Handle errors — don't retry on abort
-                onerror(err) {
-                    if (err instanceof DOMException && err.name === "AbortError") {
-                        throw err;
-                    }
-                    setError(err instanceof Error ? err.message : "Chat failed");
-                    throw err;
-                },
-
-                openWhenHidden: true,
-            });
-        } catch (err) {
-            if (err instanceof DOMException && err.name === "AbortError") {
-                // User cancelled — silent
-            } else {
-                const msg = err instanceof Error ? err.message : "Chat failed";
-                setError(msg);
-                setMessages(prev =>
-                    prev.filter(m => m.id !== assistantId || m.content.length > 0)
-                );
-            }
-        } finally {
-            isStreamingRef.current = false;
-            setIsStreaming(false);
-            abortRef.current = null;
-        }
-    }, [activeConversationId, conversations, flushCanvasContext]);
-
-    /**
-     * Send a message with a fresh canvas sync.
-     * Called by ChatPanel which has access to excalidrawAPI.
-     */
-    const sendMessageWithSync = useCallback(async (content: string) => {
-        // Sync canvas context right before sending (if session exists)
-        if (sessionIdRef.current) {
+    /** Send a message with a fresh canvas sync */
+    const sendMessageWithSync = useCallback(async (content: string, imageBase64?: string) => {
+        if (convos.sessionIdRef.current) {
             const els = excalidrawAPIRef.current?.getSceneElements?.() || [];
-            await flushCanvasContext(els);
+            await flushCanvasContext(els as unknown as readonly ExcalidrawSceneElement[]);
         }
-        return sendMessage(content);
-    }, [sendMessage, flushCanvasContext]);
-
-    /**
-     * Send a message using the tools-augmented endpoint.
-     * Uses Groq's built-in tools and/or remote MCP servers.
-     */
-    const sendToolMessage = useCallback(async (
-        content: string,
-        builtinTools: string[],
-        mcpServers: McpServerConfig[],
-        imageBase64?: string
-    ) => {
-        if ((!content.trim() && !imageBase64) || isStreamingRef.current) return;
-
-        setError(null);
-        setPendingActions(null);
-        setPendingToolAction(null);
-
-        const now = Date.now();
-        const userMsg: ChatMessage = {
-            id: `u-${now}`,
-            role: "user",
-            content: content.trim(),
-            imageBase64,
-            timestamp: now,
-        };
-
-        const assistantId = `a-${now + 1}`;
-        const assistantMsg: ChatMessage = {
-            id: assistantId,
-            role: "assistant",
-            content: "",
-            timestamp: now + 1,
-        };
-
-        // Create/Update conversation in the list
-        const currentConv = conversations.find(c => c.id === activeConversationId);
-        if (activeConversationId) {
-            if (!currentConv) {
-                const newConv: Conversation = {
-                    id: activeConversationId,
-                    title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
-                    updatedAt: now,
-                };
-                await chatDb.saveConversation(newConv);
-                setConversations(prev => [newConv, ...prev]);
-            } else {
-                // Promote existing conversation to the top
-                const updated = { ...currentConv, updatedAt: now };
-                await chatDb.saveConversation(updated);
-                chatDb.loadConversations().then(setConversations);
-            }
-        }
-
-        setMessages(prev => [...prev, userMsg, assistantMsg]);
-        isStreamingRef.current = true;
-        setIsStreaming(true);
-
-        const controller = new AbortController();
-        abortRef.current = controller;
-
-        try {
-            await fetchEventSource(`${CHAT_SERVICE_URL}/chat/tools`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message: content.trim(),
-                    session_id: sessionIdRef.current,
-                    builtin_tools: builtinTools,
-                    mcp_servers: mcpServers.map(s => ({
-                        label: s.label,
-                        url: s.url,
-                        description: s.description || "",
-                        headers: s.headers || {},
-                        require_approval: s.require_approval || "never",
-                    })),
-                    image_data: imageBase64 || undefined,
-                }),
-                signal: controller.signal,
-
-                onmessage(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-
-                        switch (data.type) {
-                            case "token":
-                                if (data.token) {
-                                    setMessages(prev =>
-                                        prev.map(m =>
-                                            m.id === assistantId
-                                                ? { ...m, content: m.content + data.token }
-                                                : m
-                                        )
-                                    );
-                                }
-                                break;
-
-                            case "tool_info":
-                                // MCP server discovered tools
-                                if (import.meta.env.DEV) {
-                                    console.log(`[ToolChat] ${data.server} tools:`, data.tools);
-                                }
-                                break;
-
-                            case "tool_call":
-                                // A tool was executed
-                                setMessages(prev =>
-                                    prev.map(m =>
-                                        m.id === assistantId
-                                            ? {
-                                                ...m,
-                                                content: m.content +
-                                                    `\n🔧 *Used ${data.tool}*` +
-                                                    (data.server ? ` (${data.server})` : "") +
-                                                    "\n",
-                                            }
-                                            : m
-                                    )
-                                );
-                                break;
-
-                            case "done":
-                                if (data.session_id) {
-                                    sessionIdRef.current = data.session_id;
-                                }
-                                if (data.html) {
-                                    setMessages(prev =>
-                                        prev.map(m =>
-                                            m.id === assistantId
-                                                ? { ...m, html: data.html }
-                                                : m
-                                        )
-                                    );
-                                }
-                                break;
-
-                            case "error":
-                                setError(data.error || "Tool error");
-                                break;
-                        }
-                    } catch {
-                        // Skip malformed JSON
-                    }
-                },
-
-                onopen: async (response) => {
-                    if (!response.ok) {
-                        throw new Error(`Tool chat error: ${response.status}`);
-                    }
-                },
-
-                onerror(err) {
-                    if (err instanceof DOMException && err.name === "AbortError") {
-                        throw err;
-                    }
-                    setError(err instanceof Error ? err.message : "Tool chat failed");
-                    throw err;
-                },
-
-                openWhenHidden: true,
-            });
-        } catch (err) {
-            if (err instanceof DOMException && err.name === "AbortError") {
-                // User cancelled
-            } else {
-                const msg = err instanceof Error ? err.message : "Tool chat failed";
-                setError(msg);
-                setMessages(prev =>
-                    prev.filter(m => m.id !== assistantId || m.content.length > 0)
-                );
-            }
-        } finally {
-            isStreamingRef.current = false;
-            setIsStreaming(false);
-            abortRef.current = null;
-        }
-    }, [activeConversationId, conversations]);
-
-    /**
-     * Stop the current stream.
-     */
-    const stopStreaming = useCallback(() => {
-        abortRef.current?.abort();
-    }, []);
-
-    /**
-     * Consume and clear pending canvas actions.
-     */
-    const consumeActions = useCallback(() => {
-        const actions = pendingActions;
-        setPendingActions(null);
-        return actions;
-    }, [pendingActions]);
-
-    /**
-     * Consume and clear pending tool action.
-     */
-    const consumeToolAction = useCallback(() => {
-        const action = pendingToolAction;
-        setPendingToolAction(null);
-        return action;
-    }, [pendingToolAction]);
-
-    /**
-     * Clear conversation history (both local and server-side).
-     * Also resets canvas context on the server.
-     */
-    const clearChat = useCallback(async () => {
-        // Always clear UI state immediately
-        setMessages([]);
-        setError(null);
-        setPendingActions(null);
-
-        // Clear from DB if we have an active conversation
-        if (activeConversationId) {
-            try {
-                await chatDb.clearConversation(activeConversationId);
-
-                // Update timestamp so it stays at the top
-                const conv = conversations.find(c => c.id === activeConversationId);
-                if (conv) {
-                    const updated = { ...conv, updatedAt: Date.now() };
-                    await chatDb.saveConversation(updated);
-                    const freshConvs = await chatDb.loadConversations();
-                    setConversations(freshConvs);
-                }
-            } catch (err) {
-                console.error("[ChatDB] clearChat DB error:", err);
-            }
-        }
-
-        // Clear server-side session
-        if (sessionIdRef.current) {
-            try {
-                await fetch(`${CHAT_SERVICE_URL}/chat/clear`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ session_id: sessionIdRef.current }),
-                });
-            } catch {
-                // Non-critical
-            }
-
-            // Rotate session ID
-            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-                sessionIdRef.current = crypto.randomUUID();
-            } else {
-                sessionIdRef.current = null;
-            }
-        }
-    }, [activeConversationId, conversations]);
-
-    /**
-     * Programmatically append an assistant message to the chat.
-     * Used by tool actions (OCR, etc.) to show results in the conversation.
-     */
-    const appendAssistantMessage = useCallback((content: string) => {
-        const now = Date.now();
-        const msg: ChatMessage = {
-            id: `tool-${now}`,
-            role: "assistant",
-            content,
-            timestamp: now,
-        };
-        setMessages(prev => [...prev, msg]);
-
-        // Promote conversation when tool actions append results
-        if (activeConversationId) {
-            const current = conversations.find(c => c.id === activeConversationId);
-            if (current) {
-                const updated = { ...current, updatedAt: now };
-                chatDb.saveConversation(updated).then(() => {
-                    chatDb.loadConversations().then(setConversations);
-                });
-            }
-        }
-    }, [activeConversationId, conversations]);
+        return streaming.sendMessage(content, imageBase64);
+    }, [streaming.sendMessage, flushCanvasContext, convos.sessionIdRef]);
 
     return {
-        messages,
-        conversations,
-        activeConversationId,
+        messages: convos.messages,
+        conversations: convos.conversations,
+        activeConversationId: convos.activeConversationId,
         isStreaming,
-        error,
-        pendingActions,
-        pendingToolAction,
-        sessionId: sessionIdRef.current,
+        error: convos.error,
+        pendingActions: convos.pendingActions,
+        pendingToolAction: convos.pendingToolAction,
+        sessionId: convos.sessionIdRef.current,
         sendMessage: sendMessageWithSync,
-        sendToolMessage,
-        stopStreaming,
-        clearChat,
-        startNewConversation,
-        selectConversation,
-        deleteConversation,
+        sendToolMessage: streaming.sendToolMessage,
+        stopStreaming: streaming.stopStreaming,
+        clearChat: convos.clearChat,
+        startNewConversation: convos.startNewConversation,
+        selectConversation: convos.selectConversation,
+        deleteConversation: convos.deleteConversation,
         syncCanvasContext,
-        consumeActions,
-        consumeToolAction,
+        consumeActions: convos.consumeActions,
+        consumeToolAction: convos.consumeToolAction,
         setExcalidrawAPI,
-        appendAssistantMessage,
+        appendAssistantMessage: convos.appendAssistantMessage,
     };
 }
