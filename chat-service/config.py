@@ -18,6 +18,8 @@ OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 CHAT_MODEL_PRIMARY: str = os.getenv("CHAT_MODEL_PRIMARY", "llama-3.3-70b-versatile")
 CHAT_MODEL_FALLBACK: str = os.getenv("CHAT_MODEL_FALLBACK", "arcee-ai/trinity-large-preview:free")
+CHAT_MODEL_VISION: str = os.getenv("CHAT_MODEL_VISION", "llama-3.2-11b-vision-preview")
+CHAT_MODEL_VISION_FALLBACK: str = os.getenv("CHAT_MODEL_VISION_FALLBACK", "openai/gpt-4o-mini")
 CHAT_PORT: int = int(os.getenv("CHAT_PORT", "3003"))
 MAX_HISTORY_MESSAGES: int = int(os.getenv("MAX_HISTORY_MESSAGES", "20"))
 SESSION_TTL_HOURS: int = int(os.getenv("SESSION_TTL_HOURS", "24"))
@@ -71,8 +73,29 @@ fallback_canvas_llm = ChatOpenAI(
     extra_body={"reasoning": {"enabled": True}},
 ) if OPENROUTER_API_KEY else None
 
+# Vision LLMs
+vision_llm = ChatOpenAI(
+    model=CHAT_MODEL_VISION,
+    api_key=GROQ_API_KEY or "unused",
+    base_url="https://api.groq.com/openai/v1",
+    temperature=0.4,
+    max_tokens=2048,
+    streaming=True,
+) if GROQ_API_KEY else None
+
+fallback_vision_llm = ChatOpenAI(
+    model=CHAT_MODEL_VISION_FALLBACK,
+    api_key=OPENROUTER_API_KEY or "unused",
+    base_url="https://openrouter.ai/api/v1",
+    temperature=0.4,
+    max_tokens=2048,
+    streaming=True,
+) if OPENROUTER_API_KEY else None
+
 # Use primary if available, otherwise fallback
 if chat_llm is None:
     chat_llm = fallback_chat_llm
 if canvas_llm is None:
     canvas_llm = fallback_canvas_llm
+if vision_llm is None:
+    vision_llm = fallback_vision_llm

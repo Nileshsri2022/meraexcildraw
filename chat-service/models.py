@@ -25,6 +25,7 @@ class CanvasElement(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     session_id: str | None = None
+    image_data: str | None = Field(default=None, description="Base64 encoded image data (e.g. data:image/png;base64,...")
 
 
 class CanvasContextRequest(BaseModel):

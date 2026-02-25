@@ -6,7 +6,7 @@ from __future__ import annotations
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 
-from config import chat_llm, canvas_llm
+from config import chat_llm, canvas_llm, vision_llm
 
 # ─── Prompts ──────────────────────────────────────────────────────────────────
 
@@ -56,6 +56,7 @@ Canvas context: {canvas_context}"""),
 
 # Chat chain: prompt → LLM (streams) — no parser so we can stream raw chunks
 chat_chain = chat_prompt | chat_llm
+vision_chain = chat_prompt | vision_llm
 
 # Canvas chain: prompt → LLM (deterministic) → string parser
 canvas_chain = canvas_prompt | canvas_llm | StrOutputParser()

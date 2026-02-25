@@ -49,6 +49,8 @@ export interface ChatMessage {
     content: string;
     /** Server-rendered HTML (populated when streaming completes) */
     html?: string;
+    /** Optional Base64 encoded image string attached to user message */
+    imageBase64?: string;
     timestamp: number;
 }
 
@@ -254,8 +256,8 @@ export function useCanvasChat() {
      * Before sending, automatically syncs the current canvas state
      * so the AI always has up-to-date context.
      */
-    const sendMessage = useCallback(async (content: string) => {
-        if (!content.trim() || isStreamingRef.current) return;
+    const sendMessage = useCallback(async (content: string, imageBase64?: string) => {
+        if (!content.trim() && !imageBase64 || isStreamingRef.current) return;
 
         setError(null);
         setPendingActions(null);
@@ -266,6 +268,7 @@ export function useCanvasChat() {
             id: `u-${now}`,
             role: "user",
             content: content.trim(),
+            imageBase64,
             timestamp: now,
         };
 
@@ -310,6 +313,7 @@ export function useCanvasChat() {
                 body: JSON.stringify({
                     message: content.trim(),
                     session_id: sessionIdRef.current,
+                    image_data: imageBase64 || undefined,
                 }),
                 signal: controller.signal,
 
@@ -438,8 +442,9 @@ export function useCanvasChat() {
         content: string,
         builtinTools: string[],
         mcpServers: McpServerConfig[],
+        imageBase64?: string
     ) => {
-        if (!content.trim() || isStreamingRef.current) return;
+        if (!content.trim() && !imageBase64 || isStreamingRef.current) return;
 
         setError(null);
         setPendingActions(null);
@@ -450,6 +455,7 @@ export function useCanvasChat() {
             id: `u-${now}`,
             role: "user",
             content: content.trim(),
+            imageBase64,
             timestamp: now,
         };
 
@@ -502,6 +508,7 @@ export function useCanvasChat() {
                         headers: s.headers || {},
                         require_approval: s.require_approval || "never",
                     })),
+                    image_data: imageBase64 || undefined,
                 }),
                 signal: controller.signal,
 

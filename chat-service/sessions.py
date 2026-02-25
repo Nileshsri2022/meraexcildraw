@@ -38,13 +38,18 @@ class ChatSession:
         if len(self.messages) > MAX_HISTORY_MESSAGES:
             self.messages = self.messages[-MAX_HISTORY_MESSAGES:]
 
-    def get_chain_input(self, user_input: str) -> dict:
-        """Build the input dict for LCEL chains.
-
-        Pre-computed once per request; avoids re-slicing in the hot loop.
-        """
+    def get_chain_input(self, user_input: str, image_data: str | None = None) -> dict:
+        """Build the input dict for LCEL chains."""
         self.last_active = datetime.now()
-        self.messages.append(HumanMessage(content=user_input))
+        
+        if image_data:
+            content = [
+                {"type": "text", "text": user_input},
+                {"type": "image_url", "image_url": {"url": image_data}}
+            ]
+            self.messages.append(HumanMessage(content=content))
+        else:
+            self.messages.append(HumanMessage(content=user_input))
 
         # Keep history bounded, excluding the message we JUST added
         history = self.messages[-(MAX_HISTORY_MESSAGES):-1]
@@ -57,8 +62,16 @@ class ChatSession:
             f"{user_input}"
         )
 
+        if image_data:
+            final_input = [
+                {"type": "text", "text": injected_input},
+                {"type": "image_url", "image_url": {"url": image_data}}
+            ]
+        else:
+            final_input = injected_input
+
         return {
-            "input": injected_input,
+            "input": final_input,
             "history": history,
             "canvas_context": self.canvas_context,
         }

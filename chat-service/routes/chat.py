@@ -15,7 +15,7 @@ from models import ChatRequest
 from sessions import get_or_create_session
 from parsers import strip_think_tags, md_to_html, parse_canvas_json
 from tools import detect_tool_intent
-from prompts import chat_chain, canvas_chain
+from prompts import chat_chain, canvas_chain, vision_chain
 
 router = APIRouter()
 
@@ -44,7 +44,7 @@ async def chat(req: ChatRequest):
     session_id = session.session_id
 
     # Build chain input
-    chain_input = session.get_chain_input(req.message)
+    chain_input = session.get_chain_input(req.message, req.image_data)
 
     # Detect which AI tool (if any) should handle this message
     tool_intent = detect_tool_intent(req.message)
@@ -71,7 +71,8 @@ async def chat(req: ChatRequest):
             print(f"[Chat] Starting LLM stream for session {session_id}")
 
             async with asyncio.timeout(90):
-                async for chunk in chat_chain.astream(chain_input):
+                chain_to_use = vision_chain if req.image_data else chat_chain
+                async for chunk in chain_to_use.astream(chain_input):
                     rd = chunk.additional_kwargs.get("reasoning_details") or getattr(chunk, "reasoning_details", None)
                     if rd:
                         reasoning_details_accum.append(str(rd))

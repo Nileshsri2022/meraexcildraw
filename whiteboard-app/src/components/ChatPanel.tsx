@@ -624,11 +624,25 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                         />
                                     </label>
                                     <label className="mcp-field">
-                                        <span>Server URL *</span>
+                                        <span>Server URL * <small>(Use {"<APIKEY>"} as a placeholder if needed)</small></span>
                                         <input
                                             value={mcpForm.url}
-                                            onChange={e => setMcpForm(p => ({ ...p, url: e.target.value }))}
-                                            placeholder="https://mcp.firecrawl.dev/<APIKEY>/v2/mcp"
+                                            onChange={e => {
+                                                let val = e.target.value;
+                                                // Quick helpers for common remote servers
+                                                const helpers: Record<string, string> = {
+                                                    "firecrawl.dev": "https://mcp.firecrawl.dev/<APIKEY>/v2/mcp",
+                                                    "mcp.stripe.com": "https://mcp.stripe.com/<APIKEY>/v1/mcp"
+                                                };
+                                                for (const [domain, template] of Object.entries(helpers)) {
+                                                    if (val.trim() === domain || (val.includes(domain) && !val.includes("<APIKEY>") && val.length < domain.length + 10)) {
+                                                        val = template;
+                                                        break;
+                                                    }
+                                                }
+                                                setMcpForm(p => ({ ...p, url: val }));
+                                            }}
+                                            placeholder="https://example.com/<APIKEY>/v1/mcp"
                                         />
                                     </label>
                                     <label className="mcp-field">

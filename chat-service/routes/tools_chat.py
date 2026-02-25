@@ -81,6 +81,7 @@ class ToolChatRequest(BaseModel):
     session_id: str | None = None
     builtin_tools: list[str] = []
     mcp_servers: list[McpServerConfig] = []
+    image_data: str | None = Field(default=None, description="Base64 encoded image data")
 
 
 class McpTestRequest(BaseModel):
@@ -112,6 +113,7 @@ async def test_mcp_connection(req: McpTestRequest):
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
+            server_url = _format_mcp_url(req.url, req.headers)
             payload = {
                 "model": MCP_MODEL,
                 "messages": [
@@ -121,7 +123,7 @@ async def test_mcp_connection(req: McpTestRequest):
                     {
                         "type": "mcp",
                         "server_label": req.label,
-                        "server_url": req.url,
+                        "server_url": server_url,
                         "require_approval": "never",
                     }
                 ],
@@ -141,9 +143,23 @@ async def test_mcp_connection(req: McpTestRequest):
 
             if resp.status_code == 200:
                 return {"ok": True, "status": resp.status_code}
-            else:
-                body = resp.text[:300]
-                return {"ok": False, "error": body, "status": resp.status_code}
+            
+            # Specific handling for Groq's MCP gateway errors
+            if resp.status_code == 424:
+                return {
+                    "ok": False, 
+                    "error": "Groq couldn't reach the MCP server. Ensure the URL is correct and the server is public.",
+                    "status": 424
+                }
+            if resp.status_code == 401:
+                return {
+                    "ok": False, 
+                    "error": "Invalid API Key. Check your Firecrawl/Stripe credentials.",
+                    "status": 401
+                }
+
+            body = resp.text[:300]
+            return {"ok": False, "error": body, "status": resp.status_code}
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -151,8 +167,12 @@ async def test_mcp_connection(req: McpTestRequest):
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-def _sse(data: dict) -> str:
-    return f"data: {json.dumps(data, separators=(',', ':'))}\n\n"
+def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
+    """Generic template replacer: replaces <APIKEY> placeholder in URL with key from headers."""
+    api_key = headers.get("Authorization", "").replace("Bearer ", "").strip()
+    if api_key and "<APIKEY>" in url:
+        return url.replace("<APIKEY>", api_key)
+    return url
 
 
 @traceable(name="Groq Built-in Tool Call")
@@ -182,10 +202,11 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
     """Execute an MCP tool call via llama-3.3-70b-versatile."""
     tools: list[dict[str, Any]] = []
     for srv in mcp_servers:
+        server_url = _format_mcp_url(srv.url, srv.headers)
         tool_def: dict[str, Any] = {
             "type": "mcp",
             "server_label": srv.label,
-            "server_url": srv.url,
+            "server_url": server_url,
             "require_approval": srv.require_approval,
         }
         if srv.description:
