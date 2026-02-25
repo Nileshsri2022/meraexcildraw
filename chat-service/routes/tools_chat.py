@@ -27,12 +27,13 @@ from parsers import strip_think_tags, md_to_html
 router = APIRouter()
 
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_RESPONSES_URL = "https://api.groq.com/openai/v1/responses"
 
 # ─── Models ───────────────────────────────────────────────────────────────────
 # compound-mini for built-in tools (web_search, code_interpreter, etc.)
-# llama-3.3-70b-versatile for MCP (same model as normal chat, reusable)
+# openai/gpt-oss-120b for MCP (required by Groq Responses API for remote MCP)
 COMPOUND_MODEL = "groq/compound-mini"
-MCP_MODEL = "llama-3.3-70b-versatile"
+MCP_MODEL = "openai/gpt-oss-120b"
 
 # ─── Built-in Tool Definitions ────────────────────────────────────────────────
 
@@ -107,42 +108,40 @@ async def list_available_tools():
 
 @router.post("/chat/test-mcp")
 async def test_mcp_connection(req: McpTestRequest):
-    """Test if an MCP server is reachable by making a simple tool-use request."""
+    """Test if an MCP server is reachable using Groq's Responses API (official MCP gateway)."""
     if not GROQ_API_KEY:
         return {"ok": False, "error": "GROQ_API_KEY not set"}
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=45) as client:
             server_url = _format_mcp_url(req.url, req.headers)
-            
-            # Prepare headers (Groq only wants Authorization)
-            tool_headers = {}
-            if req.headers and "Authorization" in req.headers:
-                tool_headers["Authorization"] = req.headers["Authorization"]
 
+            # Build MCP tool definition — key goes in URL path, NOT in headers
+            tool_def: dict[str, Any] = {
+                "type": "mcp",
+                "server_label": req.label,
+                "server_url": server_url,
+                "require_approval": "never",
+            }
+
+            # Only add headers if there's no API key already in the URL path
+            api_key = req.headers.get("Authorization", "").replace("Bearer ", "").strip() if req.headers else ""
+            if api_key and api_key not in server_url:
+                tool_def["headers"] = {"Authorization": f"Bearer {api_key}"}
+
+            # Use the Responses API (official Groq MCP gateway)
             payload = {
                 "model": MCP_MODEL,
-                "messages": [
-                    {"role": "user", "content": "List available tools."}
-                ],
-                "tools": [
-                    {
-                        "type": "mcp",
-                        "server_label": req.label,
-                        "server_url": server_url,
-                        "require_approval": "never",
-                    }
-                ],
-                "max_tokens": 50,
+                "input": "List available tools.",
+                "tools": [tool_def],
+                "stream": False,
             }
-            if tool_headers:
-                payload["tools"][0]["headers"] = tool_headers
 
-            print(f"[MCP] Testing connection with URL: {server_url}")
+            print(f"[MCP] (Responses API) Testing connection with URL: {server_url}")
             print(f"[MCP] Payload sent to Groq: {json.dumps(payload, indent=2)}")
 
             resp = await client.post(
-                GROQ_CHAT_URL,
+                GROQ_RESPONSES_URL,
                 headers={
                     "Authorization": f"Bearer {GROQ_API_KEY}",
                     "Content-Type": "application/json",
@@ -155,6 +154,13 @@ async def test_mcp_connection(req: McpTestRequest):
                 print(f"[MCP] Groq error response: {resp.text}")
 
             if resp.status_code == 200:
+                data = resp.json()
+                # Check if tools were discovered
+                output = data.get("output", [])
+                tool_list = [o for o in output if o.get("type") == "mcp_list_tools"]
+                if tool_list:
+                    tools = tool_list[0].get("tools", [])
+                    print(f"[MCP] Discovered {len(tools)} tools: {[t.get('name') for t in tools]}")
                 return {"ok": True, "status": resp.status_code}
             
             # Specific handling for Groq's MCP gateway errors
@@ -171,7 +177,7 @@ async def test_mcp_connection(req: McpTestRequest):
                     "status": 401
                 }
 
-            body = resp.text[:300]
+            body = resp.text[:200]
             return {"ok": False, "error": body, "status": resp.status_code}
 
     except Exception as e:
@@ -181,7 +187,7 @@ async def test_mcp_connection(req: McpTestRequest):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
-    """Generic template replacer + special Groq endpoint for Firecrawl."""
+    """Format MCP URL per Groq's official docs. Key goes in URL path for Firecrawl."""
     api_key = headers.get("Authorization", "").replace("Bearer ", "").strip()
     formatted_url = url
     
@@ -189,10 +195,10 @@ def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
     if api_key and "<APIKEY>" in formatted_url:
         formatted_url = formatted_url.replace("<APIKEY>", api_key)
     
-    # Special fix for Firecrawl on Groq
-    if "firecrawl.dev" in formatted_url:
-        # This endpoint is specifically designed to send 'endpoint' event first
-        formatted_url = "https://mcp.firecrawl.dev/groq/v2/sse"
+    # Official Firecrawl format: https://mcp.firecrawl.dev/<KEY>/v2/mcp
+    # Per Groq docs: key goes in URL path, no Authorization header needed
+    if "firecrawl.dev" in formatted_url and api_key and api_key not in formatted_url:
+        formatted_url = f"https://mcp.firecrawl.dev/{api_key}/v2/mcp"
     
     print(f"[MCP] Formatting URL: {url} -> {formatted_url}")
     return formatted_url
@@ -222,15 +228,15 @@ async def _call_builtin_tools(client: httpx.AsyncClient, message: str, enabled: 
 
 @traceable(name="Groq MCP Tool Call")
 async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: list[McpServerConfig]):
-    """Execute an MCP tool call via llama-3.3-70b-versatile."""
+    """Execute an MCP tool call via Groq Responses API (official MCP gateway)."""
     tools: list[dict[str, Any]] = []
     for srv in mcp_servers:
         server_url = _format_mcp_url(srv.url, srv.headers)
         
-        # Prepare only Authorization header
-        tool_headers = {}
+        # Extract API key
+        api_key = ""
         if srv.headers and "Authorization" in srv.headers:
-            tool_headers["Authorization"] = srv.headers["Authorization"]
+            api_key = srv.headers["Authorization"].replace("Bearer ", "").strip()
 
         tool_def: dict[str, Any] = {
             "type": "mcp",
@@ -239,8 +245,9 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
             "require_approval": srv.require_approval,
         }
         
-        if tool_headers:
-            tool_def["headers"] = tool_headers
+        # Only add headers if key is NOT already in URL path
+        if api_key and api_key not in server_url:
+            tool_def["headers"] = {"Authorization": f"Bearer {api_key}"}
             
         if srv.description:
             tool_def["server_description"] = srv.description
@@ -249,17 +256,18 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
 
     payload = {
         "model": MCP_MODEL,
-        "messages": [{"role": "user", "content": message}],
+        "input": message,
         "tools": tools,
+        "stream": False,
     }
-    print(f"[MCP] Calling tools for session: {message[:50]}...")
+    print(f"[MCP] (Responses API) Calling tools for: {message[:50]}...")
     print(f"[MCP] Tools payload: {json.dumps(payload, indent=2)}")
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
-    resp = await client.post(GROQ_CHAT_URL, headers=headers, json=payload)
+    resp = await client.post(GROQ_RESPONSES_URL, headers=headers, json=payload)
     
     print(f"[MCP] Tool call response status: {resp.status_code}")
     if resp.status_code != 200:
