@@ -135,7 +135,9 @@ async def test_mcp_connection(req: McpTestRequest):
                 ],
                 "max_tokens": 50,
             }
-            if tool_headers:
+
+            # ONLY send headers if they aren't already in the URL path (prevents 400 Bad Request)
+            if tool_headers and not any(k in server_url for k in ["fc-", "sk-"]):
                 payload["tools"][0]["headers"] = tool_headers
 
             print(f"[MCP] Testing connection with URL: {server_url}")
@@ -242,7 +244,8 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
             "require_approval": srv.require_approval,
         }
         
-        if tool_headers:
+        # ONLY send headers if they aren't already in the URL path (prevents 400 Bad Request)
+        if tool_headers and not any(k in server_url for k in ["fc-", "sk-"]):
             tool_def["headers"] = tool_headers
             
         if srv.description:
