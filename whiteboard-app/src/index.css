@@ -2099,7 +2099,7 @@ body.dark {
   transition: all 0.3s;
   word-break: break-word;
   overflow-wrap: break-word;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .chat-message--user .chat-message-content {
@@ -2200,38 +2200,46 @@ body.dark {
 
 .chat-rendered table {
   border-collapse: collapse;
-  margin: 12px 0;
+  margin: 0;
   font-size: 12px;
   line-height: 1.5;
-  scrollbar-width: thin;
   width: max-content;
   min-width: 100%;
 }
 
-/* Scrollable table wrapper — injected by md_to_html or handled by CSS */
-.chat-rendered .table-wrapper {
+/* Scrollable table wrapper — applied by MarkdownRenderer */
+.table-wrapper {
   overflow-x: auto;
+  overflow-y: hidden;
   margin: 12px 0;
   border-radius: 8px;
   border: 1px solid var(--border-subtle);
-  scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
-.chat-rendered .table-wrapper table {
-  margin: 0;
+/* Always show the scrollbar on table wrappers */
+.table-wrapper::-webkit-scrollbar {
+  height: 6px;
 }
 
-/* Overflow auto for the table itself when no wrapper */
-.chat-message-content {
-  overflow-x: hidden;
+.table-wrapper::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
 }
 
-.chat-rendered>table {
-  display: block;
-  overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 3px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.5);
+}
+
+.table-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.3) rgba(255, 255, 255, 0.03);
 }
 
 .chat-rendered th,
