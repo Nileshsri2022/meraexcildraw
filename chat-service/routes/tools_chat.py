@@ -115,16 +115,6 @@ async def test_mcp_connection(req: McpTestRequest):
         async with httpx.AsyncClient(timeout=30) as client:
             server_url = _format_mcp_url(req.url, req.headers)
             
-            # Prepare tool headers (mandatory for some servers like Firecrawl)
-            tool_headers = {**req.headers}
-            if "Accept" not in tool_headers:
-                tool_headers["Accept"] = "application/json"
-            
-            # If the API key is already in the URL, remove the Bearer token to avoid "Bad Request" (multi-auth)
-            if any(k in server_url for k in ["fc-", "sk-"]) and "Authorization" in tool_headers:
-                # Some servers fail if you provide both URL auth and Header auth
-                del tool_headers["Authorization"]
-
             payload = {
                 "model": MCP_MODEL,
                 "messages": [
@@ -135,7 +125,6 @@ async def test_mcp_connection(req: McpTestRequest):
                         "type": "mcp",
                         "server_label": req.label,
                         "server_url": server_url,
-                        "headers": tool_headers,
                         "require_approval": "never",
                     }
                 ],
@@ -225,22 +214,13 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
     for srv in mcp_servers:
         server_url = _format_mcp_url(srv.url, srv.headers)
         
-        # Prepare headers
-        tool_headers = {**srv.headers}
-        if "Accept" not in tool_headers:
-            tool_headers["Accept"] = "application/json"
-        
-        if any(k in server_url for k in ["fc-", "sk-"]) and "Authorization" in tool_headers:
-            del tool_headers["Authorization"]
-
         tool_def: dict[str, Any] = {
             "type": "mcp",
             "server_label": srv.label,
             "server_url": server_url,
-            "headers": tool_headers,
             "require_approval": srv.require_approval,
         }
-
+        
         if srv.description:
             tool_def["server_description"] = srv.description
         
