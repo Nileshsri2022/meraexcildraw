@@ -168,10 +168,23 @@ async def test_mcp_connection(req: McpTestRequest):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
-    """Generic template replacer: replaces <APIKEY> placeholder in URL with key from headers."""
+    """Generic template replacer + path fixer for common services."""
     api_key = headers.get("Authorization", "").replace("Bearer ", "").strip()
+    
+    # 1. Template replacement
     if api_key and "<APIKEY>" in url:
-        return url.replace("<APIKEY>", api_key)
+        url = url.replace("<APIKEY>", api_key)
+    
+    # 2. Path fixing for Firecrawl (Groq requires /v2/mcp for tool-listing)
+    if "firecrawl.dev" in url and not url.endswith("/v2/mcp") and not url.endswith("/v2/sse"):
+        # Append /v2/mcp if it's missing
+        url = url.rstrip("/")
+        if not url.endswith("v2/mcp"):
+            if "/v2" not in url:
+                url += "/v2/mcp"
+            elif not url.endswith("/mcp"):
+                url += "/mcp"
+            
     return url
 
 
