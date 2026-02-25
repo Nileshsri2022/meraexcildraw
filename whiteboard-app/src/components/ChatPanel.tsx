@@ -630,13 +630,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                             onChange={e => {
                                                 let val = e.target.value;
                                                 // Quick helpers for common remote servers
-                                                const helpers: Record<string, string> = {
-                                                    "firecrawl.dev": "https://mcp.firecrawl.dev/<APIKEY>/v2/mcp",
-                                                    "mcp.stripe.com": "https://mcp.stripe.com/<APIKEY>/v1/mcp"
+                                                const helpers: Record<string, { url: string, label?: string }> = {
+                                                    "huggingface": { url: "https://huggingface.co/mcp", label: "huggingface" },
+                                                    "hf": { url: "https://huggingface.co/mcp", label: "huggingface" },
+                                                    "firecrawl.dev": { url: "https://mcp.firecrawl.dev/<APIKEY>/v2/mcp", label: "firecrawl" },
+                                                    "mcp.stripe.com": { url: "https://mcp.stripe.com/<APIKEY>/v1/mcp", label: "stripe" }
                                                 };
-                                                for (const [domain, template] of Object.entries(helpers)) {
+                                                for (const [domain, helper] of Object.entries(helpers)) {
                                                     if (val.trim() === domain || (val.includes(domain) && !val.includes("<APIKEY>") && val.length < domain.length + 10)) {
-                                                        val = template;
+                                                        val = helper.url;
+                                                        if (helper.label && !mcpForm.label.trim()) {
+                                                            setMcpForm(p => ({ ...p, label: helper.label! }));
+                                                        }
                                                         break;
                                                     }
                                                 }
