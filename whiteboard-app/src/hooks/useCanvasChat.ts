@@ -640,20 +640,30 @@ export function useCanvasChat() {
      * Also resets canvas context on the server.
      */
     const clearChat = useCallback(async () => {
-        if (!activeConversationId) return;
+        // Always clear UI state immediately
         setMessages([]);
         setError(null);
         setPendingActions(null);
-        await chatDb.clearConversation(activeConversationId);
 
-        // Update timestamp so it stays at the top
-        const conv = conversations.find(c => c.id === activeConversationId);
-        if (conv) {
-            const updated = { ...conv, updatedAt: Date.now() };
-            await chatDb.saveConversation(updated);
-            await chatDb.loadConversations().then(setConversations);
+        // Clear from DB if we have an active conversation
+        if (activeConversationId) {
+            try {
+                await chatDb.clearConversation(activeConversationId);
+
+                // Update timestamp so it stays at the top
+                const conv = conversations.find(c => c.id === activeConversationId);
+                if (conv) {
+                    const updated = { ...conv, updatedAt: Date.now() };
+                    await chatDb.saveConversation(updated);
+                    const freshConvs = await chatDb.loadConversations();
+                    setConversations(freshConvs);
+                }
+            } catch (err) {
+                console.error("[ChatDB] clearChat DB error:", err);
+            }
         }
 
+        // Clear server-side session
         if (sessionIdRef.current) {
             try {
                 await fetch(`${CHAT_SERVICE_URL}/chat/clear`, {
@@ -661,15 +671,15 @@ export function useCanvasChat() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ session_id: sessionIdRef.current }),
                 });
-
-                // Clear the session ID locally as well to rotate the session
-                if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-                    sessionIdRef.current = crypto.randomUUID();
-                } else {
-                    sessionIdRef.current = null;
-                }
             } catch {
                 // Non-critical
+            }
+
+            // Rotate session ID
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                sessionIdRef.current = crypto.randomUUID();
+            } else {
+                sessionIdRef.current = null;
             }
         }
     }, [activeConversationId, conversations]);
