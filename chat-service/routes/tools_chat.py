@@ -18,7 +18,7 @@ from langsmith import traceable
 import httpx
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from config import GROQ_API_KEY
 from sessions import get_or_create_session
