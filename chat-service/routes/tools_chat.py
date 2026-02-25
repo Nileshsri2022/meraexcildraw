@@ -132,6 +132,9 @@ async def test_mcp_connection(req: McpTestRequest):
             if req.headers:
                 payload["tools"][0]["headers"] = req.headers
 
+            print(f"[MCP] Testing connection with URL: {server_url}")
+            print(f"[MCP] Payload sent to Groq: {json.dumps(payload, indent=2)}")
+
             resp = await client.post(
                 GROQ_CHAT_URL,
                 headers={
@@ -140,6 +143,10 @@ async def test_mcp_connection(req: McpTestRequest):
                 },
                 json=payload,
             )
+
+            print(f"[MCP] Groq response status: {resp.status_code}")
+            if resp.status_code != 200:
+                print(f"[MCP] Groq error response: {resp.text}")
 
             if resp.status_code == 200:
                 return {"ok": True, "status": resp.status_code}
@@ -168,24 +175,15 @@ async def test_mcp_connection(req: McpTestRequest):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
-    """Generic template replacer + path fixer for common services."""
+    """Generic template replacer: replaces <APIKEY> placeholder in URL with key from headers."""
     api_key = headers.get("Authorization", "").replace("Bearer ", "").strip()
     
-    # 1. Template replacement
+    formatted_url = url
     if api_key and "<APIKEY>" in url:
-        url = url.replace("<APIKEY>", api_key)
+        formatted_url = url.replace("<APIKEY>", api_key)
     
-    # 2. Path fixing for Firecrawl (Groq requires /v2/mcp for tool-listing)
-    if "firecrawl.dev" in url and not url.endswith("/v2/mcp") and not url.endswith("/v2/sse"):
-        # Append /v2/mcp if it's missing
-        url = url.rstrip("/")
-        if not url.endswith("v2/mcp"):
-            if "/v2" not in url:
-                url += "/v2/mcp"
-            elif not url.endswith("/mcp"):
-                url += "/mcp"
-            
-    return url
+    print(f"[MCP] Formatting URL: {url} -> {formatted_url}")
+    return formatted_url
 
 
 @traceable(name="Groq Built-in Tool Call")
@@ -233,11 +231,19 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
         "messages": [{"role": "user", "content": message}],
         "tools": tools,
     }
+    print(f"[MCP] Calling tools for session: {message[:50]}...")
+    print(f"[MCP] Tools payload: {json.dumps(payload, indent=2)}")
+
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
     resp = await client.post(GROQ_CHAT_URL, headers=headers, json=payload)
+    
+    print(f"[MCP] Tool call response status: {resp.status_code}")
+    if resp.status_code != 200:
+        print(f"[MCP] Tool call error: {resp.text}")
+
     resp.raise_for_status()
     return resp.json()
 
