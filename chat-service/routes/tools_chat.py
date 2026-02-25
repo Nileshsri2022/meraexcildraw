@@ -3,9 +3,9 @@ routes/tools_chat.py — Tool-augmented chat endpoint.
 
 Two modes:
   1. Built-in tools  → groq/compound-mini  (compound_custom.tools.enabled_tools)
-  2. Remote MCP tools → llama-3.3-70b-versatile (tools: [{type: "mcp", ...}])
+  2. Remote MCP tools → openai/gpt-oss-120b via Groq Responses API (/openai/v1/responses)
 
-Uses the same llama model as the normal chat for MCP, making it reusable.
+Uses the Responses API for MCP (official Groq MCP gateway).
 """
 from __future__ import annotations
 
@@ -325,23 +325,46 @@ async def tools_chat(req: ToolChatRequest):
                     yield _final_event(session, session_id, req.message, clean)
 
                 elif has_mcp:
-                    # ── Route 2: llama for MCP tools ──
+                    # ── Route 2: Responses API for MCP tools ──
                     labels = ", ".join(s.label for s in req.mcp_servers)
                     yield _sse({"type": "token", "token": f"🔌 Connecting to {labels}...\n", "done": False})
 
                     data = await _call_mcp_tools(client, req.message, req.mcp_servers)
 
-                    msg = data.get("choices", [{}])[0].get("message", {})
-                    content = msg.get("content", "") or ""
+                    # Responses API returns { output: [ {type: "mcp_list_tools"}, {type: "mcp_call"}, {type: "message"} ] }
+                    output_items = data.get("output", [])
+                    content = ""
 
-                    # Report tool calls if any
-                    for tc in msg.get("tool_calls", []):
-                        fn = tc.get("function", {})
-                        yield _sse({
-                            "type": "tool_call",
-                            "server": "mcp",
-                            "tool": fn.get("name", "unknown"),
-                        })
+                    for item in output_items:
+                        item_type = item.get("type", "")
+
+                        if item_type == "mcp_list_tools":
+                            tools = item.get("tools", [])
+                            tool_names = [t.get("name", "?") for t in tools]
+                            print(f"[MCP] Discovered tools: {tool_names}")
+                            yield _sse({"type": "token", "token": f"📋 Found {len(tools)} tools\n", "done": False})
+
+                        elif item_type == "mcp_call":
+                            tool_name = item.get("name", "unknown")
+                            yield _sse({
+                                "type": "tool_call",
+                                "server": item.get("server_label", "mcp"),
+                                "tool": tool_name,
+                            })
+                            yield _sse({"type": "token", "token": f"⚡ Called `{tool_name}`\n", "done": False})
+
+                        elif item_type == "message":
+                            # Extract the final text from the assistant message
+                            msg_content = item.get("content", [])
+                            for part in msg_content:
+                                if part.get("type") == "output_text":
+                                    content += part.get("text", "")
+
+                    # If no content from output items, try fallback formats
+                    if not content:
+                        # Fallback: Chat Completions format (in case model changes)
+                        msg = data.get("choices", [{}])[0].get("message", {})
+                        content = msg.get("content", "") or ""
 
                     clean = strip_think_tags(content)
                     for chunk in _stream_text(clean):
