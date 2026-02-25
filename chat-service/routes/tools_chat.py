@@ -192,13 +192,10 @@ def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
     
     # 2. Intelligent Path Injection for Firecrawl
     # Firecrawl requires: https://mcp.firecrawl.dev/<KEY>/v2/mcp
+    # NOTE: We force /v2/mcp because /v2/sse sends a "Welcome" message that Groq rejects.
     if "firecrawl.dev" in formatted_url and api_key and api_key not in formatted_url:
-        # If it's a bare firecrawl URL or missing the key in path, inject it
-        base = "https://mcp.firecrawl.dev"
-        path = "/v2/mcp"
-        if "/v2/sse" in formatted_url: path = "/v2/sse"
-        
-        formatted_url = f"{base}/{api_key}{path}"
+        # We ignore whatever path was sent and force the known working one
+        formatted_url = f"https://mcp.firecrawl.dev/{api_key}/v2/mcp"
     
     print(f"[MCP] Formatting URL: {url} -> {formatted_url}")
     return formatted_url
