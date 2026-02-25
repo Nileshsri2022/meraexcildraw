@@ -6,6 +6,8 @@
  *
  * Canvas actions from the backend are executed automatically
  * via the useCanvasActions hook — no parsing needed.
+ *
+ * Refactored: UI split into focused sub-components (Clean Code §8).
  */
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { useCanvasChat } from "../hooks/useCanvasChat";
@@ -14,6 +16,10 @@ import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useAIGeneration } from "../hooks/useAIGeneration";
 import { executeToolAction } from "../utils/executeToolAction";
 import MarkdownRenderer from "./MarkdownRenderer";
+import { ChatSidebar } from "./ChatSidebar";
+import { ChatToolBar } from "./ChatToolBar";
+import { McpConnectionModal } from "./McpConnectionModal";
+import { ChatInputBar } from "./ChatInputBar";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { chatDb } from "../services/chatDb";
 
@@ -102,7 +108,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [actionCount, setActionCount] = useState(0);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLTextAreaElement>(null);
     const [toolStatus, setToolStatus] = useState<string | null>(null);
 
     // ─── Tool Selection State ────────────────────────────────────────
@@ -110,16 +115,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [activeBuiltinTools, setActiveBuiltinTools] = useState<string[]>([]);
     const [connectedMcpServers, setConnectedMcpServers] = useState<McpServerConfig[]>([]);
     const [showMcpModal, setShowMcpModal] = useState(false);
-    const [mcpForm, setMcpForm] = useState({ label: "", url: "", apiKey: "", description: "", headerKey: "" });
-    const [mcpTestStatus, setMcpTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
-    const [mcpTestError, setMcpTestError] = useState("");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-    const [confirmClear, setConfirmClear] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [matchingSearchIds, setMatchingSearchIds] = useState<string[]>([]);
-
-    const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
     const hasActiveTools = activeBuiltinTools.length > 0 || connectedMcpServers.length > 0;
 
@@ -133,6 +131,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         setConnectedMcpServers(prev => prev.filter(s => s.label !== label));
     }, []);
 
+    const handleAddMcpServer = useCallback((config: McpServerConfig) => {
+        setConnectedMcpServers(prev => [...prev.filter(s => s.label !== config.label), config]);
+        setShowMcpModal(false);
+    }, []);
+
     // Search effect for message content
     useEffect(() => {
         if (!searchTerm.trim()) {
@@ -140,71 +143,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             return;
         }
 
-        const runSearch = async () => {
+        const timer = setTimeout(async () => {
             const ids = await chatDb.searchConversations(searchTerm);
             setMatchingSearchIds(ids);
-        };
-
-        const timer = setTimeout(runSearch, 300);
+        }, 300);
         return () => clearTimeout(timer);
     }, [searchTerm]);
-
-    const handleTestMcp = useCallback(async () => {
-        if (!mcpForm.label.trim() || !mcpForm.url.trim()) return;
-        setMcpTestStatus("testing");
-        setMcpTestError("");
-        try {
-            // Build the actual URL (replace <APIKEY> placeholder if present)
-            let serverUrl = mcpForm.url;
-            if (mcpForm.apiKey && serverUrl.includes("<APIKEY>")) {
-                serverUrl = serverUrl.replace("<APIKEY>", mcpForm.apiKey);
-            }
-
-            const resp = await fetch(`${CHAT_SERVICE_URL}/chat/test-mcp`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    label: mcpForm.label,
-                    url: serverUrl,
-                    headers: mcpForm.apiKey && !serverUrl.includes(mcpForm.apiKey)
-                        ? { [mcpForm.headerKey || "Authorization"]: mcpForm.headerKey ? mcpForm.apiKey : `Bearer ${mcpForm.apiKey}` }
-                        : {},
-                }),
-            });
-            const data = await resp.json();
-            if (data.ok) {
-                setMcpTestStatus("ok");
-            } else {
-                setMcpTestStatus("error");
-                setMcpTestError(data.error?.slice(0, 150) || "Connection failed");
-            }
-        } catch (e) {
-            setMcpTestStatus("error");
-            setMcpTestError(e instanceof Error ? e.message : "Network error");
-        }
-    }, [mcpForm, CHAT_SERVICE_URL]);
-
-    const handleAddMcp = useCallback(() => {
-        if (!mcpForm.label.trim() || !mcpForm.url.trim()) return;
-
-        let serverUrl = mcpForm.url;
-        if (mcpForm.apiKey && serverUrl.includes("<APIKEY>")) {
-            serverUrl = serverUrl.replace("<APIKEY>", mcpForm.apiKey);
-        }
-
-        const config: McpServerConfig = {
-            label: mcpForm.label.trim(),
-            url: serverUrl,
-            description: mcpForm.description.trim(),
-            headers: mcpForm.apiKey && !serverUrl.includes(mcpForm.apiKey)
-                ? { [mcpForm.headerKey || "Authorization"]: mcpForm.headerKey ? mcpForm.apiKey : `Bearer ${mcpForm.apiKey}` }
-                : {},
-        };
-        setConnectedMcpServers(prev => [...prev.filter(s => s.label !== config.label), config]);
-        setShowMcpModal(false);
-        setMcpForm({ label: "", url: "", apiKey: "", description: "", headerKey: "" });
-        setMcpTestStatus("idle");
-    }, [mcpForm]);
 
     // AI generation hook — used when chatbot routes to real AI tools
     const aiGen = useAIGeneration(excalidrawAPI, () => {/* no-op: we don't close the chat panel */ });
@@ -279,23 +223,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         };
 
         if (isSwitchingChat) {
-            // When switching chats, we MUST scroll instantly before the next paint
             forceScrollToBottom("auto");
         } else if (chat.messages.length > 0) {
-            // For new messages in the SAME chat, smooth scroll after a tiny delay
             const timer = setTimeout(() => forceScrollToBottom("smooth"), 50);
             return () => clearTimeout(timer);
         }
 
         prevActiveId.current = chat.activeConversationId;
     }, [chat.messages, actionCount, chat.activeConversationId]);
-
-    // Focus input when panel opens
-    useEffect(() => {
-        if (isOpen) {
-            setTimeout(() => inputRef.current?.focus(), 300);
-        }
-    }, [isOpen]);
 
     // Sync canvas context when chat panel opens
     useEffect(() => {
@@ -352,13 +287,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         setInput("");
     }, [input, chat, hasActiveTools, activeBuiltinTools, connectedMcpServers]);
 
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    }, [handleSend]);
-
     return (
         <div
             className={`chat-panel ${isOpen ? "chat-panel--open" : ""} ${isSidebarCollapsed ? "chat-panel--sidebar-collapsed" : ""}`}
@@ -370,150 +298,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             <div className="chat-panel-container">
                 {/* Left Action Sidebar */}
                 <div className={`chat-panel-sidebar ${isSidebarCollapsed ? "chat-panel-sidebar--collapsed" : ""}`}>
-                    <div className="chat-sidebar-new-container">
-                        <button
-                            className="chat-sidebar-btn chat-sidebar-btn--primary"
-                            onClick={chat.startNewConversation}
-                            title="New conversation"
-                        >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                            <span>New Chat</span>
-                        </button>
-                    </div>
-
-                    <div className="chat-sidebar-header">
-                        <span className="chat-sidebar-title">Recent Chats</span>
-                    </div>
-
-                    <div className="chat-sidebar-search">
-                        <div className="chat-search-input-wrapper">
-                            <svg className="chat-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                <circle cx="11" cy="11" r="8" />
-                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                            </svg>
-                            <input
-                                type="text"
-                                className="chat-search-input"
-                                placeholder="Search chats..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="chat-conv-list">
-                        {(() => {
-                            const filtered = chat.conversations
-                                .filter(conv => (conv.title !== "New Conversation" || chat.activeConversationId === conv.id))
-                                .filter(conv => {
-                                    if (!searchTerm) return true;
-                                    const titleMatch = conv.title.toLowerCase().includes(searchTerm.toLowerCase());
-                                    const contentMatch = matchingSearchIds.includes(conv.id);
-                                    return titleMatch || contentMatch;
-                                })
-                                .sort((a, b) => b.updatedAt - a.updatedAt);
-
-                            if (filtered.length === 0 && searchTerm) {
-                                return <div className="chat-search-empty">No conversations found</div>;
-                            }
-
-                            return filtered.map(conv => (
-                                <div
-                                    key={conv.id}
-                                    className={`chat-conv-item ${chat.activeConversationId === conv.id ? 'chat-conv-item--active' : ''}`}
-                                    onClick={() => {
-                                        chat.selectConversation(conv.id);
-                                        setConfirmDeleteId(null);
-                                    }}
-                                >
-                                    <div className="chat-conv-title" title={conv.title}>
-                                        {conv.title}
-                                    </div>
-                                    {confirmDeleteId === conv.id ? (
-                                        <div className="chat-conv-confirm">
-                                            <button
-                                                className="chat-conv-confirm-btn chat-conv-confirm-btn--yes"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    chat.deleteConversation(conv.id);
-                                                    setConfirmDeleteId(null);
-                                                }}
-                                            >
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                                    <polyline points="20 6 9 17 4 12" />
-                                                </svg>
-                                            </button>
-                                            <button
-                                                className="chat-conv-confirm-btn chat-conv-confirm-btn--no"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setConfirmDeleteId(null);
-                                                }}
-                                            >
-                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                                    <line x1="6" y1="6" x2="18" y2="18" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <button
-                                            className="chat-conv-delete"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setConfirmDeleteId(conv.id);
-                                            }}
-                                            title="Delete conversation"
-                                        >
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                                <path d="M18 6L6 18M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                            ));
-                        })()}
-                    </div>
-
-                    <div className="chat-sidebar-footer">
-                        {confirmClear ? (
-                            <div className="chat-sidebar-clear-confirm">
-                                <span className="chat-clear-label">Clear this chat?</span>
-                                <div className="chat-clear-actions">
-                                    <button
-                                        className="chat-sidebar-btn chat-sidebar-btn--danger"
-                                        onClick={() => {
-                                            chat.clearChat();
-                                            setConfirmClear(false);
-                                        }}
-                                    >
-                                        Yes, clear
-                                    </button>
-                                    <button
-                                        className="chat-sidebar-btn"
-                                        onClick={() => setConfirmClear(false)}
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <button
-                                className="chat-sidebar-btn"
-                                onClick={() => setConfirmClear(true)}
-                                disabled={chat.messages.length === 0}
-                                title="Clear messages in the current chat"
-                            >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                    <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                </svg>
-                                <span>Clear Chat</span>
-                            </button>
-                        )}
-                    </div>
+                    <ChatSidebar
+                        conversations={chat.conversations}
+                        activeConversationId={chat.activeConversationId}
+                        messages={chat.messages}
+                        searchTerm={searchTerm}
+                        matchingSearchIds={matchingSearchIds}
+                        onSearchChange={setSearchTerm}
+                        onSelectConversation={chat.selectConversation}
+                        onStartNewConversation={chat.startNewConversation}
+                        onDeleteConversation={chat.deleteConversation}
+                        onClearChat={chat.clearChat}
+                    />
                 </div>
 
                 <div className="chat-panel-main">
@@ -567,7 +363,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                         <button
                                             key={s}
                                             className="chat-suggestion-chip"
-                                            onClick={() => { setInput(s); inputRef.current?.focus(); }}
+                                            onClick={() => { setInput(s); }}
                                         >
                                             {s}
                                         </button>
@@ -609,215 +405,36 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
                     {/* MCP Connection Modal */}
                     {showMcpModal && (
-                        <div className="mcp-modal-overlay" onClick={() => setShowMcpModal(false)}>
-                            <div className="mcp-modal" onClick={e => e.stopPropagation()}>
-                                <div className="mcp-modal-header">
-                                    <h3>Connect MCP Server</h3>
-                                    <button className="mcp-modal-close" onClick={() => setShowMcpModal(false)}>×</button>
-                                </div>
-                                <div className="mcp-modal-body">
-                                    <label className="mcp-field">
-                                        <span>Label *</span>
-                                        <input
-                                            value={mcpForm.label}
-                                            onChange={e => setMcpForm(p => ({ ...p, label: e.target.value }))}
-                                            placeholder="e.g. firecrawl"
-                                        />
-                                    </label>
-                                    <label className="mcp-field">
-                                        <span>Server URL * <small>(Use {"<APIKEY>"} as a placeholder if needed)</small></span>
-                                        <input
-                                            value={mcpForm.url}
-                                            onChange={e => {
-                                                let val = e.target.value;
-                                                // Quick helpers for common remote servers
-                                                const helpers: Record<string, { url: string, label?: string, headerKey?: string }> = {
-                                                    "huggingface": { url: "https://huggingface.co/mcp", label: "huggingface" },
-                                                    "hf": { url: "https://huggingface.co/mcp", label: "huggingface" },
-                                                    "zapier": { url: "https://mcp.zapier.com/<APIKEY>/mcp", label: "zapier" },
-                                                    "parallel": { url: "https://mcp.parallel.ai/v1beta/search_mcp/", label: "parallel_search", headerKey: "x-api-key" },
-                                                    "firecrawl.dev": { url: "https://mcp.firecrawl.dev/<APIKEY>/v2/mcp", label: "firecrawl" },
-                                                    "mcp.stripe.com": { url: "https://mcp.stripe.com", label: "stripe" }
-                                                };
-                                                for (const [domain, helper] of Object.entries(helpers)) {
-                                                    if (val.trim() === domain || (val.includes(domain) && !val.includes("<APIKEY>") && val.length < domain.length + 10)) {
-                                                        val = helper.url;
-                                                        if (helper.label && !mcpForm.label.trim()) {
-                                                            setMcpForm(p => ({ ...p, label: helper.label! }));
-                                                        }
-                                                        if (helper.headerKey) {
-                                                            setMcpForm(p => ({ ...p, headerKey: helper.headerKey! }));
-                                                        }
-                                                        break;
-                                                    }
-                                                }
-                                                setMcpForm(p => ({ ...p, url: val }));
-                                            }}
-                                            placeholder="https://example.com/<APIKEY>/v1/sse"
-                                        />
-                                    </label>
-                                    <label className="mcp-field">
-                                        <span>API Key <small>(replaces {'<APIKEY>'} in URL or sent as Bearer token)</small></span>
-                                        <input
-                                            type="password"
-                                            value={mcpForm.apiKey}
-                                            onChange={e => setMcpForm(p => ({ ...p, apiKey: e.target.value }))}
-                                            placeholder="fc-..."
-                                        />
-                                    </label>
-                                    <label className="mcp-field">
-                                        <span>Description</span>
-                                        <input
-                                            value={mcpForm.description}
-                                            onChange={e => setMcpForm(p => ({ ...p, description: e.target.value }))}
-                                            placeholder="Web scraping and content extraction"
-                                        />
-                                    </label>
-
-                                    {/* Connection test status */}
-                                    <div className="mcp-test-row">
-                                        <button
-                                            className="mcp-test-btn"
-                                            onClick={handleTestMcp}
-                                            disabled={!mcpForm.label.trim() || !mcpForm.url.trim() || mcpTestStatus === "testing"}
-                                        >
-                                            {mcpTestStatus === "testing" ? "Testing..." : "Test Connection"}
-                                        </button>
-                                        {mcpTestStatus === "ok" && <span className="mcp-status mcp-status--ok">✓ Connected</span>}
-                                        {mcpTestStatus === "error" && <span className="mcp-status mcp-status--error" title={mcpTestError}>✗ Failed</span>}
-                                    </div>
-                                </div>
-                                <div className="mcp-modal-footer">
-                                    <button className="mcp-cancel-btn" onClick={() => setShowMcpModal(false)}>Cancel</button>
-                                    <button
-                                        className="mcp-add-btn"
-                                        onClick={handleAddMcp}
-                                        disabled={!mcpForm.label.trim() || !mcpForm.url.trim()}
-                                    >
-                                        Add Server
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        <McpConnectionModal
+                            onAdd={handleAddMcpServer}
+                            onClose={() => setShowMcpModal(false)}
+                        />
                     )}
 
                     {/* Tools Bar */}
                     {showToolBar && (
-                        <div className="chat-tools-bar">
-                            <div className="chat-tools-section">
-                                <span className="chat-tools-label">Built-in Tools</span>
-                                <div className="chat-tools-pills">
-                                    <button
-                                        className={`chat-tool-pill ${activeBuiltinTools.includes('web_search') ? 'chat-tool-pill--active' : ''}`}
-                                        onClick={() => toggleBuiltinTool('web_search')}
-                                        title="Search the web for current information"
-                                    >
-                                        🔍 Web Search
-                                    </button>
-                                    <button
-                                        className={`chat-tool-pill ${activeBuiltinTools.includes('code_interpreter') ? 'chat-tool-pill--active' : ''}`}
-                                        onClick={() => toggleBuiltinTool('code_interpreter')}
-                                        title="Execute Python code for calculations"
-                                    >
-                                        💻 Code Exec
-                                    </button>
-                                    <button
-                                        className={`chat-tool-pill ${activeBuiltinTools.includes('visit_website') ? 'chat-tool-pill--active' : ''}`}
-                                        onClick={() => toggleBuiltinTool('visit_website')}
-                                        title="Visit a URL and extract its content"
-                                    >
-                                        🌐 Visit URL
-                                    </button>
-                                    <button
-                                        className={`chat-tool-pill ${activeBuiltinTools.includes('browser_automation') ? 'chat-tool-pill--active' : ''}`}
-                                        onClick={() => toggleBuiltinTool('browser_automation')}
-                                        title="Automate browser interactions"
-                                    >
-                                        🤖 Browser Auto
-                                    </button>
-                                    <button
-                                        className={`chat-tool-pill ${activeBuiltinTools.includes('wolfram_alpha') ? 'chat-tool-pill--active' : ''}`}
-                                        onClick={() => toggleBuiltinTool('wolfram_alpha')}
-                                        title="Math, science, and data queries via Wolfram Alpha"
-                                    >
-                                        🧮 Wolfram
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="chat-tools-section">
-                                <span className="chat-tools-label">MCP Servers</span>
-                                <div className="chat-tools-pills">
-                                    {connectedMcpServers.map(srv => (
-                                        <button
-                                            key={srv.label}
-                                            className="chat-tool-pill chat-tool-pill--mcp chat-tool-pill--active"
-                                            title={`${srv.description || srv.url}`}
-                                            style={{ cursor: "default" }}
-                                        >
-                                            <span className="mcp-connected-dot" />
-                                            {srv.label}
-                                            <span
-                                                className="mcp-remove"
-                                                onClick={(e) => { e.stopPropagation(); removeMcpServer(srv.label); }}
-                                                title="Disconnect"
-                                                style={{ cursor: "pointer" }}
-                                            >×</span>
-                                        </button>
-                                    ))}
-                                    <button
-                                        className="chat-tool-pill chat-tool-pill--add"
-                                        onClick={() => setShowMcpModal(true)}
-                                        title="Connect an MCP server"
-                                    >
-                                        + Add MCP
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                        <ChatToolBar
+                            activeBuiltinTools={activeBuiltinTools}
+                            connectedMcpServers={connectedMcpServers}
+                            onToggleBuiltinTool={toggleBuiltinTool}
+                            onRemoveMcpServer={removeMcpServer}
+                            onOpenMcpModal={() => setShowMcpModal(true)}
+                        />
                     )}
 
                     {/* Input */}
-                    <div className="chat-panel-input">
-                        <button
-                            className={`chat-tools-toggle ${hasActiveTools ? 'chat-tools-toggle--active' : ''}`}
-                            onClick={() => setShowToolBar(prev => !prev)}
-                            title={showToolBar ? 'Hide tools' : 'Show tools'}
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                            </svg>
-                            {hasActiveTools && <span className="chat-tools-badge">{activeBuiltinTools.length + connectedMcpServers.length}</span>}
-                        </button>
-                        <textarea
-                            ref={inputRef}
-                            className="chat-input"
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={hasActiveTools ? 'Ask with tools enabled...' : 'Ask Canvas AI...'}
-                            rows={1}
-                            disabled={chat.isStreaming}
-                        />
-                        {chat.isStreaming ? (
-                            <button className="chat-send-btn chat-send-btn--stop" onClick={chat.stopStreaming} title="Stop">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                                </svg>
-                            </button>
-                        ) : (
-                            <button
-                                className="chat-send-btn"
-                                onClick={handleSend}
-                                disabled={!input.trim()}
-                                title="Send (Enter)"
-                            >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                    <line x1="22" y1="2" x2="11" y2="13" />
-                                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                                </svg>
-                            </button>
-                        )}
-                    </div>
+                    <ChatInputBar
+                        input={input}
+                        isStreaming={chat.isStreaming}
+                        isOpen={isOpen}
+                        hasActiveTools={hasActiveTools}
+                        activeToolCount={activeBuiltinTools.length + connectedMcpServers.length}
+                        showToolBar={showToolBar}
+                        onInputChange={setInput}
+                        onSend={handleSend}
+                        onStop={chat.stopStreaming}
+                        onToggleToolBar={() => setShowToolBar(prev => !prev)}
+                    />
                 </div>
             </div>
         </div>
