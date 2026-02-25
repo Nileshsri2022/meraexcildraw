@@ -631,8 +631,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                                 let val = e.target.value;
                                                 // Quick helpers for common remote servers
                                                 const helpers: Record<string, string> = {
-                                                    "firecrawl.dev": "https://mcp.firecrawl.dev/<APIKEY>/v2/mcp",
-                                                    "mcp.stripe.com": "https://mcp.stripe.com/<APIKEY>/v1/mcp"
+                                                    "firecrawl.dev": "https://mcp.firecrawl.dev/<APIKEY>/v2/sse",
+                                                    "mcp.stripe.com": "https://mcp.stripe.com/<APIKEY>/v1/sse"
                                                 };
                                                 for (const [domain, template] of Object.entries(helpers)) {
                                                     if (val.trim() === domain || (val.includes(domain) && !val.includes("<APIKEY>") && val.length < domain.length + 10)) {
@@ -642,7 +642,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                                 }
                                                 setMcpForm(p => ({ ...p, url: val }));
                                             }}
-                                            placeholder="https://example.com/<APIKEY>/v1/mcp"
+                                            placeholder="https://example.com/<APIKEY>/v1/sse"
                                         />
                                     </label>
                                     <label className="mcp-field">
