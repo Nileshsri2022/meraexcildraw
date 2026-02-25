@@ -115,7 +115,7 @@ async def test_mcp_connection(req: McpTestRequest):
         async with httpx.AsyncClient(timeout=30) as client:
             server_url = _format_mcp_url(req.url, req.headers)
             
-            # Prepare only Authorization header (Groq is strict about others)
+            # Prepare headers (Groq only wants Authorization)
             tool_headers = {}
             if req.headers and "Authorization" in req.headers:
                 tool_headers["Authorization"] = req.headers["Authorization"]
@@ -135,9 +135,7 @@ async def test_mcp_connection(req: McpTestRequest):
                 ],
                 "max_tokens": 50,
             }
-
-            # ONLY send headers if they aren't already in the URL path (prevents 400 Bad Request)
-            if tool_headers and not any(k in server_url for k in ["fc-", "sk-"]):
+            if tool_headers:
                 payload["tools"][0]["headers"] = tool_headers
 
             print(f"[MCP] Testing connection with URL: {server_url}")
@@ -183,21 +181,18 @@ async def test_mcp_connection(req: McpTestRequest):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
-    """Generic template replacer + intelligent path injector for Firecrawl."""
+    """Generic template replacer + special Groq endpoint for Firecrawl."""
     api_key = headers.get("Authorization", "").replace("Bearer ", "").strip()
-    
     formatted_url = url
     
-    # 1. Template replacement (Standard <APIKEY> tag)
+    # Standard template replacement
     if api_key and "<APIKEY>" in formatted_url:
         formatted_url = formatted_url.replace("<APIKEY>", api_key)
     
-    # 2. Intelligent Path Injection for Firecrawl
-    # Firecrawl requires: https://mcp.firecrawl.dev/<KEY>/v2/mcp
-    # NOTE: We force /v2/mcp because /v2/sse sends a "Welcome" message that Groq rejects.
-    if "firecrawl.dev" in formatted_url and api_key and api_key not in formatted_url:
-        # We ignore whatever path was sent and force the known working one
-        formatted_url = f"https://mcp.firecrawl.dev/{api_key}/v2/mcp"
+    # Special fix for Firecrawl on Groq
+    if "firecrawl.dev" in formatted_url:
+        # This endpoint is specifically designed to send 'endpoint' event first
+        formatted_url = "https://mcp.firecrawl.dev/groq/v2/sse"
     
     print(f"[MCP] Formatting URL: {url} -> {formatted_url}")
     return formatted_url
@@ -244,8 +239,7 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
             "require_approval": srv.require_approval,
         }
         
-        # ONLY send headers if they aren't already in the URL path (prevents 400 Bad Request)
-        if tool_headers and not any(k in server_url for k in ["fc-", "sk-"]):
+        if tool_headers:
             tool_def["headers"] = tool_headers
             
         if srv.description:
