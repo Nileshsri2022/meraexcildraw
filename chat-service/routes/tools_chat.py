@@ -26,6 +26,11 @@ from parsers import strip_think_tags, md_to_html
 
 router = APIRouter()
 
+
+def _sse(data: dict) -> str:
+    """Format a dict as an SSE data line."""
+    return f"data: {json.dumps(data, separators=(',', ':'))}\n\n"
+
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_RESPONSES_URL = "https://api.groq.com/openai/v1/responses"
 
