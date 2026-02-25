@@ -115,6 +115,11 @@ async def test_mcp_connection(req: McpTestRequest):
         async with httpx.AsyncClient(timeout=30) as client:
             server_url = _format_mcp_url(req.url, req.headers)
             
+            # Prepare only Authorization header (Groq is strict about others)
+            tool_headers = {}
+            if req.headers and "Authorization" in req.headers:
+                tool_headers["Authorization"] = req.headers["Authorization"]
+
             payload = {
                 "model": MCP_MODEL,
                 "messages": [
@@ -130,6 +135,8 @@ async def test_mcp_connection(req: McpTestRequest):
                 ],
                 "max_tokens": 50,
             }
+            if tool_headers:
+                payload["tools"][0]["headers"] = tool_headers
 
             print(f"[MCP] Testing connection with URL: {server_url}")
             print(f"[MCP] Payload sent to Groq: {json.dumps(payload, indent=2)}")
@@ -214,6 +221,11 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
     for srv in mcp_servers:
         server_url = _format_mcp_url(srv.url, srv.headers)
         
+        # Prepare only Authorization header
+        tool_headers = {}
+        if srv.headers and "Authorization" in srv.headers:
+            tool_headers["Authorization"] = srv.headers["Authorization"]
+
         tool_def: dict[str, Any] = {
             "type": "mcp",
             "server_label": srv.label,
@@ -221,6 +233,9 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
             "require_approval": srv.require_approval,
         }
         
+        if tool_headers:
+            tool_def["headers"] = tool_headers
+            
         if srv.description:
             tool_def["server_description"] = srv.description
         
