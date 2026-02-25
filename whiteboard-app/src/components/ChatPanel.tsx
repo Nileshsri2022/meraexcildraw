@@ -480,7 +480,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                     <div className="chat-sidebar-footer">
                         {confirmClear ? (
                             <div className="chat-sidebar-clear-confirm">
-                                <span className="chat-clear-label">Clear all?</span>
+                                <span className="chat-clear-label">Clear this chat?</span>
                                 <div className="chat-clear-actions">
                                     <button
                                         className="chat-sidebar-btn chat-sidebar-btn--danger"
@@ -489,13 +489,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                             setConfirmClear(false);
                                         }}
                                     >
-                                        Yes
+                                        Yes, clear
                                     </button>
                                     <button
                                         className="chat-sidebar-btn"
                                         onClick={() => setConfirmClear(false)}
                                     >
-                                        No
+                                        Cancel
                                     </button>
                                 </div>
                             </div>
@@ -504,12 +504,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                 className="chat-sidebar-btn"
                                 onClick={() => setConfirmClear(true)}
                                 disabled={chat.messages.length === 0}
-                                title="Clear current history"
+                                title="Clear messages in the current chat"
                             >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                     <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
                                 </svg>
-                                <span>Clear History</span>
+                                <span>Clear Chat</span>
                             </button>
                         )}
                     </div>

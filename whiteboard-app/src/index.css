@@ -2099,6 +2099,7 @@ body.dark {
   transition: all 0.3s;
   word-break: break-word;
   overflow-wrap: break-word;
+  overflow: hidden;
 }
 
 .chat-message--user .chat-message-content {
@@ -2198,32 +2199,69 @@ body.dark {
 }
 
 .chat-rendered table {
-  width: 100%;
   border-collapse: collapse;
   margin: 12px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  scrollbar-width: thin;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Scrollable table wrapper — injected by md_to_html or handled by CSS */
+.chat-rendered .table-wrapper {
+  overflow-x: auto;
+  margin: 12px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-rendered .table-wrapper table {
+  margin: 0;
+}
+
+/* Overflow auto for the table itself when no wrapper */
+.chat-message-content {
+  overflow-x: hidden;
+}
+
+.chat-rendered>table {
   display: block;
   overflow-x: auto;
-  font-size: 13px;
-  scrollbar-width: thin;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
 }
 
 .chat-rendered th,
 .chat-rendered td {
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 1px solid var(--border-subtle);
   text-align: left;
-  min-width: 120px;
+  min-width: 60px;
+  max-width: 220px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .chat-rendered th {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   font-weight: 600;
   color: var(--text-bright);
   font-family: 'Space Grotesk', var(--font-display);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
 }
 
 .chat-rendered td {
   color: var(--text-primary);
+  font-size: 12px;
 }
 
 .chat-rendered ul,
