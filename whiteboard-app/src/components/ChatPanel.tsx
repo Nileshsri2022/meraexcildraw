@@ -634,6 +634,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                                 const helpers: Record<string, { url: string, label?: string, headerKey?: string }> = {
                                                     "huggingface": { url: "https://huggingface.co/mcp", label: "huggingface" },
                                                     "hf": { url: "https://huggingface.co/mcp", label: "huggingface" },
+                                                    "zapier": { url: "https://mcp.zapier.com/<APIKEY>/mcp", label: "zapier" },
                                                     "parallel": { url: "https://mcp.parallel.ai/v1beta/search_mcp/", label: "parallel_search", headerKey: "x-api-key" },
                                                     "firecrawl.dev": { url: "https://mcp.firecrawl.dev/<APIKEY>/v2/mcp", label: "firecrawl" },
                                                     "mcp.stripe.com": { url: "https://mcp.stripe.com", label: "stripe" }
