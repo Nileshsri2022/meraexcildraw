@@ -181,12 +181,24 @@ async def test_mcp_connection(req: McpTestRequest):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _format_mcp_url(url: str, headers: dict[str, str]) -> str:
-    """Generic template replacer: replaces <APIKEY> placeholder in URL with key from headers."""
+    """Generic template replacer + intelligent path injector for Firecrawl."""
     api_key = headers.get("Authorization", "").replace("Bearer ", "").strip()
     
     formatted_url = url
-    if api_key and "<APIKEY>" in url:
-        formatted_url = url.replace("<APIKEY>", api_key)
+    
+    # 1. Template replacement (Standard <APIKEY> tag)
+    if api_key and "<APIKEY>" in formatted_url:
+        formatted_url = formatted_url.replace("<APIKEY>", api_key)
+    
+    # 2. Intelligent Path Injection for Firecrawl
+    # Firecrawl requires: https://mcp.firecrawl.dev/<KEY>/v2/mcp
+    if "firecrawl.dev" in formatted_url and api_key and api_key not in formatted_url:
+        # If it's a bare firecrawl URL or missing the key in path, inject it
+        base = "https://mcp.firecrawl.dev"
+        path = "/v2/mcp"
+        if "/v2/sse" in formatted_url: path = "/v2/sse"
+        
+        formatted_url = f"{base}/{api_key}{path}"
     
     print(f"[MCP] Formatting URL: {url} -> {formatted_url}")
     return formatted_url
