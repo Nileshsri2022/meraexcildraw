@@ -282,7 +282,7 @@ async def tools_chat(req: ToolChatRequest):
     """Chat with tools.
 
     Built-in tools → groq/compound-mini (compound_custom)
-    MCP servers    → llama-3.3-70b-versatile (tools: [{type: "mcp"}])
+    MCP servers    → openai/gpt-oss-120b via Groq Responses API
     """
     session = get_or_create_session(req.session_id)
     session_id = session.session_id

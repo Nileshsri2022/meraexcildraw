@@ -745,12 +745,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                         <button
                                             key={srv.label}
                                             className="chat-tool-pill chat-tool-pill--mcp chat-tool-pill--active"
-                                            onClick={() => removeMcpServer(srv.label)}
-                                            title={`${srv.description || srv.url} — click to disconnect`}
+                                            title={`${srv.description || srv.url}`}
+                                            style={{ cursor: "default" }}
                                         >
                                             <span className="mcp-connected-dot" />
                                             {srv.label}
-                                            <span className="mcp-remove">×</span>
+                                            <span
+                                                className="mcp-remove"
+                                                onClick={(e) => { e.stopPropagation(); removeMcpServer(srv.label); }}
+                                                title="Disconnect"
+                                                style={{ cursor: "pointer" }}
+                                            >×</span>
                                         </button>
                                     ))}
                                     <button
