@@ -129,10 +129,16 @@ async def test_mcp_connection(req: McpTestRequest):
                 "require_approval": "never",
             }
 
-            # Only add headers if there's no API key already in the URL path
-            api_key = req.headers.get("Authorization", "").replace("Bearer ", "").strip() if req.headers else ""
-            if api_key and api_key not in server_url:
-                tool_def["headers"] = {"Authorization": f"Bearer {api_key}"}
+            # Forward any auth headers to the MCP server via Groq
+            # Supports: Authorization (Bearer), x-api-key, etc.
+            if req.headers:
+                # Filter out content-type, only keep auth-related headers
+                tool_headers = {k: v for k, v in req.headers.items() 
+                               if k.lower() not in ("content-type",)}
+                # Don't send headers if the API key is already in the URL path
+                api_key_vals = [v.replace("Bearer ", "").strip() for v in tool_headers.values()]
+                if not any(val in server_url for val in api_key_vals if val):
+                    tool_def["headers"] = tool_headers
 
             # Use the Responses API (official Groq MCP gateway)
             payload = {
@@ -238,21 +244,20 @@ async def _call_mcp_tools(client: httpx.AsyncClient, message: str, mcp_servers: 
     for srv in mcp_servers:
         server_url = _format_mcp_url(srv.url, srv.headers)
         
-        # Extract API key
-        api_key = ""
-        if srv.headers and "Authorization" in srv.headers:
-            api_key = srv.headers["Authorization"].replace("Bearer ", "").strip()
-
         tool_def: dict[str, Any] = {
             "type": "mcp",
             "server_label": srv.label,
             "server_url": server_url,
             "require_approval": srv.require_approval,
         }
-        
-        # Only add headers if key is NOT already in URL path
-        if api_key and api_key not in server_url:
-            tool_def["headers"] = {"Authorization": f"Bearer {api_key}"}
+
+        # Forward any auth headers to the MCP server via Groq
+        if srv.headers:
+            tool_headers = {k: v for k, v in srv.headers.items()
+                          if k.lower() not in ("content-type",)}
+            api_key_vals = [v.replace("Bearer ", "").strip() for v in tool_headers.values()]
+            if not any(val in server_url for val in api_key_vals if val):
+                tool_def["headers"] = tool_headers
             
         if srv.description:
             tool_def["server_description"] = srv.description

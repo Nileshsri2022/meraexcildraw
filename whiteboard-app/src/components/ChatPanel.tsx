@@ -109,7 +109,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [activeBuiltinTools, setActiveBuiltinTools] = useState<string[]>([]);
     const [connectedMcpServers, setConnectedMcpServers] = useState<McpServerConfig[]>([]);
     const [showMcpModal, setShowMcpModal] = useState(false);
-    const [mcpForm, setMcpForm] = useState({ label: "", url: "", apiKey: "", description: "" });
+    const [mcpForm, setMcpForm] = useState({ label: "", url: "", apiKey: "", description: "", headerKey: "" });
     const [mcpTestStatus, setMcpTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
     const [mcpTestError, setMcpTestError] = useState("");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -166,7 +166,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                     label: mcpForm.label,
                     url: serverUrl,
                     headers: mcpForm.apiKey && !serverUrl.includes(mcpForm.apiKey)
-                        ? { "Authorization": `Bearer ${mcpForm.apiKey}` }
+                        ? { [mcpForm.headerKey || "Authorization"]: mcpForm.headerKey ? mcpForm.apiKey : `Bearer ${mcpForm.apiKey}` }
                         : {},
                 }),
             });
@@ -196,12 +196,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
             url: serverUrl,
             description: mcpForm.description.trim(),
             headers: mcpForm.apiKey && !serverUrl.includes(mcpForm.apiKey)
-                ? { "Authorization": `Bearer ${mcpForm.apiKey}` }
+                ? { [mcpForm.headerKey || "Authorization"]: mcpForm.headerKey ? mcpForm.apiKey : `Bearer ${mcpForm.apiKey}` }
                 : {},
         };
         setConnectedMcpServers(prev => [...prev.filter(s => s.label !== config.label), config]);
         setShowMcpModal(false);
-        setMcpForm({ label: "", url: "", apiKey: "", description: "" });
+        setMcpForm({ label: "", url: "", apiKey: "", description: "", headerKey: "" });
         setMcpTestStatus("idle");
     }, [mcpForm]);
 
@@ -630,17 +630,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
                                             onChange={e => {
                                                 let val = e.target.value;
                                                 // Quick helpers for common remote servers
-                                                const helpers: Record<string, { url: string, label?: string }> = {
+                                                const helpers: Record<string, { url: string, label?: string, headerKey?: string }> = {
                                                     "huggingface": { url: "https://huggingface.co/mcp", label: "huggingface" },
                                                     "hf": { url: "https://huggingface.co/mcp", label: "huggingface" },
+                                                    "parallel": { url: "https://mcp.parallel.ai/v1beta/search_mcp/", label: "parallel_search", headerKey: "x-api-key" },
                                                     "firecrawl.dev": { url: "https://mcp.firecrawl.dev/<APIKEY>/v2/mcp", label: "firecrawl" },
-                                                    "mcp.stripe.com": { url: "https://mcp.stripe.com/<APIKEY>/v1/mcp", label: "stripe" }
+                                                    "mcp.stripe.com": { url: "https://mcp.stripe.com", label: "stripe" }
                                                 };
                                                 for (const [domain, helper] of Object.entries(helpers)) {
                                                     if (val.trim() === domain || (val.includes(domain) && !val.includes("<APIKEY>") && val.length < domain.length + 10)) {
                                                         val = helper.url;
                                                         if (helper.label && !mcpForm.label.trim()) {
                                                             setMcpForm(p => ({ ...p, label: helper.label! }));
+                                                        }
+                                                        if (helper.headerKey) {
+                                                            setMcpForm(p => ({ ...p, headerKey: helper.headerKey! }));
                                                         }
                                                         break;
                                                     }
