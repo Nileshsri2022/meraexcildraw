@@ -257,7 +257,7 @@ export function useCanvasChat() {
      * so the AI always has up-to-date context.
      */
     const sendMessage = useCallback(async (content: string, imageBase64?: string) => {
-        if (!content.trim() && !imageBase64 || isStreamingRef.current) return;
+        if ((!content.trim() && !imageBase64) || isStreamingRef.current) return;
 
         setError(null);
         setPendingActions(null);
@@ -444,7 +444,7 @@ export function useCanvasChat() {
         mcpServers: McpServerConfig[],
         imageBase64?: string
     ) => {
-        if (!content.trim() && !imageBase64 || isStreamingRef.current) return;
+        if ((!content.trim() && !imageBase64) || isStreamingRef.current) return;
 
         setError(null);
         setPendingActions(null);
