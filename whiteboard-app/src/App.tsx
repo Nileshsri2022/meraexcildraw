@@ -282,7 +282,22 @@ const App: React.FC = () => {
                                 onClick={async () => {
                                     setIsDropdownOpen(false);
                                     try {
-                                        await exportWorkspace();
+                                        if (!excalidrawAPI) {
+                                            alert("Canvas not ready yet.");
+                                            return;
+                                        }
+                                        // Read LIVE canvas data — not stale IndexedDB
+                                        const elements = excalidrawAPI.getSceneElements();
+                                        const appState = excalidrawAPI.getAppState();
+                                        const files = excalidrawAPI.getFiles();
+                                        await exportWorkspace({
+                                            elements,
+                                            appState: {
+                                                viewBackgroundColor: appState.viewBackgroundColor,
+                                                theme: appState.theme,
+                                            } as Record<string, unknown>,
+                                            files: (files || {}) as unknown as Record<string, unknown>,
+                                        });
                                     } catch (err) {
                                         console.error("Export failed:", err);
                                         alert("Export failed. See console for details.");

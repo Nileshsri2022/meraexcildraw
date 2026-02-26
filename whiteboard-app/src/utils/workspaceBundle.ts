@@ -10,9 +10,10 @@
  *   aiHistory: [ ... ]
  * }
  *
- * Export reads from IndexedDB (scene + chat + AI history) and triggers
- * a browser download. Import parses the file and writes back into both DBs,
- * then returns the scene data for Excalidraw to restore.
+ * Export reads LIVE canvas data (elements, appState, files) passed by the
+ * caller, plus chat + AI history from IndexedDB. Import parses the file
+ * and writes back into both DBs, then returns the scene data for Excalidraw
+ * to restore.
  */
 
 import { loadScene, saveScene, getAIHistory, saveAIResult } from "../data/LocalStorage";
@@ -45,12 +46,24 @@ const FILE_EXTENSION = ".whiteboard.json";
 
 // ─── Export ──────────────────────────────────────────────────────────────────
 
+/** Live canvas snapshot passed by the caller */
+export interface LiveSceneData {
+    elements: readonly unknown[];
+    appState: Record<string, unknown>;
+    files: Record<string, unknown>;
+}
+
 /**
  * Collect all workspace data and trigger a browser file download.
+ * Reads the LIVE canvas directly (elements/appState/files) so nothing is stale.
  */
-export async function exportWorkspace(): Promise<void> {
-    // Gather scene
-    const scene = await loadScene();
+export async function exportWorkspace(liveScene: LiveSceneData): Promise<void> {
+    // Use live canvas data — never stale IndexedDB
+    const scene: WorkspaceBundle["scene"] = {
+        elements: [...liveScene.elements] as unknown[],
+        appState: liveScene.appState,
+        files: liveScene.files,
+    };
 
     // Gather chat conversations + their messages
     const convList: Conversation[] = await chatDb.loadConversations();
