@@ -316,12 +316,20 @@ const App: React.FC = () => {
                                                     Object.values(result.scene.files) as unknown as BinaryFileData[]
                                                 );
                                             }
-                                            // Replace current scene with imported elements
+                                            // Restore appState (background, theme) but override scroll/zoom
+                                            // so scrollToContent can position the viewport correctly
+                                            const restoredAppState = {
+                                                ...(result.scene.appState || {}),
+                                                scrollX: 0,
+                                                scrollY: 0,
+                                                zoom: { value: 1 },
+                                            };
                                             const importedElements = result.scene.elements as OrderedExcalidrawElement[];
                                             excalidrawAPI.updateScene({
                                                 elements: importedElements,
+                                                appState: restoredAppState as unknown as AppState,
                                             });
-                                            // Scroll to show imported content
+                                            // Scroll to show imported content after render
                                             requestAnimationFrame(() => {
                                                 excalidrawAPI.scrollToContent(importedElements, {
                                                     fitToContent: true,
