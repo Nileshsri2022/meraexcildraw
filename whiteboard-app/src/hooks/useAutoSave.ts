@@ -26,7 +26,7 @@ interface UseAutoSaveReturn {
 }
 
 export function useAutoSave(options: UseAutoSaveOptions = {}): UseAutoSaveReturn {
-    const { enabled = true, debounceMs = 5000 } = options;
+    const { enabled = true, debounceMs = 2000 } = options;
 
     const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -38,6 +38,7 @@ export function useAutoSave(options: UseAutoSaveOptions = {}): UseAutoSaveReturn
         appState: Record<string, unknown>;
         files: Record<string, unknown>;
     } | null>(null);
+    const isSavingRef = useRef(false);
 
     // Check if there's saved data on mount
     useEffect(() => {
@@ -46,13 +47,15 @@ export function useAutoSave(options: UseAutoSaveOptions = {}): UseAutoSaveReturn
 
     // Perform the actual save
     const performSave = useCallback(async () => {
-        if (!pendingDataRef.current) return;
+        if (!pendingDataRef.current || isSavingRef.current) return;
 
         const { elements, appState, files } = pendingDataRef.current;
+        pendingDataRef.current = null;
 
         // Don't save empty scenes
         if (elements.length === 0) return;
 
+        isSavingRef.current = true;
         try {
             setSaveStatus('saving');
             await saveScene(elements as never[], appState, files);
@@ -65,6 +68,8 @@ export function useAutoSave(options: UseAutoSaveOptions = {}): UseAutoSaveReturn
         } catch (error) {
             console.error('[useAutoSave] Save failed:', error);
             setSaveStatus('error');
+        } finally {
+            isSavingRef.current = false;
         }
     }, []);
 
@@ -101,7 +106,38 @@ export function useAutoSave(options: UseAutoSaveOptions = {}): UseAutoSaveReturn
         setSaveStatus('idle');
     }, []);
 
-    // Cleanup on unmount
+    // Flush pending save immediately (for beforeunload / unmount)
+    const flushSave = useCallback(() => {
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+        }
+        if (pendingDataRef.current) {
+            const { elements, appState, files } = pendingDataRef.current;
+            pendingDataRef.current = null;
+            if (elements.length > 0) {
+                // Fire-and-forget — we can't await in beforeunload
+                saveScene(elements as never[], appState, files).catch((e) =>
+                    console.error('[useAutoSave] Flush save failed:', e)
+                );
+            }
+        }
+    }, []);
+
+    // Save on page refresh / close
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            flushSave();
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // Also flush on unmount
+            flushSave();
+        };
+    }, [flushSave]);
+
+    // Cleanup timeout on unmount (flushSave above handles the data)
     useEffect(() => {
         return () => {
             if (saveTimeoutRef.current) {

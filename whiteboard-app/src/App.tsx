@@ -38,7 +38,7 @@ const App: React.FC = () => {
     // Auto-save hook
     const { saveStatus, lastSaved, triggerSave, clearSavedData, loadSavedData } = useAutoSave({
         enabled: true,
-        debounceMs: 5000,
+        debounceMs: 2000,
     });
 
     const {
