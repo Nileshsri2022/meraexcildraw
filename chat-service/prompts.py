@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableLambda
 
 from config import chat_llm, canvas_llm, vision_llm
 
@@ -56,7 +58,44 @@ Canvas context: {canvas_context}"""),
 
 # Chat chain: prompt → LLM (streams) — no parser so we can stream raw chunks
 chat_chain = chat_prompt | chat_llm
-vision_chain = chat_prompt | vision_llm
+
+# Vision chain: builds a proper multimodal message list so the vision LLM
+# receives the image as an image_url block (not a stringified list).
+# The `input` from sessions.py is already a list like:
+#   [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "data:..."}}]
+
+_VISION_SYSTEM_MSG = chat_prompt.messages[0]  # reuse the same system prompt
+
+def _build_vision_messages(chain_input: dict):
+    """Convert chain_input into a proper multimodal message list for the vision LLM."""
+    from langchain_core.messages import SystemMessage
+
+    # Render the system prompt template into a concrete SystemMessage
+    try:
+        rendered = _VISION_SYSTEM_MSG.format()
+        system_text = rendered.content
+    except Exception:
+        # Fallback: extract the template string directly
+        system_text = _VISION_SYSTEM_MSG.prompt.template if hasattr(_VISION_SYSTEM_MSG, 'prompt') else str(_VISION_SYSTEM_MSG)
+
+    messages = [SystemMessage(content=system_text)]
+
+    # Add conversation history
+    history = chain_input.get("history", [])
+    messages.extend(history)
+
+    # Add the current user message as a proper multimodal HumanMessage
+    user_input = chain_input["input"]
+    if isinstance(user_input, list):
+        # Already multimodal: [{"type": "text", ...}, {"type": "image_url", ...}]
+        messages.append(HumanMessage(content=user_input))
+    else:
+        # Fallback: plain text
+        messages.append(HumanMessage(content=str(user_input)))
+
+    return messages
+
+vision_chain = RunnableLambda(_build_vision_messages) | vision_llm
 
 # Canvas chain: prompt → LLM (deterministic) → string parser
 canvas_chain = canvas_prompt | canvas_llm | StrOutputParser()
