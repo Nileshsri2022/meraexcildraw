@@ -145,24 +145,15 @@ export function useChatConversations() {
 
     const clearChat = useCallback(async () => {
         setMessages([]);
+        setConversations([]);
+        setActiveConversationId(null);
         setError(null);
         setPendingActions(null);
 
-        const convId = activeConvIdRef.current;
-        if (convId) {
-            try {
-                await chatDb.clearConversation(convId);
-
-                const conv = conversationsRef.current.find(c => c.id === convId);
-                if (conv) {
-                    const updated = { ...conv, updatedAt: Date.now() };
-                    await chatDb.saveConversation(updated);
-                    const freshConvs = await chatDb.loadConversations();
-                    setConversations(freshConvs);
-                }
-            } catch (err) {
-                console.error("[ChatDB] clearChat DB error:", err);
-            }
+        try {
+            await chatDb.clearAllConversations();
+        } catch (err) {
+            console.error("[ChatDB] clearChat DB error:", err);
         }
 
         if (sessionIdRef.current) {
@@ -177,7 +168,7 @@ export function useChatConversations() {
             }
             rotateSessionId();
         }
-    }, [rotateSessionId]); // Removed conversations, activeConversationId — reads from refs
+    }, [rotateSessionId]);
 
     const appendAssistantMessage = useCallback((content: string) => {
         const now = Date.now();

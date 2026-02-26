@@ -16,6 +16,7 @@ export interface ChatDB {
     saveMessages(conversationId: string, messages: ChatMessage[], options?: { skipTimestamp?: boolean }): Promise<void>;
     loadMessages(conversationId: string): Promise<ChatMessage[]>;
     clearConversation(conversationId: string): Promise<void>;
+    clearAllConversations(): Promise<void>;
 
     saveConversation(conv: Conversation): Promise<void>;
     loadConversations(): Promise<Conversation[]>;
@@ -108,6 +109,14 @@ class ChatDBImpl implements ChatDB {
             await cursor.delete();
             cursor = await cursor.continue();
         }
+        await tx.done;
+    }
+
+    async clearAllConversations(): Promise<void> {
+        const db = await this.dbPromise;
+        const tx = db.transaction([MSG_STORE, CONV_STORE], 'readwrite');
+        await tx.objectStore(MSG_STORE).clear();
+        await tx.objectStore(CONV_STORE).clear();
         await tx.done;
     }
 

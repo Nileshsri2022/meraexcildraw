@@ -153,13 +153,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = memo(({
             <div className="chat-sidebar-footer">
                 {confirmClear ? (
                     <div className="chat-sidebar-clear-confirm">
-                        <span className="chat-clear-label">Clear this chat?</span>
+                        <span className="chat-clear-label">Clear all chats?</span>
                         <div className="chat-clear-actions">
                             <button
                                 className="chat-sidebar-btn chat-sidebar-btn--danger"
                                 onClick={handleClear}
                             >
-                                Yes, clear
+                                Yes, clear all
                             </button>
                             <button
                                 className="chat-sidebar-btn"
@@ -173,8 +173,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = memo(({
                     <button
                         className="chat-sidebar-btn"
                         onClick={() => setConfirmClear(true)}
-                        disabled={messages.length === 0}
-                        title="Clear messages in the current chat"
+                        disabled={conversations.length === 0}
+                        title="Clear all conversations"
                     >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                             <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
