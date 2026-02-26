@@ -352,14 +352,7 @@ const App: React.FC = () => {
                                                 });
                                             });
                                         }
-                                        const parts: string[] = [];
-                                        if (result.scene && result.scene.elements.length > 0) parts.push(`scene (${result.scene.elements.length} elements)`);
-                                        if (result.conversationCount > 0) parts.push(`${result.conversationCount} conversation(s)`);
-                                        if (result.aiHistoryCount > 0) parts.push(`${result.aiHistoryCount} AI history item(s)`);
-                                        // Delay alert so Excalidraw renders first
-                                        setTimeout(() => {
-                                            alert(`Imported: ${parts.join(", ") || "empty workspace"}.`);
-                                        }, 300);
+
                                     }
                                 }}
                             >
