@@ -142,7 +142,7 @@ const App: React.FC = () => {
             {/* Sparkle Button */}
             <button
                 className={`sparkle-btn${isDropdownOpen ? " sparkle-btn--active" : ""}`}
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onClick={() => setIsDropdownOpen(prev => !prev)}
                 title="More Options"
             >
                 ✨

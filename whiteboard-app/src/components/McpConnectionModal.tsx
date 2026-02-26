@@ -98,19 +98,18 @@ export const McpConnectionModal: React.FC<McpConnectionModalProps> = memo(({ onA
     }, [form, buildServerUrl, buildHeaders, onAdd]);
 
     const handleUrlChange = useCallback((rawValue: string) => {
-        let val = rawValue;
+        const match = Object.entries(MCP_HELPERS).find(([domain]) =>
+            rawValue.trim() === domain ||
+            (rawValue.includes(domain) && !rawValue.includes("<APIKEY>") && rawValue.length < domain.length + 10)
+        );
 
-        for (const [domain, helper] of Object.entries(MCP_HELPERS)) {
-            if (val.trim() === domain || (val.includes(domain) && !val.includes("<APIKEY>") && val.length < domain.length + 10)) {
-                val = helper.url;
-                if (helper.label && !form.label.trim()) {
-                    setForm(p => ({ ...p, label: helper.label! }));
-                }
-                if (helper.headerKey) {
-                    setForm(p => ({ ...p, headerKey: helper.headerKey! }));
-                }
-                break;
-            }
+        const val = match ? match[1].url : rawValue;
+
+        if (match?.[1].label && !form.label.trim()) {
+            setForm(p => ({ ...p, label: match[1].label! }));
+        }
+        if (match?.[1].headerKey) {
+            setForm(p => ({ ...p, headerKey: match[1].headerKey! }));
         }
 
         setForm(p => ({ ...p, url: val }));

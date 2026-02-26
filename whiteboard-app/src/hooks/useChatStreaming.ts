@@ -97,6 +97,7 @@ interface StreamingDeps {
     setPendingToolAction: React.Dispatch<React.SetStateAction<ToolAction | null>>;
     ensureConversation: (content: string) => Promise<void>;
     flushCanvasContext: (elements: readonly ExcalidrawSceneElement[]) => Promise<void>;
+    setIsStreaming?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 /**
@@ -159,6 +160,7 @@ export function useChatStreaming(deps: StreamingDeps) {
 
         setMessages(prev => [...prev, userMsg, assistantMsg]);
         isStreamingRef.current = true;
+        deps.setIsStreaming?.(true);
 
         const controller = new AbortController();
         abortRef.current = controller;
@@ -268,6 +270,7 @@ export function useChatStreaming(deps: StreamingDeps) {
             }
         } finally {
             isStreamingRef.current = false;
+            deps.setIsStreaming?.(false);
             abortRef.current = null;
         }
     }, [sessionIdRef, excalidrawAPIRef, setMessages, setError, setPendingActions, setPendingToolAction, ensureConversation, flushCanvasContext]);

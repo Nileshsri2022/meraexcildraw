@@ -155,15 +155,10 @@ export function useCanvasChat() {
         setPendingToolAction: convos.setPendingToolAction,
         ensureConversation: convos.ensureConversation,
         flushCanvasContext,
+        setIsStreaming,
     });
 
-    // Sync the isStreaming state from the ref
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setIsStreaming(streaming.isStreamingRef.current);
-        }, 100);
-        return () => clearInterval(interval);
-    }, [streaming.isStreamingRef]);
+    // isStreaming is now set directly by useChatStreaming (no polling needed)
 
     // Auto-persist messages when streaming completes
     useEffect(() => {

@@ -159,23 +159,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
     // Execute pending canvas actions from the backend
     useEffect(() => {
-        if (chat.pendingActions && chat.pendingActions.length > 0) {
-            const count = canvasActions.executeActions(chat.pendingActions) || 0;
-            setActionCount(count);
-            chat.consumeActions();
+        if (!chat.pendingActions?.length) return;
 
-            // After drawing, re-sync canvas context so AI knows about new elements
-            setTimeout(() => {
-                const elements = excalidrawAPI?.getSceneElements?.() || [];
-                if (elements.length > 0) {
-                    chat.syncCanvasContext([...elements]);
-                }
-            }, 200);
+        const count = canvasActions.executeActions(chat.pendingActions) || 0;
+        setActionCount(count);
+        chat.consumeActions();
 
-            // Clear the badge after a few seconds
-            const timer = setTimeout(() => setActionCount(0), 4000);
-            return () => clearTimeout(timer);
-        }
+        // After drawing, re-sync canvas context so AI knows about new elements
+        setTimeout(() => {
+            const elements = excalidrawAPI?.getSceneElements?.() || [];
+            if (elements.length > 0) {
+                chat.syncCanvasContext([...elements]);
+            }
+        }, 200);
+
+        // Clear the badge after a few seconds
+        const timer = setTimeout(() => setActionCount(0), 4000);
+        return () => clearTimeout(timer);
     }, [chat.pendingActions, canvasActions, chat, excalidrawAPI]);
 
     // Execute pending AI tool actions from the backend
@@ -239,8 +239,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
     // ── Resizability ──
     const [panelWidth, setPanelWidth] = useState(() => {
-        const saved = localStorage.getItem("chat-panel-width");
-        return saved ? parseInt(saved, 10) : 600;
+        const raw = localStorage.getItem("chat-panel-width:v1");
+        if (!raw) return 600;
+        const parsed = parseInt(raw, 10);
+        return Number.isFinite(parsed) && parsed >= 450 && parsed <= 1200 ? parsed : 600;
     });
     const isResizing = useRef(false);
 
@@ -261,7 +263,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         const newWidth = window.innerWidth - e.clientX;
         if (newWidth >= 450 && newWidth <= 1200) {
             setPanelWidth(newWidth);
-            localStorage.setItem("chat-panel-width", newWidth.toString());
+            localStorage.setItem("chat-panel-width:v1", newWidth.toString());
         }
     }, []);
 
