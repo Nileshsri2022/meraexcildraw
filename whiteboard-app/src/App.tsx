@@ -310,21 +310,33 @@ const App: React.FC = () => {
                                     const result = await importWorkspace();
                                     if (result && excalidrawAPI) {
                                         if (result.scene) {
+                                            // Add binary files (images) first
                                             if (result.scene.files && Object.keys(result.scene.files).length > 0) {
                                                 excalidrawAPI.addFiles(
                                                     Object.values(result.scene.files) as unknown as BinaryFileData[]
                                                 );
                                             }
+                                            // Replace current scene with imported elements
+                                            const importedElements = result.scene.elements as OrderedExcalidrawElement[];
                                             excalidrawAPI.updateScene({
-                                                elements: result.scene.elements as OrderedExcalidrawElement[],
-                                                appState: result.scene.appState as unknown as AppState,
+                                                elements: importedElements,
+                                            });
+                                            // Scroll to show imported content
+                                            requestAnimationFrame(() => {
+                                                excalidrawAPI.scrollToContent(importedElements, {
+                                                    fitToContent: true,
+                                                    animate: true,
+                                                });
                                             });
                                         }
                                         const parts: string[] = [];
-                                        if (result.scene) parts.push("scene");
+                                        if (result.scene && result.scene.elements.length > 0) parts.push(`scene (${result.scene.elements.length} elements)`);
                                         if (result.conversationCount > 0) parts.push(`${result.conversationCount} conversation(s)`);
                                         if (result.aiHistoryCount > 0) parts.push(`${result.aiHistoryCount} AI history item(s)`);
-                                        alert(`Imported: ${parts.join(", ") || "empty workspace"}.`);
+                                        // Delay alert so Excalidraw renders first
+                                        setTimeout(() => {
+                                            alert(`Imported: ${parts.join(", ") || "empty workspace"}.`);
+                                        }, 300);
                                     }
                                 }}
                             >
