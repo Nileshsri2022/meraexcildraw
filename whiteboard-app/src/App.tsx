@@ -15,6 +15,9 @@ import { useVoiceCommand } from "./hooks/useVoiceCommand";
 import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
 import { ErrorBoundary, PanelFallback, CanvasFallback } from "./components/ErrorBoundary";
 import { CollabPresenceBar } from "./components/CollabPresenceBar";
+import { StickyNotesLayer } from "./components/StickyNotesLayer";
+import { useStickyNotes } from "./hooks/useStickyNotes";
+import type { CanvasTransform } from "./types/sticky-notes";
 import { exportWorkspace, importWorkspace } from "./utils/workspaceBundle";
 
 const AIToolsDialog = lazy(() =>
@@ -34,6 +37,16 @@ const App: React.FC = () => {
 
     // Voice command state: stores the classified command to pass to AIToolsDialog
     const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommandResult | null>(null);
+
+    // Canvas transform state for sticky notes positioning
+    const [canvasTransform, setCanvasTransform] = useState<CanvasTransform>({
+        scrollX: 0,
+        scrollY: 0,
+        zoom: 1,
+    });
+
+    // Sticky notes system
+    const stickyNotes = useStickyNotes();
 
     // Auto-save hook
     const { saveStatus, lastSaved, triggerSave, clearSavedData, loadSavedData } = useAutoSave({
@@ -117,13 +130,19 @@ const App: React.FC = () => {
         setIsDropdownOpen(false);
     }, [isCollaborating, startCollaboration, stopCollaboration]);
 
-    // Handle scene changes - sync collab and trigger auto-save
+    // Handle scene changes - sync collab, trigger auto-save, and update canvas transform
     const handleChange = useCallback(
         (elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
             onSceneChange(elements);
             if (initialDataLoaded && !isCollaborating) {
                 triggerSave(elements, appState as unknown as Record<string, unknown>, files as unknown as Record<string, unknown>);
             }
+            // Update canvas transform for sticky notes positioning
+            setCanvasTransform({
+                scrollX: appState.scrollX ?? 0,
+                scrollY: appState.scrollY ?? 0,
+                zoom: (appState.zoom as unknown as { value: number })?.value ?? 1,
+            });
         },
         [onSceneChange, triggerSave, initialDataLoaded, isCollaborating]
     );
@@ -230,6 +249,62 @@ const App: React.FC = () => {
 
                     {/* ─── Workspace Section ─── */}
                     <div className="cosmic-dropdown-label">Workspace</div>
+
+                    {/* Sticky Notes */}
+                    <button
+                        className="cosmic-dropdown-item"
+                        onClick={() => {
+                            stickyNotes.addNote(canvasTransform, window.innerWidth, window.innerHeight);
+                            setIsDropdownOpen(false);
+                        }}
+                    >
+                        <span className="item-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                <line x1="12" y1="8" x2="12" y2="16" />
+                                <line x1="8" y1="12" x2="16" y2="12" />
+                            </svg>
+                        </span>
+                        <span>
+                            Add Sticky Note
+                            <span className="item-desc">
+                                {stickyNotes.notes.length > 0
+                                    ? `${stickyNotes.notes.length} note${stickyNotes.notes.length > 1 ? "s" : ""} on canvas`
+                                    : "Pin notes to the canvas"}
+                            </span>
+                        </span>
+                    </button>
+
+                    {stickyNotes.notes.length > 0 && (
+                        <button
+                            className="cosmic-dropdown-item"
+                            onClick={() => {
+                                stickyNotes.setVisible(!stickyNotes.visible);
+                                setIsDropdownOpen(false);
+                            }}
+                        >
+                            <span className="item-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={stickyNotes.visible ? "#22c55e" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    {stickyNotes.visible ? (
+                                        <>
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </>
+                                    ) : (
+                                        <>
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                                            <line x1="1" y1="1" x2="23" y2="23" />
+                                        </>
+                                    )}
+                                </svg>
+                            </span>
+                            <span>
+                                {stickyNotes.visible ? "Hide Notes" : "Show Notes"}
+                                <span className="item-desc">Toggle sticky note visibility</span>
+                            </span>
+                        </button>
+                    )}
 
                     {/* Collaboration */}
                     <button
@@ -415,7 +490,7 @@ const App: React.FC = () => {
                 </div>
             )}
         </div>
-    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI]);
+    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, stickyNotes, canvasTransform]);
 
     return (
         <div style={{ width: "100vw", height: "100vh" }}>
@@ -487,6 +562,13 @@ const App: React.FC = () => {
 
             {/* ─── Collab Presence Bar ─── */}
             <CollabPresenceBar username={username} />
+
+            {/* ─── Sticky Notes Overlay ─── */}
+            <StickyNotesLayer
+                excalidrawAPI={excalidrawAPI}
+                stickyNotes={stickyNotes}
+                canvasTransform={canvasTransform}
+            />
 
             {/* ─── AI Tools Dialog Error Boundary ─── */}
             <Suspense fallback={null}>

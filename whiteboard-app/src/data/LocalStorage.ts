@@ -1,4 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import type { StickyNote } from '../types/sticky-notes';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,12 +31,17 @@ interface WhiteboardDB extends DBSchema {
         value: AIHistoryEntry;
         indexes: { 'by-type': AIHistoryType; 'by-timestamp': number };
     };
+    'sticky-notes': {
+        key: string;
+        value: StickyNote;
+        indexes: { 'by-zIndex': number; 'by-updatedAt': number };
+    };
 }
 
 // ─── DB Setup ────────────────────────────────────────────────────────────────
 
 const DB_NAME = 'whiteboard-db';
-const DB_VERSION = 3; // bumped: added ai-history store
+const DB_VERSION = 4; // bumped: added sticky-notes store
 const SCENE_KEY = 'current-scene';
 const MAX_HISTORY_ENTRIES = 50; // keep last 50 per tab type
 
@@ -56,6 +62,13 @@ async function getDB(): Promise<IDBPDatabase<WhiteboardDB>> {
                 const store = db.createObjectStore('ai-history', { keyPath: 'id' });
                 store.createIndex('by-type', 'type');
                 store.createIndex('by-timestamp', 'timestamp');
+            }
+
+            // ── sticky-notes store (v4) ──
+            if (!db.objectStoreNames.contains('sticky-notes')) {
+                const store = db.createObjectStore('sticky-notes', { keyPath: 'id' });
+                store.createIndex('by-zIndex', 'zIndex');
+                store.createIndex('by-updatedAt', 'updatedAt');
             }
         },
     });
@@ -238,5 +251,75 @@ export async function clearAIHistory(): Promise<void> {
         if (import.meta.env.DEV) console.log('[AI History] Cleared all history');
     } catch (error) {
         console.error('[AI History] Failed to clear history:', error);
+    }
+}
+
+// ─── Sticky Notes CRUD ───────────────────────────────────────────────────────
+
+/**
+ * Load all sticky notes, ordered by zIndex ascending.
+ */
+export async function loadStickyNotes(): Promise<StickyNote[]> {
+    try {
+        const db = await getDB();
+        const all = await db.getAllFromIndex('sticky-notes', 'by-zIndex');
+        return all;
+    } catch (error) {
+        console.error('[StickyNotes] Failed to load:', error);
+        return [];
+    }
+}
+
+/**
+ * Save (upsert) a single sticky note.
+ */
+export async function saveStickyNote(note: StickyNote): Promise<void> {
+    try {
+        const db = await getDB();
+        await db.put('sticky-notes', note);
+        if (import.meta.env.DEV) console.log(`[StickyNotes] Saved note ${note.id}`);
+    } catch (error) {
+        console.error('[StickyNotes] Failed to save:', error);
+    }
+}
+
+/**
+ * Save all sticky notes in one transaction (bulk upsert).
+ */
+export async function saveAllStickyNotes(notes: StickyNote[]): Promise<void> {
+    try {
+        const db = await getDB();
+        const tx = db.transaction('sticky-notes', 'readwrite');
+        await Promise.all(notes.map(n => tx.store.put(n)));
+        await tx.done;
+        if (import.meta.env.DEV) console.log(`[StickyNotes] Bulk saved ${notes.length} notes`);
+    } catch (error) {
+        console.error('[StickyNotes] Failed to bulk save:', error);
+    }
+}
+
+/**
+ * Delete a single sticky note by ID.
+ */
+export async function deleteStickyNote(id: string): Promise<void> {
+    try {
+        const db = await getDB();
+        await db.delete('sticky-notes', id);
+        if (import.meta.env.DEV) console.log(`[StickyNotes] Deleted note ${id}`);
+    } catch (error) {
+        console.error('[StickyNotes] Failed to delete:', error);
+    }
+}
+
+/**
+ * Delete ALL sticky notes.
+ */
+export async function clearAllStickyNotes(): Promise<void> {
+    try {
+        const db = await getDB();
+        await db.clear('sticky-notes');
+        if (import.meta.env.DEV) console.log('[StickyNotes] Cleared all notes');
+    } catch (error) {
+        console.error('[StickyNotes] Failed to clear:', error);
     }
 }
