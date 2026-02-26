@@ -10,7 +10,6 @@
 import { useState, useRef, useCallback } from "react";
 import { convertToExcalidrawElements, exportToCanvas } from "@excalidraw/excalidraw";
 import type { AppState } from "@excalidraw/excalidraw/types";
-import html2canvas from "html2canvas";
 import { normalizeLatexWithMathJax, extractTextFromOCRWithMathJax } from "../../utils/mathJaxParser";
 import { addImageToCanvas } from "../../utils/addImageToCanvas";
 import { saveAIResult } from "../../data/LocalStorage";
@@ -137,6 +136,7 @@ export function useOcr(ctx: AIGenerationContext) {
             element.style.maxHeight = 'none';
             element.style.overflowY = 'visible';
 
+            const { default: html2canvas } = await import("html2canvas");
             const canvas = await html2canvas(element, {
                 backgroundColor: '#ffffff', scale: 2,
                 scrollX: 0, scrollY: 0,

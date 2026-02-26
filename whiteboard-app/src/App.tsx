@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, lazy, Suspense } from "react";
 import {
     Excalidraw,
     MainMenu,
@@ -10,11 +10,16 @@ import "@excalidraw/excalidraw/index.css";
 import type { ExcalidrawImperativeAPI, BinaryFileData, AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCollaboration } from "./collab";
-import { AIToolsDialog } from "./components/AIToolsDialog";
-import { ChatPanel } from "./components/ChatPanel";
 import { useAutoSave, SaveStatus } from "./hooks/useAutoSave";
 import { useVoiceCommand } from "./hooks/useVoiceCommand";
 import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
+
+const AIToolsDialog = lazy(() =>
+    import("./components/AIToolsDialog").then((m) => ({ default: m.AIToolsDialog }))
+);
+const ChatPanel = lazy(() =>
+    import("./components/ChatPanel").then((m) => ({ default: m.ChatPanel }))
+);
 
 const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
@@ -121,7 +126,7 @@ const App: React.FC = () => {
     );
 
     // Render custom dropdown in top right area
-    const renderTopRightUI = () => (
+    const renderTopRightUI = useCallback(() => (
         <div ref={dropdownRef} style={{ position: "relative", display: "flex", gap: "8px", alignItems: "center" }}>
             {/* Chat Button */}
             <button
@@ -310,7 +315,7 @@ const App: React.FC = () => {
                 </div>
             )}
         </div>
-    );
+    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration]);
 
     return (
         <div style={{ width: "100vw", height: "100vh" }}>
@@ -375,20 +380,28 @@ const App: React.FC = () => {
             </Excalidraw>
 
             {/* Unified AI Tools Dialog */}
-            <AIToolsDialog
-                isOpen={isAIToolsOpen}
-                onClose={() => setIsAIToolsOpen(false)}
-                excalidrawAPI={excalidrawAPI}
-                voiceCommand={pendingVoiceCommand}
-                onVoiceCommandDone={handleVoiceCommandDone}
-            />
+            <Suspense fallback={null}>
+                {isAIToolsOpen && (
+                    <AIToolsDialog
+                        isOpen={isAIToolsOpen}
+                        onClose={() => setIsAIToolsOpen(false)}
+                        excalidrawAPI={excalidrawAPI}
+                        voiceCommand={pendingVoiceCommand}
+                        onVoiceCommandDone={handleVoiceCommandDone}
+                    />
+                )}
+            </Suspense>
 
             {/* AI Canvas Chat Assistant */}
-            <ChatPanel
-                isOpen={isChatOpen}
-                onClose={() => setIsChatOpen(false)}
-                excalidrawAPI={excalidrawAPI}
-            />
+            <Suspense fallback={null}>
+                {isChatOpen && (
+                    <ChatPanel
+                        isOpen={isChatOpen}
+                        onClose={() => setIsChatOpen(false)}
+                        excalidrawAPI={excalidrawAPI}
+                    />
+                )}
+            </Suspense>
         </div>
     );
 };

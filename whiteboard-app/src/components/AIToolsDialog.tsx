@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import "katex/dist/katex.min.css";
+// katex CSS loaded lazily by MarkdownRenderer
 import { useBlockExcalidrawKeys } from "../hooks/useBlockExcalidrawKeys";
 import { useAIHistory } from "../hooks/useAIHistory";
 import { useTTS } from "../hooks/useTTS";
@@ -7,7 +7,6 @@ import { useAIGeneration } from "../hooks/useAIGeneration";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import type { AITab, AIToolsDialogProps } from "../types/ai-tools";
 import type { AIHistoryEntry } from "../data/LocalStorage";
-import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { addImageToCanvas } from "../utils/addImageToCanvas";
 
@@ -60,6 +59,7 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
             switch (entry.type) {
                 case "diagram": {
                     // Re-parse stored Mermaid code into Excalidraw elements
+                    const { parseMermaidToExcalidraw } = await import("@excalidraw/mermaid-to-excalidraw");
                     const { elements: skeleton } = await parseMermaidToExcalidraw(entry.result);
                     const newElements = convertToExcalidrawElements(skeleton);
                     const current = excalidrawAPI.getSceneElements();

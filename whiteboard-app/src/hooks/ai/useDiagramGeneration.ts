@@ -7,7 +7,6 @@
  * Extracted from useAIGeneration (P2.1 — clean-code: SRP).
  */
 import { useCallback } from "react";
-import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { saveAIResult } from "../../data/LocalStorage";
 import { apiFetch, getErrorMessage } from "../../utils/apiClient";
@@ -32,6 +31,7 @@ export function useDiagramGeneration(ctx: AIGenerationContext) {
             const diagramCode = data.code || data.mermaid;
             if (!diagramCode) throw new Error("Server returned no diagram code");
 
+            const { parseMermaidToExcalidraw } = await import("@excalidraw/mermaid-to-excalidraw");
             const { elements: skeletonElements } = await parseMermaidToExcalidraw(diagramCode);
             const excalidrawElements = convertToExcalidrawElements(skeletonElements);
 

@@ -2,7 +2,7 @@
  * McpConnectionModal — Add/test MCP server connections.
  * Extracted from ChatPanel for Single Responsibility (Clean Code §8).
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, memo } from "react";
 import type { McpServerConfig } from "../hooks/useCanvasChat";
 
 const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
@@ -32,7 +32,7 @@ interface McpConnectionModalProps {
     onClose: () => void;
 }
 
-export const McpConnectionModal: React.FC<McpConnectionModalProps> = ({ onAdd, onClose }) => {
+export const McpConnectionModal: React.FC<McpConnectionModalProps> = memo(({ onAdd, onClose }) => {
     const [form, setForm] = useState<McpFormState>(EMPTY_FORM);
     const [testStatus, setTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
     const [testError, setTestError] = useState("");
@@ -183,6 +183,6 @@ export const McpConnectionModal: React.FC<McpConnectionModalProps> = ({ onAdd, o
             </div>
         </div>
     );
-};
+});
 
 McpConnectionModal.displayName = "McpConnectionModal";

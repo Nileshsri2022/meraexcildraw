@@ -2,7 +2,7 @@
  * ChatInputBar — Message input with tools toggle, send, and stop buttons.
  * Extracted from ChatPanel for Single Responsibility (Clean Code §8).
  */
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, memo } from "react";
 
 interface ChatInputBarProps {
     input: string;
@@ -17,7 +17,7 @@ interface ChatInputBarProps {
     onToggleToolBar: () => void;
 }
 
-export const ChatInputBar: React.FC<ChatInputBarProps> = ({
+export const ChatInputBar: React.FC<ChatInputBarProps> = memo(({
     input,
     isStreaming,
     isOpen,
@@ -88,6 +88,6 @@ export const ChatInputBar: React.FC<ChatInputBarProps> = ({
             )}
         </div>
     );
-};
+});
 
 ChatInputBar.displayName = "ChatInputBar";

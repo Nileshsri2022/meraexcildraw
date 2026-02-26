@@ -13,5 +13,21 @@ export default defineConfig({
     build: {
         outDir: "dist",
         sourcemap: true,
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    "vendor-excalidraw": ["@excalidraw/excalidraw"],
+                    "vendor-markdown": [
+                        "react-markdown",
+                        "react-syntax-highlighter",
+                        "remark-gfm",
+                        "remark-math",
+                        "rehype-katex",
+                    ],
+                    "vendor-katex": ["katex"],
+                    "vendor-mermaid": ["@excalidraw/mermaid-to-excalidraw"],
+                },
+            },
+        },
     },
 });

@@ -2,7 +2,7 @@
  * ChatSidebar — Conversation list with search, delete, and clear.
  * Extracted from ChatPanel for Single Responsibility (Clean Code §8).
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, memo } from "react";
 import type { Conversation } from "../services/chatDb";
 
 interface ChatSidebarProps {
@@ -18,7 +18,7 @@ interface ChatSidebarProps {
     onClearChat: () => void;
 }
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({
+export const ChatSidebar: React.FC<ChatSidebarProps> = memo(({
     conversations,
     activeConversationId,
     messages,
@@ -185,6 +185,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             </div>
         </>
     );
-};
+});
 
 ChatSidebar.displayName = "ChatSidebar";

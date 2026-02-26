@@ -2,7 +2,7 @@
  * ChatToolBar — Built-in tools and MCP server selection pills.
  * Extracted from ChatPanel for Single Responsibility (Clean Code §8).
  */
-import React from "react";
+import React, { memo } from "react";
 import type { McpServerConfig } from "../hooks/useCanvasChat";
 
 /** Tool definition for rendering pills */
@@ -29,7 +29,7 @@ interface ChatToolBarProps {
     onOpenMcpModal: () => void;
 }
 
-export const ChatToolBar: React.FC<ChatToolBarProps> = ({
+export const ChatToolBar: React.FC<ChatToolBarProps> = memo(({
     activeBuiltinTools,
     connectedMcpServers,
     onToggleBuiltinTool,
@@ -84,6 +84,6 @@ export const ChatToolBar: React.FC<ChatToolBarProps> = ({
             </div>
         </div>
     );
-};
+});
 
 ChatToolBar.displayName = "ChatToolBar";
