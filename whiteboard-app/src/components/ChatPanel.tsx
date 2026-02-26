@@ -56,6 +56,11 @@ const MessageBubble = React.memo(({ message, isStreaming }: {
                 )}
             </div>
             <div className="chat-message-content">
+                {isUser && message.imageBase64 && (
+                    <div className="chat-message-image">
+                        <img src={message.imageBase64} alt="Attached" />
+                    </div>
+                )}
                 {isUser ? (
                     <p>{message.content}</p>
                 ) : message.content && !isStreaming ? (
@@ -276,12 +281,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         };
     }, [resize, stopResizing]);
 
-    const handleSend = useCallback(() => {
-        if (!input.trim() || chat.isStreaming) return;
+    const handleSend = useCallback((imageBase64?: string) => {
+        if ((!input.trim() && !imageBase64) || chat.isStreaming) return;
         if (hasActiveTools) {
-            chat.sendToolMessage(input, activeBuiltinTools, connectedMcpServers);
+            chat.sendToolMessage(input, activeBuiltinTools, connectedMcpServers, imageBase64);
         } else {
-            chat.sendMessage(input);
+            chat.sendMessage(input, imageBase64);
         }
         setInput("");
     }, [input, chat, hasActiveTools, activeBuiltinTools, connectedMcpServers]);
