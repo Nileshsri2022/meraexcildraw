@@ -1,0 +1,679 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   presentation.css — Styles for AI Presentation Mode
+   Frame overlay, presentation toolbar, fullscreen slideshow, and controls.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Frame Overlay ─────────────────────────────────────────────────────── */
+
+.frame-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.frame-rect {
+    position: absolute;
+    border: 2px dashed;
+    border-radius: 8px;
+    cursor: default;
+    transition: box-shadow 0.15s ease;
+}
+
+.frame-rect:hover {
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.frame-rect--selected {
+    border-style: solid;
+    border-width: 2px;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+}
+
+/* Frame Label Bar */
+.frame-label-bar {
+    position: absolute;
+    top: -28px;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 6px 6px 0 0;
+    cursor: grab;
+    min-width: 100px;
+    max-width: 280px;
+    height: 26px;
+    user-select: none;
+}
+
+.frame-label-bar:active {
+    cursor: grabbing;
+}
+
+.frame-label-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.frame-label-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    outline: none;
+    width: 100%;
+}
+
+/* Frame Actions */
+.frame-actions {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.frame-label-bar:hover .frame-actions {
+    opacity: 1;
+}
+
+.frame-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.15s ease;
+}
+
+.frame-action-btn:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.frame-action-btn--delete:hover {
+    background: rgba(239, 68, 68, 0.6);
+}
+
+/* Resize Handles */
+.frame-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #fff;
+    border: 2px solid #6366f1;
+    border-radius: 2px;
+    pointer-events: auto;
+    z-index: 2;
+}
+
+.frame-handle--nw { top: -5px; left: -5px; cursor: nw-resize; }
+.frame-handle--ne { top: -5px; right: -5px; cursor: ne-resize; }
+.frame-handle--sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.frame-handle--se { bottom: -5px; right: -5px; cursor: se-resize; }
+
+/* Speaker Notes Indicator */
+.frame-notes-indicator {
+    position: absolute;
+    bottom: 4px;
+    right: 8px;
+    font-size: 14px;
+    opacity: 0.6;
+}
+
+/* ─── Presentation Toolbar ──────────────────────────────────────────────── */
+
+.pres-toolbar {
+    position: fixed;
+    left: 12px;
+    top: 80px;
+    width: 220px;
+    background: #232329;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: pres-toolbar-in 0.2s ease;
+}
+
+@keyframes pres-toolbar-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.pres-toolbar__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pres-toolbar__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e4e4e7;
+}
+
+.pres-toolbar__badge {
+    background: #6366f1;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+}
+
+.pres-toolbar__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.pres-toolbar__close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e4e4e7;
+}
+
+/* Actions */
+.pres-toolbar__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+}
+
+.pres-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #e4e4e7;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.pres-action-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.pres-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pres-action-btn--ai {
+    border-color: rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.pres-action-btn--ai:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+.pres-action-btn--sm {
+    padding: 6px 8px;
+    font-size: 11px;
+}
+
+.pres-action-btn--present {
+    background: #6366f1;
+    border-color: #818cf8;
+    color: #fff;
+    font-weight: 600;
+    justify-content: center;
+}
+
+.pres-action-btn--present:hover:not(:disabled) {
+    background: #818cf8;
+}
+
+.pres-action-btn--danger {
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.pres-action-btn--danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* Spinner */
+.pres-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #818cf8;
+    border-radius: 50%;
+    animation: pres-spin 0.6s linear infinite;
+}
+
+@keyframes pres-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Divider */
+.pres-toolbar__divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.07);
+    margin: 0 8px;
+}
+
+/* Section Toggle */
+.pres-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.pres-section-toggle:hover {
+    color: #e4e4e7;
+}
+
+/* Slide List */
+.pres-slide-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.pres-slide-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: background 0.15s ease;
+}
+
+.pres-slide-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.pres-slide-item__color {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.pres-slide-item__label {
+    font-size: 11px;
+    color: #e4e4e7;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.pres-slide-item__label:hover {
+    color: #a5b4fc;
+}
+
+.pres-slide-item__actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.pres-slide-item:hover .pres-slide-item__actions {
+    opacity: 1;
+}
+
+.pres-slide-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #9ca3af;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.15s ease;
+}
+
+.pres-slide-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #e4e4e7;
+}
+
+.pres-slide-btn--delete:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+}
+
+.pres-toolbar__secondary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+}
+
+/* ─── Fullscreen Presentation Overlay ───────────────────────────────────── */
+
+.presentation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: transparent;
+    /* Let Excalidraw canvas show through — we just add UI controls on top */
+}
+
+/* Top Bar */
+.presentation-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 100%);
+    z-index: 100001;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.presentation-topbar--hidden {
+    opacity: 0;
+    transform: translateY(-100%);
+    pointer-events: none;
+}
+
+.presentation-topbar__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.presentation-topbar__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.presentation-slide-counter {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 12px;
+    border-radius: 20px;
+    backdrop-filter: blur(8px);
+}
+
+.presentation-slide-label {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+}
+
+/* Presentation Buttons */
+.presentation-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all 0.15s ease;
+}
+
+.presentation-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.presentation-btn--active {
+    background: rgba(99, 102, 241, 0.4);
+}
+
+.presentation-btn--exit:hover {
+    background: rgba(239, 68, 68, 0.4);
+}
+
+/* Navigation Arrows */
+.presentation-nav {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.3);
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    z-index: 100001;
+    transition: all 0.2s ease;
+}
+
+.presentation-nav:hover {
+    background: rgba(0, 0, 0, 0.5);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.presentation-nav--prev { left: 16px; }
+.presentation-nav--next { right: 16px; }
+
+.presentation-nav--hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Progress Bar */
+.presentation-progress {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    z-index: 100001;
+    transition: opacity 0.3s ease;
+}
+
+.presentation-progress--hidden {
+    opacity: 0;
+}
+
+.presentation-progress__fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #8b5cf6);
+    border-radius: 0 2px 2px 0;
+    transition: width 0.3s ease;
+}
+
+.presentation-progress__dots {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+}
+
+.presentation-dot {
+    width: 8px;
+    height: 8px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s ease;
+}
+
+.presentation-dot:hover {
+    background: rgba(255, 255, 255, 0.6);
+    transform: scale(1.3);
+}
+
+.presentation-dot--active {
+    background: #6366f1;
+    transform: scale(1.3);
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+}
+
+/* Speaker Notes */
+.presentation-notes {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(600px, 80vw);
+    max-height: 200px;
+    background: rgba(0, 0, 0, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    backdrop-filter: blur(16px);
+    z-index: 100002;
+    overflow: hidden;
+    animation: notes-in 0.2s ease;
+}
+
+@keyframes notes-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.presentation-notes__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 11px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.presentation-notes__close {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.presentation-notes__close:hover {
+    color: #fff;
+}
+
+.presentation-notes__content {
+    padding: 12px 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #e4e4e7;
+    overflow-y: auto;
+    max-height: 150px;
+}
+
+/* Keyboard Shortcuts Hint */
+.presentation-shortcuts {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    z-index: 100001;
+    transition: opacity 0.3s ease;
+}
+
+.presentation-shortcuts--hidden {
+    opacity: 0;
+}
+
+/* ─── Presentation Trigger Button (in dropdown) ─────────────────────────── */
+
+.pres-trigger-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: #6366f1;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 4px;
+}

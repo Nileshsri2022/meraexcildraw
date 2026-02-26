@@ -18,12 +18,23 @@ import { CollabPresenceBar } from "./components/CollabPresenceBar";
 import { StickyNotesLayer } from "./components/StickyNotesLayer";
 import { useStickyNotes } from "./hooks/useStickyNotes";
 import { exportWorkspace, importWorkspace } from "./utils/workspaceBundle";
+import { usePresentation } from "./hooks/usePresentation";
+import "./styles/presentation.css";
 
 const AIToolsDialog = lazy(() =>
     import("./components/AIToolsDialog").then((m) => ({ default: m.AIToolsDialog }))
 );
 const ChatPanel = lazy(() =>
     import("./components/ChatPanel").then((m) => ({ default: m.ChatPanel }))
+);
+const PresentationMode = lazy(() =>
+    import("./components/PresentationMode").then((m) => ({ default: m.PresentationMode }))
+);
+const PresentationToolbar = lazy(() =>
+    import("./components/PresentationToolbar").then((m) => ({ default: m.PresentationToolbar }))
+);
+const FrameOverlay = lazy(() =>
+    import("./components/FrameOverlay").then((m) => ({ default: m.FrameOverlay }))
 );
 
 const App: React.FC = () => {
@@ -41,6 +52,9 @@ const App: React.FC = () => {
     const stickyNotes = useStickyNotes();
     const stickyNotesRef = useRef(stickyNotes);
     stickyNotesRef.current = stickyNotes;
+
+    // Presentation mode system
+    const presentation = usePresentation(excalidrawAPI);
 
     // Auto-save hook
     const { saveStatus, lastSaved, triggerSave, clearSavedData, loadSavedData } = useAutoSave({
@@ -243,6 +257,56 @@ const App: React.FC = () => {
                             </span>
                         </span>
                     </button>
+
+                    <div className="cosmic-dropdown-divider" />
+
+                    {/* ─── Presentation Section ─── */}
+                    <div className="cosmic-dropdown-label">Presentation</div>
+
+                    {/* AI Presentation Mode */}
+                    <button
+                        className="cosmic-dropdown-item"
+                        onClick={() => {
+                            presentation.setIsToolbarOpen(true);
+                            setIsDropdownOpen(false);
+                        }}
+                    >
+                        <span className="item-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                                <line x1="8" y1="21" x2="16" y2="21" />
+                                <line x1="12" y1="17" x2="12" y2="21" />
+                            </svg>
+                        </span>
+                        <span>
+                            AI Presentation
+                            {presentation.frames.length > 0 && (
+                                <span className="pres-trigger-badge">{presentation.frames.length}</span>
+                            )}
+                            <span className="item-desc">Turn canvas into a slide deck</span>
+                        </span>
+                    </button>
+
+                    {/* Quick Present (if frames exist) */}
+                    {presentation.frames.length > 0 && (
+                        <button
+                            className="cosmic-dropdown-item"
+                            onClick={() => {
+                                presentation.startPresenting();
+                                setIsDropdownOpen(false);
+                            }}
+                        >
+                            <span className="item-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="#8b5cf6">
+                                    <polygon points="5 3 19 12 5 21 5 3" />
+                                </svg>
+                            </span>
+                            <span>
+                                Present Now
+                                <span className="item-desc">{presentation.frames.length} slides ready</span>
+                            </span>
+                        </button>
+                    )}
 
                     <div className="cosmic-dropdown-divider" />
 
@@ -485,7 +549,7 @@ const App: React.FC = () => {
                 </div>
             )}
         </div>
-    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, getCanvasTransform]);
+    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, getCanvasTransform, presentation]);
 
     return (
         <div style={{ width: "100vw", height: "100vh" }}>
@@ -607,6 +671,33 @@ const App: React.FC = () => {
                             excalidrawAPI={excalidrawAPI}
                         />
                     </ErrorBoundary>
+                )}
+            </Suspense>
+
+            {/* ─── AI Presentation Mode ─── */}
+            <Suspense fallback={null}>
+                {/* Frame overlay: visible in edit mode when frames exist */}
+                {presentation.viewMode === "edit" && presentation.frames.length > 0 && (
+                    <FrameOverlay
+                        presentation={presentation}
+                        excalidrawAPI={excalidrawAPI}
+                    />
+                )}
+
+                {/* Presentation toolbar: floating slide management panel */}
+                {presentation.isToolbarOpen && presentation.viewMode === "edit" && (
+                    <PresentationToolbar
+                        presentation={presentation}
+                        excalidrawAPI={excalidrawAPI}
+                    />
+                )}
+
+                {/* Fullscreen presentation mode */}
+                {presentation.viewMode === "presenting" && (
+                    <PresentationMode
+                        presentation={presentation}
+                        excalidrawAPI={excalidrawAPI}
+                    />
                 )}
             </Suspense>
         </div>

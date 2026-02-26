@@ -99,11 +99,13 @@ from routes.chat import router as chat_router
 from routes.canvas import router as canvas_router
 from routes.health import router as health_router
 from routes.tools_chat import router as tools_chat_router
+from routes.presentation import router as presentation_router
 
 app.include_router(chat_router)
 app.include_router(canvas_router)
 app.include_router(health_router)
 app.include_router(tools_chat_router)
+app.include_router(presentation_router)
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
