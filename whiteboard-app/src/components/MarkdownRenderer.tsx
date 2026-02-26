@@ -10,7 +10,7 @@
  *
  * This replaces dangerouslySetInnerHTML for safe, responsive rendering.
  */
-import React, { memo, useEffect, useRef, useState, useCallback } from "react";
+import React, { memo, useEffect, useRef, useState, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -117,6 +117,84 @@ const MermaidDiagram: React.FC<{ chart: string }> = memo(({ chart }) => {
 
 MermaidDiagram.displayName = "MermaidDiagram";
 
+// ─── Static component overrides (hoisted — never re-created) ─────────────────
+
+const MdTable = ({ children, ref: _ref, node: _node, ...props }: any) => (
+    <div className="table-wrapper">
+        <table {...props}>{children}</table>
+    </div>
+);
+
+const MdLink = ({ children, href, ref: _ref, node: _node, ...props }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+        {children}
+    </a>
+);
+
+const MdP = ({ children }: any) => <p>{children}</p>;
+const MdH1 = ({ children }: any) => <h2>{children}</h2>;
+const MdH2 = ({ children }: any) => <h2>{children}</h2>;
+const MdH3 = ({ children }: any) => <h3>{children}</h3>;
+const MdH4 = ({ children }: any) => <h4>{children}</h4>;
+const MdUl = ({ children }: any) => <ul>{children}</ul>;
+const MdOl = ({ children }: any) => <ol>{children}</ol>;
+const MdLi = ({ children }: any) => <li>{children}</li>;
+const MdBlockquote = ({ children }: any) => (
+    <blockquote className="chat-blockquote">{children}</blockquote>
+);
+const MdHr = () => <hr className="chat-hr" />;
+const MdImg = ({ src, alt, ref: _ref, node: _node, ...props }: any) => (
+    <img src={src} alt={alt || ""} className="chat-image" loading="lazy" {...props} />
+);
+
+const CODE_BLOCK_STYLE = {
+    margin: 0,
+    borderRadius: "0 0 8px 8px",
+    fontSize: "12px",
+    lineHeight: "1.5",
+    padding: "12px 14px",
+} as const;
+
+// ─── CodeBlock — memoized per block, avoids rebuilding the whole list ────────
+
+interface CodeBlockProps {
+    lang: string;
+    code: string;
+    index: number;
+    copiedBlock: number | null;
+    onCopy: (code: string, index: number) => void;
+}
+
+const CodeBlock: React.FC<CodeBlockProps> = memo(({ lang, code, index, copiedBlock, onCopy }) => (
+    <div className="code-block-wrapper">
+        <div className="code-block-header">
+            <span className="code-block-lang">{lang || "text"}</span>
+            <button
+                className={`code-block-copy ${copiedBlock === index ? "code-block-copy--copied" : ""}`}
+                onClick={() => onCopy(code, index)}
+            >
+                {copiedBlock === index ? "Copied!" : "Copy"}
+            </button>
+        </div>
+        <SyntaxHighlighter
+            style={oneDark}
+            language={lang || "text"}
+            PreTag="div"
+            customStyle={CODE_BLOCK_STYLE}
+            wrapLongLines
+        >
+            {code}
+        </SyntaxHighlighter>
+    </div>
+));
+
+CodeBlock.displayName = "CodeBlock";
+
+// ─── Remark / Rehype plugin arrays (hoisted — stable references) ─────────────
+
+const REMARK_PLUGINS = [remarkGfm, remarkMath];
+const REHYPE_PLUGINS = [rehypeKatex];
+
 // ─── Main Markdown Renderer ──────────────────────────────────────────────────
 
 interface MarkdownRendererProps {
@@ -125,7 +203,7 @@ interface MarkdownRendererProps {
 
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({ content }) => {
     const [copiedBlock, setCopiedBlock] = useState<number | null>(null);
-    let codeBlockIndex = 0;
+    const codeBlockIndexRef = useRef(0);
 
     const handleCopyCode = useCallback((code: string, index: number) => {
         navigator.clipboard.writeText(code).then(() => {
@@ -134,111 +212,55 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(({ content }) => 
         });
     }, []);
 
+    // Reset code block counter on each render
+    codeBlockIndexRef.current = 0;
+
+    const components = useMemo(() => ({
+        table: MdTable,
+        code: ({ className, children, ...props }: any) => {
+            const match = /language-(\w+)/.exec(className || "");
+            const lang = match?.[1] || "";
+            const codeStr = String(children).replace(/\n$/, "");
+
+            if (lang === "mermaid") {
+                return <MermaidDiagram chart={codeStr} />;
+            }
+
+            if (match || codeStr.includes("\n")) {
+                const currentIndex = codeBlockIndexRef.current++;
+                return (
+                    <CodeBlock
+                        lang={lang}
+                        code={codeStr}
+                        index={currentIndex}
+                        copiedBlock={copiedBlock}
+                        onCopy={handleCopyCode}
+                    />
+                );
+            }
+
+            return <code className="chat-inline-code">{children}</code>;
+        },
+        a: MdLink,
+        p: MdP,
+        h1: MdH1,
+        h2: MdH2,
+        h3: MdH3,
+        h4: MdH4,
+        ul: MdUl,
+        ol: MdOl,
+        li: MdLi,
+        blockquote: MdBlockquote,
+        hr: MdHr,
+        img: MdImg,
+    }), [copiedBlock, handleCopyCode]);
+
     return (
         <div className="chat-rendered">
             <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-                components={{
-                    // ─── Tables ─────────────────────────────────────────
-                    table: ({ children, ref: _ref, node: _node, ...props }) => (
-                        <div className="table-wrapper">
-                            <table {...props}>{children}</table>
-                        </div>
-                    ),
-
-                    // ─── Code blocks + Mermaid ──────────────────────────
-                    code: ({ className, children, ...props }) => {
-                        const match = /language-(\w+)/.exec(className || "");
-                        const lang = match?.[1] || "";
-                        const codeStr = String(children).replace(/\n$/, "");
-
-                        // Mermaid diagrams
-                        if (lang === "mermaid") {
-                            return <MermaidDiagram chart={codeStr} />;
-                        }
-
-                        // Block code (has language or is multiline)
-                        if (match || codeStr.includes("\n")) {
-                            const currentIndex = codeBlockIndex++;
-                            return (
-                                <div className="code-block-wrapper">
-                                    <div className="code-block-header">
-                                        <span className="code-block-lang">{lang || "text"}</span>
-                                        <button
-                                            className={`code-block-copy ${copiedBlock === currentIndex ? "code-block-copy--copied" : ""}`}
-                                            onClick={() => handleCopyCode(codeStr, currentIndex)}
-                                        >
-                                            {copiedBlock === currentIndex ? "Copied!" : "Copy"}
-                                        </button>
-                                    </div>
-                                    <SyntaxHighlighter
-                                        style={oneDark}
-                                        language={lang || "text"}
-                                        PreTag="div"
-                                        customStyle={{
-                                            margin: 0,
-                                            borderRadius: "0 0 8px 8px",
-                                            fontSize: "12px",
-                                            lineHeight: "1.5",
-                                            padding: "12px 14px",
-                                        }}
-                                        wrapLongLines
-                                    >
-                                        {codeStr}
-                                    </SyntaxHighlighter>
-                                </div>
-                            );
-                        }
-
-                        // Inline code
-                        return (
-                            <code className="chat-inline-code">
-                                {children}
-                            </code>
-                        );
-                    },
-
-                    // ─── Links ──────────────────────────────────────────
-                    a: ({ children, href, ref: _ref, node: _node, ...props }) => (
-                        <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-                            {children}
-                        </a>
-                    ),
-
-                    // ─── Paragraphs ─────────────────────────────────────
-                    p: ({ children }) => <p>{children}</p>,
-
-                    // ─── Headings ────────────────────────────────────────
-                    h1: ({ children }) => <h2>{children}</h2>,
-                    h2: ({ children }) => <h2>{children}</h2>,
-                    h3: ({ children }) => <h3>{children}</h3>,
-                    h4: ({ children }) => <h4>{children}</h4>,
-
-                    // ─── Lists ──────────────────────────────────────────
-                    ul: ({ children }) => <ul>{children}</ul>,
-                    ol: ({ children }) => <ol>{children}</ol>,
-                    li: ({ children }) => <li>{children}</li>,
-
-                    // ─── Blockquote ─────────────────────────────────────
-                    blockquote: ({ children }) => (
-                        <blockquote className="chat-blockquote">{children}</blockquote>
-                    ),
-
-                    // ─── Horizontal rule ────────────────────────────────
-                    hr: () => <hr className="chat-hr" />,
-
-                    // ─── Images ─────────────────────────────────────────
-                    img: ({ src, alt, ref: _ref, node: _node, ...props }) => (
-                        <img
-                            src={src}
-                            alt={alt || ""}
-                            className="chat-image"
-                            loading="lazy"
-                            {...props}
-                        />
-                    ),
-                }}
+                remarkPlugins={REMARK_PLUGINS}
+                rehypePlugins={REHYPE_PLUGINS}
+                components={components}
             >
                 {content}
             </ReactMarkdown>
