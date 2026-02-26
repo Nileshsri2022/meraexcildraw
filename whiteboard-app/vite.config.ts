@@ -13,6 +13,8 @@ export default defineConfig({
     build: {
         outDir: "dist",
         sourcemap: true,
+        // Mermaid + ELK + Excalidraw are large but lazy-loaded; suppress warning
+        chunkSizeWarningLimit: 2000,
         rollupOptions: {
             output: {
                 manualChunks: {

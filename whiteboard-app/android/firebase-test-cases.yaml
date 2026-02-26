@@ -1,0 +1,866 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Firebase App Distribution — Comprehensive Test Cases for Mera Excalidraw
+# Import via: Firebase Console → App Distribution → Tests → Import
+#
+# Total: 30 test cases · 180+ steps
+# Covers: Canvas, Drawing Tools, AI Tools (5 tabs + History), Chat (full),
+#         Collaboration, Sticky Notes, Voice Commands, Data Management,
+#         Dark Mode, Performance, Touch Gestures, Error Handling
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. APP LAUNCH & WELCOME SCREEN
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: App Launch
+  id: app_launch
+  steps:
+    - goal: Launch the app
+      hint: Tap the Mera Excalidraw app icon on the home screen
+      successCriteria: The app opens without crashing
+    - goal: Verify the Welcome Screen appears
+      hint: On first launch (or cleared data), a Welcome Screen with the ✏️ logo should appear
+      successCriteria: Welcome screen shows the Welcome to My Whiteboard heading with hints for Menu, Toolbar, and Help
+    - goal: Dismiss the Welcome Screen
+      hint: Click anywhere on the canvas or start drawing
+      successCriteria: The Welcome Screen disappears and the blank canvas is fully interactive
+    - goal: Verify the toolbar is visible
+      hint: Look at the top-left area for the Excalidraw drawing tool toolbar
+      successCriteria: Toolbar shows selection, rectangle, diamond, ellipse, arrow, line, pencil, text, image, eraser tools
+    - goal: Verify the top-right UI controls
+      hint: Look at the top-right corner for the Chat button (💬) and Sparkle menu (✨)
+      successCriteria: Both the Chat button and ✨ More Options button are visible
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. CORE DRAWING — SHAPES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Drawing — Shapes
+  id: draw_shapes
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Draw a rectangle
+      hint: Select the rectangle tool from the toolbar (or press R), then drag on the canvas
+      successCriteria: A hand-drawn style rectangle appears on the canvas
+    - goal: Draw an ellipse
+      hint: Select the ellipse tool (or press O), then drag on the canvas
+      successCriteria: A hand-drawn style ellipse appears on the canvas
+    - goal: Draw a diamond
+      hint: Select the diamond tool (or press D), then drag on the canvas
+      successCriteria: A hand-drawn style diamond/rhombus appears on the canvas
+    - goal: Resize a shape
+      hint: Select a shape, then drag one of the corner or edge handles
+      successCriteria: The shape resizes smoothly following the drag
+    - goal: Rotate a shape
+      hint: Select a shape, then drag the rotation handle (circular handle above the shape)
+      successCriteria: The shape rotates around its center
+    - goal: Change shape fill color
+      hint: Select a shape, then pick a color from the property panel on the left
+      successCriteria: The shape fill color changes to the selected color
+    - goal: Change shape stroke style
+      hint: Select a shape, then change stroke style to dashed or dotted in the property panel
+      successCriteria: The shape border changes to dashed or dotted style
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. CORE DRAWING — LINES & ARROWS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Drawing — Lines & Arrows
+  id: draw_lines
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Draw a straight line
+      hint: Select the line tool (or press L), then click start point and end point
+      successCriteria: A line appears connecting the two points
+    - goal: Draw an arrow
+      hint: Select the arrow tool (or press A), then drag from start to end
+      successCriteria: An arrow with an arrowhead appears on the canvas
+    - goal: Draw a multi-point line
+      hint: With the line tool, click multiple points to create a polyline, double-click to finish
+      successCriteria: A connected multi-segment line appears
+    - goal: Bend an arrow
+      hint: Select an existing arrow, then drag the midpoint handle
+      successCriteria: The arrow bends to follow a curved path
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 4. CORE DRAWING — FREEHAND & TEXT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Drawing — Freehand & Text
+  id: draw_freehand_text
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Draw with the pencil tool
+      hint: Select the pencil/freedraw tool (or press P), then draw freely on the canvas
+      successCriteria: A freehand line appears following your finger/mouse movement
+    - goal: Add text to the canvas
+      hint: Select the text tool (or press T), tap the canvas, then type some text
+      successCriteria: Text appears on the canvas in hand-drawn font style
+    - goal: Edit existing text
+      hint: Double-tap on existing text to enter edit mode
+      successCriteria: A text cursor appears and you can modify the text content
+    - goal: Change text font size
+      hint: Select the text, then adjust font size in the property panel
+      successCriteria: The text size changes according to the selection
+    - goal: Add an image to canvas
+      hint: Select the image tool, then pick an image file from device
+      successCriteria: The image appears on the canvas and can be moved/resized
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. SELECTION & MANIPULATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Element Selection & Manipulation
+  id: selection_manipulation
+  prerequisiteTestCaseId: draw_shapes
+  steps:
+    - goal: Select a single element
+      hint: Tap/click on a drawn element with the selection tool (press V or 1)
+      successCriteria: The element shows selection handles (blue corners and edges)
+    - goal: Multi-select elements
+      hint: Hold Shift and click on multiple elements, or drag a selection box around them
+      successCriteria: Multiple elements are selected simultaneously with a combined bounding box
+    - goal: Move selected elements
+      hint: Drag selected element(s) to a new position
+      successCriteria: Elements move smoothly to the new location
+    - goal: Duplicate an element
+      hint: Select an element and press Ctrl+D (or Cmd+D on Mac)
+      successCriteria: A duplicate copy appears slightly offset from the original
+    - goal: Delete an element
+      hint: Select an element and press Delete or Backspace
+      successCriteria: The selected element is removed from the canvas
+    - goal: Copy and paste elements
+      hint: Select elements, press Ctrl+C to copy, then Ctrl+V to paste
+      successCriteria: Pasted elements appear on the canvas
+    - goal: Use the eraser tool
+      hint: Select the eraser tool from the toolbar, then click/drag over elements
+      successCriteria: Elements touched by the eraser are deleted
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 6. UNDO / REDO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Undo & Redo
+  id: undo_redo
+  prerequisiteTestCaseId: draw_shapes
+  steps:
+    - goal: Undo the last action
+      hint: Press Ctrl+Z (or use the undo button if available)
+      successCriteria: The most recent drawing action is reversed
+    - goal: Undo multiple actions
+      hint: Press Ctrl+Z three times in sequence
+      successCriteria: The last three actions are undone in order
+    - goal: Redo an undone action
+      hint: Press Ctrl+Shift+Z or Ctrl+Y
+      successCriteria: The previously undone action is restored
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 7. ZOOM & PAN NAVIGATION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Zoom & Pan Navigation
+  id: zoom_pan
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Zoom in with pinch gesture
+      hint: Use two fingers and pinch outward on the canvas
+      successCriteria: The canvas zooms in and elements appear larger
+    - goal: Zoom out with pinch gesture
+      hint: Use two fingers and pinch inward on the canvas
+      successCriteria: The canvas zooms out and elements appear smaller
+    - goal: Zoom using keyboard
+      hint: Press Ctrl+Plus to zoom in and Ctrl+Minus to zoom out
+      successCriteria: Zoom level changes with each key press
+    - goal: Pan the canvas
+      hint: Use two fingers to scroll, or hold Space and drag with mouse
+      successCriteria: The canvas viewport shifts to show a different area
+    - goal: Reset zoom to fit content
+      hint: Press Ctrl+Shift+1 or use the zoom controls for Zoom to fit
+      successCriteria: All drawn elements fit within the viewport
+    - goal: Scroll to content
+      hint: Press Shift+1 to zoom to fit all elements
+      successCriteria: The viewport adjusts to show all elements on canvas
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8. EXCALIDRAW MAIN MENU
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Excalidraw Main Menu
+  id: excalidraw_menu
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Open the hamburger menu
+      hint: Tap the ≡ hamburger icon in the top-left corner of the canvas
+      successCriteria: The Excalidraw main menu opens with options
+    - goal: Verify menu items
+      hint: Check that menu contains Load Scene, Save, Export, Save as Image, Clear Canvas, Toggle Theme, and Change Background
+      successCriteria: All expected menu items are visible
+    - goal: Change canvas background
+      hint: Tap Change canvas background and select a different color
+      successCriteria: The canvas background color changes
+    - goal: Clear the canvas
+      hint: Tap Clear canvas and confirm the action
+      successCriteria: All elements are removed from the canvas
+    - goal: Export as image
+      hint: Tap Save as image from the menu
+      successCriteria: An export dialog appears with PNG/SVG options
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 9. SPARKLE DROPDOWN MENU (✨)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Sparkle Dropdown — Full Menu
+  id: sparkle_menu
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Open the ✨ dropdown menu
+      hint: Tap the ✨ sparkle button in the top-right corner
+      successCriteria: A dropdown menu appears with sections — AI, Workspace, and Data
+    - goal: Verify AI section
+      hint: Check the first section of the dropdown
+      successCriteria: 'AI Tools and Voice Command items are visible under the AI header'
+    - goal: Verify Workspace section
+      hint: Check the middle section of the dropdown
+      successCriteria: 'Add Sticky Note and Start Collaboration items are visible under Workspace header'
+    - goal: Verify Data section
+      hint: Check the bottom section of the dropdown
+      successCriteria: 'Export Workspace, Import Workspace, and Clear Local Data items are visible'
+    - goal: Close dropdown by tapping outside
+      hint: Tap anywhere outside the dropdown menu
+      successCriteria: The dropdown closes
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10. AI TOOLS — DIAGRAM GENERATION (Deep)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: AI Tools — Diagram Tab (Deep)
+  id: ai_diagram_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Open AI Tools dialog
+      hint: Tap AI Tools from the ✨ dropdown menu
+      successCriteria: The AI Tools dialog opens as a modal overlay with a sidebar and content area
+    - goal: Verify sidebar tabs
+      hint: Check the left sidebar of the dialog
+      successCriteria: Five tabs visible — Diagram, Image, Sketch, OCR, TTS — plus a History tab at the bottom
+    - goal: Select the Diagram tab
+      hint: The Diagram tab should be selected by default, or tap it
+      successCriteria: The Diagram tab is highlighted and shows a prompt textarea
+    - goal: Verify diagram style selector
+      hint: Look for a dropdown or select element for diagram type/style
+      successCriteria: A style selector is visible with options like flowchart, sequence, class, etc.
+    - goal: Enter a diagram prompt
+      hint: Type 'user login authentication flow with email and password' in the prompt textarea
+      successCriteria: The prompt text appears in the textarea
+    - goal: Generate the diagram
+      hint: Tap the Generate button
+      successCriteria: A loading spinner appears while the AI processes the request
+    - goal: View generated Mermaid preview
+      hint: Wait for generation to complete
+      successCriteria: A Mermaid diagram preview appears in the dialog showing the flowchart
+    - goal: Insert diagram to canvas
+      hint: Tap Insert to Canvas or the insert button
+      successCriteria: Excalidraw elements (shapes, arrows, text) appear on the canvas representing the diagram
+    - goal: Verify diagram is scrolled into view
+      hint: The canvas should auto-scroll to show the inserted diagram
+      successCriteria: The newly inserted diagram is centered and visible on the canvas
+    - goal: Close the AI Tools dialog
+      hint: Click the X button or click outside the dialog overlay
+      successCriteria: The dialog closes and the canvas is fully interactive again
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11. AI TOOLS — IMAGE GENERATION (Deep)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: AI Tools — Image Tab (Deep)
+  id: ai_image_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Open AI Tools and navigate to Image tab
+      hint: Open AI Tools from ✨ menu, then tap the Image tab in the sidebar
+      successCriteria: The Image tab is active with a prompt input and optional settings
+    - goal: Verify image settings controls
+      hint: Look for additional settings like image dimensions, quality, or style options
+      successCriteria: Image generation settings are accessible (size/style options if available)
+    - goal: Enter an image prompt
+      hint: Type 'a serene mountain landscape at sunset with a lake reflection' in the prompt
+      successCriteria: The prompt appears in the textarea
+    - goal: Generate the image
+      hint: Tap the Generate button
+      successCriteria: A loading indicator appears and the button becomes disabled during generation
+    - goal: View generated image preview
+      hint: Wait for the Hugging Face / Gradio API to return the image
+      successCriteria: A preview of the AI-generated image appears in the dialog
+    - goal: Add image to canvas
+      hint: Tap the Add to Canvas button
+      successCriteria: The generated image is placed on the Excalidraw canvas as an image element
+    - goal: Verify image on canvas is selectable
+      hint: Close the dialog and click on the image on the canvas
+      successCriteria: The image can be selected, moved, and resized like any other element
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 12. AI TOOLS — SKETCH GENERATION (Deep)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: AI Tools — Sketch Tab (Deep)
+  id: ai_sketch_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Navigate to the Sketch tab
+      hint: Open AI Tools, then tap the Sketch tab (pencil icon) in the sidebar
+      successCriteria: The Sketch tab is active with a prompt input and sketch-specific settings
+    - goal: Enter a sketch prompt
+      hint: Type 'a coffee cup with steam rising' in the prompt
+      successCriteria: The prompt appears in the textarea
+    - goal: Generate a sketch
+      hint: Tap the Generate button
+      successCriteria: A loading indicator appears while the freehand-style sketch is generated
+    - goal: View sketch preview
+      hint: Wait for generation to complete
+      successCriteria: A hand-drawn style sketch image preview appears
+    - goal: Insert sketch to canvas
+      hint: Tap the insert/add button
+      successCriteria: The sketch appears on the canvas as an image element
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 13. AI TOOLS — OCR (Deep)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: AI Tools — OCR Tab (Deep)
+  id: ai_ocr_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Navigate to the OCR tab
+      hint: Open AI Tools, then tap the OCR tab (magnifying glass icon)
+      successCriteria: The OCR tab is active showing capture and upload options
+    - goal: Draw text/math on canvas for OCR
+      hint: Close AI Tools temporarily, write some text or a math equation on the canvas using the text or pencil tool
+      successCriteria: Handwritten or typed content is visible on the canvas
+    - goal: Capture canvas for OCR
+      hint: Reopen AI Tools → OCR tab, then tap Capture Canvas
+      successCriteria: The canvas is captured and sent for OCR processing (loading indicator shown)
+    - goal: View OCR results
+      hint: Wait for processing to complete
+      successCriteria: Extracted text appears in the result area with markdown/LaTeX rendering
+    - goal: Verify LaTeX rendering
+      hint: If the OCR detected math, check that it renders with proper mathematical notation
+      successCriteria: Mathematical formulas are rendered correctly using KaTeX
+    - goal: Add OCR result as image
+      hint: Tap the 📷 Add as Image button
+      successCriteria: The rendered OCR result is added as an image element on the canvas
+    - goal: Add OCR result as text
+      hint: Tap the Add as Text button
+      successCriteria: The extracted text is added to the canvas as a text element
+    - goal: Upload an image for OCR
+      hint: Use the upload option instead of canvas capture, select an image from device
+      successCriteria: The uploaded image is processed and OCR results are displayed
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 14. AI TOOLS — TEXT TO SPEECH (Deep)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: AI Tools — TTS Tab (Deep)
+  id: ai_tts_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Navigate to the TTS tab
+      hint: Open AI Tools, then tap the TTS tab (speaker icon)
+      successCriteria: The TTS tab is active with text input, voice selector, and play controls
+    - goal: Verify voice list loads
+      hint: Check the voice selection dropdown
+      successCriteria: A list of available voices from ElevenLabs populates the dropdown
+    - goal: Select a different voice
+      hint: Tap the voice dropdown and choose a different voice from the list
+      successCriteria: The selected voice name is shown in the dropdown
+    - goal: Enter text for speech
+      hint: Type or paste 'Hello, this is a test of the text to speech feature' into the text area
+      successCriteria: The text appears in the input field
+    - goal: Verify clipboard auto-read
+      hint: Copy some text to clipboard before opening TTS tab, check if it auto-populates
+      successCriteria: The TTS text field may auto-populate with clipboard content
+    - goal: Play the text-to-speech
+      hint: Tap the Play/Speak button
+      successCriteria: Audio starts playing with the selected voice reading the text
+    - goal: Stop playback
+      hint: Tap the Stop button during audio playback
+      successCriteria: Audio playback stops immediately
+    - goal: Verify TTS with long text
+      hint: Enter a paragraph of text (200+ characters) and play
+      successCriteria: The full text is spoken without cutting off
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 15. AI TOOLS — HISTORY TAB
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: AI Tools — History Tab
+  id: ai_history
+  prerequisiteTestCaseId: ai_diagram_deep
+  steps:
+    - goal: Navigate to the History tab
+      hint: Open AI Tools, then tap the History tab at the bottom of the sidebar
+      successCriteria: The History tab shows a list of previous AI generations
+    - goal: Verify history entries exist
+      hint: Check for previously generated diagrams, images, or sketches
+      successCriteria: At least one history entry is visible with type, prompt, and timestamp
+    - goal: Filter history by type
+      hint: Use the filter controls to show only diagram or image entries
+      successCriteria: The history list is filtered to show only the selected type
+    - goal: Reuse a history entry
+      hint: Click on a diagram entry to re-insert it
+      successCriteria: The diagram elements are re-created on the canvas from stored Mermaid code
+    - goal: Delete a history entry
+      hint: Click the delete button on a history entry
+      successCriteria: The entry is removed from the history list
+    - goal: Clear all history
+      hint: Tap Clear All if available
+      successCriteria: All history entries are removed
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 16. AI TOOLS — IN-DIALOG VOICE INPUT (Per-tab STT)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: AI Tools — In-dialog Voice Input
+  id: ai_voice_input
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Open AI Tools on the Image tab
+      hint: Open AI Tools and select the Image tab
+      successCriteria: The Image tab is active
+    - goal: Use voice input for the prompt
+      hint: Look for a microphone button near the prompt textarea and tap it
+      successCriteria: The microphone starts recording (button changes to indicate active recording)
+    - goal: Speak a prompt
+      hint: Say 'a beautiful sunset over the ocean'
+      successCriteria: The spoken words are transcribed into the prompt textarea via speech-to-text
+    - goal: Verify transcription accuracy
+      hint: Check that the transcribed text matches what was spoken
+      successCriteria: The prompt textarea contains recognizable text from speech
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 17. VOICE COMMANDS — APP-LEVEL (Full Flow)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Voice Commands — Full Flow
+  id: voice_commands_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Start voice command from dropdown
+      hint: Open ✨ menu and tap Voice Command
+      successCriteria: The microphone starts recording and the dropdown closes
+    - goal: Verify recording indicator
+      hint: Look for a floating voice status pill in the top-right area
+      successCriteria: A pill showing 'Listening… Xs' with a recording dot is visible
+    - goal: Speak an image command
+      hint: Say 'generate an image of a rocket ship'
+      successCriteria: After stopping, the voice status changes to processing phases
+    - goal: Verify auto-routing to correct AI tab
+      hint: The AI Tools dialog should auto-open to the Image tab
+      successCriteria: AI Tools dialog opens with Image tab active and prompt pre-filled with the spoken command
+    - goal: Verify auto-execution
+      hint: The image generation should start automatically without needing to tap Generate
+      successCriteria: Image generation begins automatically after voice command is processed
+    - goal: Test diagram voice command
+      hint: After the first command finishes, close AI Tools, start Voice Command again, say 'create a flowchart for user registration'
+      successCriteria: AI Tools opens to Diagram tab with the prompt filled and diagram generation starts
+    - goal: Verify stop recording button
+      hint: Start a voice command, then tap the ■ stop button in the floating pill
+      successCriteria: Recording stops and the voice processes what was captured
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 18. CHAT — OPENING & LAYOUT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Chat Panel — Open & Layout
+  id: chat_open_layout
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Open the Chat panel
+      hint: Tap the 💬 chat button in the top-right corner
+      successCriteria: The chat panel slides open from the right side of the screen
+    - goal: Verify chat panel structure
+      hint: Check the panel layout
+      successCriteria: Panel has a left sidebar with conversations, a main area with messages, and an input bar at the bottom
+    - goal: Verify empty state
+      hint: In a new conversation, check the message area
+      successCriteria: Empty state shows Canvas AI icon, title, subtitle, and 4 suggestion chips
+    - goal: Verify suggestion chips
+      hint: Read the suggestion chips in the empty state
+      successCriteria: 'Chips show: Draw a login flowchart, Add a blue box that says API Server, Create a system architecture diagram, What''s on my canvas?'
+    - goal: Use a suggestion chip
+      hint: Tap one of the suggestion chips (e.g., Draw a login flowchart)
+      successCriteria: The suggestion text fills the input field
+    - goal: Verify header shows Canvas AI
+      hint: Check the top of the chat panel
+      successCriteria: A glowing dot and Canvas AI title are shown in the header
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 19. CHAT — MESSAGING & STREAMING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Chat — Messaging & Streaming
+  id: chat_messaging
+  prerequisiteTestCaseId: chat_open_layout
+  steps:
+    - goal: Send a text message
+      hint: Type 'Hello, what can you do?' in the input and tap Send (or press Enter)
+      successCriteria: Your message appears as a user bubble and AI begins streaming a response
+    - goal: Verify streaming animation
+      hint: Watch the AI response as it generates
+      successCriteria: Text appears token by token with a streaming cursor/indicator
+    - goal: Verify markdown rendering in response
+      hint: Ask 'show me a code example in Python'
+      successCriteria: AI response renders code blocks with syntax highlighting (PrismLight)
+    - goal: Verify LaTeX math rendering
+      hint: Ask 'what is the quadratic formula?'
+      successCriteria: Mathematical formulas render with proper KaTeX notation
+    - goal: Stop a streaming response
+      hint: While the AI is streaming, tap the Stop button
+      successCriteria: Streaming stops immediately and partial response remains visible
+    - goal: Verify error display
+      hint: If a connection error occurs, check for error handling
+      successCriteria: A red error message appears at the bottom of the messages area
+    - goal: Auto-scroll to latest message
+      hint: Send multiple messages, observe scrolling behavior
+      successCriteria: The chat panel auto-scrolls to the newest message as it streams
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 20. CHAT — CANVAS TOOL ACTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Chat — Canvas Tool Use
+  id: chat_canvas_tools
+  prerequisiteTestCaseId: chat_messaging
+  steps:
+    - goal: Ask AI to draw shapes
+      hint: Type 'draw a red rectangle labeled Server' and send
+      successCriteria: The AI responds and a rectangle with text appears on the canvas
+    - goal: Verify canvas action badge
+      hint: After the AI draws on canvas, look for a green badge in the chat
+      successCriteria: A ✅ X element(s) added to canvas! badge appears in the chat message
+    - goal: Ask AI to create a diagram
+      hint: Type 'create a flowchart showing a payment process'
+      successCriteria: Diagram elements (shapes, arrows, labels) appear on the canvas
+    - goal: Ask AI about canvas content
+      hint: Type 'what is on my canvas?' or 'describe what you see'
+      successCriteria: AI describes the current elements on the canvas (canvas-aware context sync)
+    - goal: Verify tool status badges in message
+      hint: Look for tool status indicators in the AI's response
+      successCriteria: Tool use badges show which tools the AI used (e.g., draw_elements, describe_canvas)
+    - goal: Test image attachment
+      hint: Use the attach image button in the input bar to send an image with your message
+      successCriteria: The image is sent as context with the message and the AI can reference it
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 21. CHAT — CONVERSATIONS & SIDEBAR
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Chat — Conversations Management
+  id: chat_conversations
+  prerequisiteTestCaseId: chat_messaging
+  steps:
+    - goal: Start a new conversation
+      hint: Tap the + or New Chat button in the chat sidebar
+      successCriteria: A new empty conversation is created and the message area resets
+    - goal: Switch between conversations
+      hint: Click on the previous conversation in the sidebar list
+      successCriteria: The message history for that conversation loads
+    - goal: Verify conversation persistence
+      hint: Close the chat panel, reopen it, and check if conversations are still listed
+      successCriteria: All previous conversations are preserved (IndexedDB persistence)
+    - goal: Search conversations
+      hint: Type a search term in the sidebar search bar (uses useDeferredValue for smooth typing)
+      successCriteria: Conversations are filtered to show only those matching the search term
+    - goal: Delete a conversation
+      hint: Use the delete button on a conversation entry in the sidebar
+      successCriteria: The conversation is removed from the list
+    - goal: Toggle sidebar collapse
+      hint: Click the sidebar toggle button (panel icon) in the chat header
+      successCriteria: The sidebar collapses to give more space to the message area
+    - goal: Expand collapsed sidebar
+      hint: Click the sidebar toggle button again
+      successCriteria: The sidebar expands back to show conversation list
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 22. CHAT — TOOLS & MCP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Chat — Tool Bar & MCP Integration
+  id: chat_tools_mcp
+  prerequisiteTestCaseId: chat_open_layout
+  steps:
+    - goal: Toggle the Tools bar
+      hint: Tap the tools/wrench icon button near the chat input
+      successCriteria: A tools bar appears above the input showing available built-in tools
+    - goal: Enable a built-in tool
+      hint: Click on a tool toggle (e.g., canvas drawing tool)
+      successCriteria: The tool is highlighted as active and the input shows a tool count badge
+    - goal: Send a message with tools enabled
+      hint: With a tool active, type a prompt and send
+      successCriteria: The AI uses the enabled tools in its response (tool-augmented message)
+    - goal: Open MCP connection modal
+      hint: Tap Add MCP Server button in the tools bar
+      successCriteria: A modal opens with fields for MCP server label and URL
+    - goal: Close MCP modal
+      hint: Tap the close button or click outside the modal
+      successCriteria: The MCP modal closes
+    - goal: Disable a built-in tool
+      hint: Click the active tool toggle again
+      successCriteria: The tool is deactivated and removed from active tools
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 23. CHAT — PANEL RESIZING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Chat — Panel Resizing
+  id: chat_resize
+  prerequisiteTestCaseId: chat_open_layout
+  steps:
+    - goal: Resize the chat panel wider
+      hint: Drag the left edge of the chat panel to the left to make it wider
+      successCriteria: The chat panel width increases (up to 1200px max)
+    - goal: Resize the chat panel narrower
+      hint: Drag the left edge of the chat panel to the right to make it narrower
+      successCriteria: The chat panel width decreases (down to 450px min)
+    - goal: Verify resize persists
+      hint: Close and reopen the chat panel
+      successCriteria: The panel reopens with the previously set width (stored in localStorage)
+    - goal: Close the chat panel
+      hint: Tap the X close button in the chat header
+      successCriteria: The chat panel slides closed and the canvas is fully visible
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 24. STICKY NOTES — FULL LIFECYCLE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Sticky Notes — Full Lifecycle
+  id: sticky_notes_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Add a sticky note from dropdown
+      hint: Open ✨ menu and tap Add Sticky Note
+      successCriteria: A yellow sticky note appears at the center of the viewport with entry animation
+    - goal: Verify note default state
+      hint: Check the new note's appearance
+      successCriteria: Note has a yellow header bar with color dot, timestamp, minimize/menu/close buttons, and empty textarea with placeholder
+    - goal: Type in the sticky note
+      hint: Tap the note body textarea and type 'Remember to add error handling'
+      successCriteria: Text appears in the sticky note
+    - goal: Move the sticky note
+      hint: Grab the header bar and drag to a new position
+      successCriteria: The note moves smoothly across the canvas
+    - goal: Verify note tracks canvas pan/zoom
+      hint: Pan and zoom the canvas while a note exists
+      successCriteria: The sticky note moves with the canvas content (anchored to canvas coordinates)
+    - goal: Change note color
+      hint: Tap the colored dot in the header to open the color picker
+      successCriteria: A color picker popover shows 8 colors — yellow, blue, green, pink, purple, orange, teal, gray
+    - goal: Select a different color
+      hint: Tap on the blue color swatch
+      successCriteria: The note background and header change to blue theme
+    - goal: Open context menu
+      hint: Tap the ⋯ (three dots) menu button in the note header
+      successCriteria: A context menu appears with Duplicate, Font Size controls, and Delete options
+    - goal: Duplicate the note
+      hint: Tap Duplicate in the context menu
+      successCriteria: A copy of the note appears slightly offset from the original with same text and color
+    - goal: Change font size
+      hint: Open context menu, use font size + and – buttons
+      successCriteria: The text size in the note changes (increase and decrease)
+    - goal: Minimize the note
+      hint: Tap the minimize (—) button in the header
+      successCriteria: The note collapses to only show the header bar
+    - goal: Expand the note
+      hint: Tap the minimize button again on the collapsed note
+      successCriteria: The note expands back to full size showing the textarea
+    - goal: Resize the note
+      hint: Drag the bottom-right corner resize handle (appears on hover)
+      successCriteria: The note resizes with a minimum dimension enforced
+    - goal: Bring note to front
+      hint: Click on a note that is behind another note
+      successCriteria: The clicked note comes to the front (z-index updated)
+    - goal: Add second note via FAB
+      hint: Look for the floating + button at the bottom-right of the screen and tap it
+      successCriteria: A new sticky note appears (FAB badge shows note count)
+    - goal: Verify FAB badge count
+      hint: Check the badge on the floating + button
+      successCriteria: Badge shows the total number of sticky notes (e.g., 2)
+    - goal: Delete a note
+      hint: Tap the × close button on a note header
+      successCriteria: The note is removed from the canvas with exit animation
+    - goal: Hide all notes
+      hint: Open ✨ menu and tap Hide Notes (toggles with Show Notes)
+      successCriteria: All sticky notes become invisible but are not deleted
+    - goal: Show all notes
+      hint: Open ✨ menu and tap Show Notes (toggled state)
+      successCriteria: All hidden notes reappear at their original positions
+    - goal: Verify note persistence
+      hint: Reload the app (close and reopen)
+      successCriteria: Sticky notes are restored from IndexedDB with correct text, color, position, and size
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 25. AUTO-SAVE & DATA PERSISTENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Auto-Save & Data Persistence
+  id: auto_save
+  prerequisiteTestCaseId: draw_shapes
+  steps:
+    - goal: Verify save status indicator
+      hint: Draw something and watch the footer bar
+      successCriteria: Footer shows 💾 Saving then ✅ Saved after a 2-second debounce
+    - goal: Verify last saved timestamp
+      hint: After save completes, check the footer
+      successCriteria: Footer shows the last saved timestamp with the current time
+    - goal: Verify scene restore on reload
+      hint: Draw several shapes, wait for save, close the app completely, then reopen it
+      successCriteria: All previously drawn elements reappear on the canvas in their exact positions
+    - goal: Verify images persist
+      hint: Add an image to the canvas, save, reload the app
+      successCriteria: The image is fully restored (not broken or missing) from IndexedDB
+    - goal: Clear local data
+      hint: Open ✨ menu → Clear Local Data → confirm
+      successCriteria: A confirmation dialog appears, and after confirming, all local data is erased and canvas resets
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 26. EXPORT & IMPORT WORKSPACE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Export & Import Workspace
+  id: export_import
+  prerequisiteTestCaseId: draw_shapes
+  steps:
+    - goal: Export workspace
+      hint: Open ✨ menu → Export Workspace
+      successCriteria: A .whiteboard.json file is downloaded containing scene data, chat history, and AI tool history
+    - goal: Clear the canvas
+      hint: Use Excalidraw menu → Clear Canvas
+      successCriteria: All elements are removed
+    - goal: Import workspace
+      hint: Open ✨ menu → Import Workspace → select the previously exported .whiteboard.json file
+      successCriteria: A file picker opens, and after selecting the file, all elements are restored on the canvas
+    - goal: Verify imported content is scrolled into view
+      hint: After import, check if the viewport adjusted
+      successCriteria: The canvas animates to fit all imported elements in view (scrollToContent)
+    - goal: Verify chat history is restored
+      hint: Open the chat panel after import
+      successCriteria: Previous chat conversations are available (if included in export)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 27. COLLABORATION — REAL-TIME SYNC
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Collaboration — Real-time Sync
+  id: collaboration_deep
+  prerequisiteTestCaseId: sparkle_menu
+  steps:
+    - goal: Start a collaboration session
+      hint: Open ✨ menu → Start Collaboration
+      successCriteria: Connection is established and the footer shows the green dot, username, and room ID
+    - goal: Verify collaboration status in footer
+      hint: Check the bottom footer bar
+      successCriteria: Shows green dot, username, and room ID
+    - goal: Copy room link
+      hint: Open ✨ menu → Copy Room Link (appears only while collaborating)
+      successCriteria: An alert confirms the link was copied to clipboard — the URL can be shared for others to join
+    - goal: Verify collaboration presence bar
+      hint: Look for the CollabPresenceBar component at the top
+      successCriteria: The username is displayed in the collaboration presence area
+    - goal: Draw while collaborating
+      hint: Draw a shape on the canvas
+      successCriteria: Drawing works normally; changes would be synced to other users in the room via Socket.IO
+    - goal: Stop collaboration
+      hint: Open ✨ menu → Stop Collaboration (button text changes when collaborating)
+      successCriteria: Connection is closed and footer returns to Powered by Excalidraw with save status
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 28. DARK MODE — FULL THEME TEST
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Dark Mode — Full Theme Test
+  id: dark_mode_deep
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Toggle dark mode
+      hint: Open Excalidraw hamburger menu → Toggle theme or use the theme toggle
+      successCriteria: The entire canvas switches to dark background
+    - goal: Verify toolbar in dark mode
+      hint: Check the toolbar and property panel
+      successCriteria: Toolbar and panels have dark backgrounds with light text
+    - goal: Verify drawn elements in dark mode
+      hint: Draw shapes and text in dark mode
+      successCriteria: Elements are visible with proper colors against dark background
+    - goal: Verify sticky notes in dark mode
+      hint: Add a sticky note while in dark mode
+      successCriteria: Sticky notes maintain their colored theme but popovers/menus use dark glass styling
+    - goal: Verify chat panel in dark mode
+      hint: Open the chat panel while in dark mode
+      successCriteria: Chat panel has dark background with proper text contrast
+    - goal: Verify AI Tools in dark mode
+      hint: Open AI Tools dialog while in dark mode
+      successCriteria: Dialog sidebar and content area use dark theme colors
+    - goal: Toggle back to light mode
+      hint: Toggle theme again
+      successCriteria: Everything returns to light theme with bright backgrounds
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 29. ERROR HANDLING & ERROR BOUNDARIES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Error Handling & Error Boundaries
+  id: error_handling
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Test AI Tools with empty prompt
+      hint: Open AI Tools dialog, leave the prompt empty, try to tap Generate
+      successCriteria: The Generate button is disabled when prompt is empty (grayed out)
+    - goal: Test OCR without image
+      hint: Open AI Tools → OCR tab, try to submit without capturing or uploading an image
+      successCriteria: The submit button is disabled when no image is provided
+    - goal: Verify error messages display
+      hint: If an AI API fails (e.g., no API key configured), check for error display
+      successCriteria: A clear error message appears in the dialog instead of a crash
+    - goal: Verify app doesn't crash on component error
+      hint: Error boundaries wrap AIToolsDialog, ChatPanel, and the canvas
+      successCriteria: If a component crashes, a fallback UI appears with a Retry and/or Close button instead of a white screen
+    - goal: Test network disconnection
+      hint: Turn off WiFi/data temporarily, then try to use AI Tools or Chat
+      successCriteria: An appropriate error message displays (not a silent failure or crash)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 30. MOBILE / TOUCH & PERFORMANCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+- displayName: Mobile Touch & Performance
+  id: mobile_performance
+  prerequisiteTestCaseId: app_launch
+  steps:
+    - goal: Tap to select elements
+      hint: Tap on a drawn element with your finger
+      successCriteria: The element is selected with visible handles
+    - goal: Drag to draw shapes
+      hint: Select rectangle tool and drag with finger on canvas
+      successCriteria: A shape is drawn following the finger movement
+    - goal: Pinch to zoom
+      hint: Use two fingers to pinch in/out on the canvas
+      successCriteria: Canvas zooms smoothly with the pinch gesture
+    - goal: Two-finger scroll to pan
+      hint: Use two fingers to scroll the canvas
+      successCriteria: Canvas pans following the scroll direction
+    - goal: Verify responsive layout
+      hint: Check that all UI elements are usable on phone screen
+      successCriteria: Toolbar, buttons, menus adapt to mobile screen size (FAB at 42px, adjusted position)
+    - goal: Verify dropdown menu on mobile
+      hint: Tap the ✨ button and check dropdown positioning
+      successCriteria: Dropdown menu is fully visible and scrollable on small screens
+    - goal: Draw 20+ elements rapidly
+      hint: Use the pencil tool and draw many lines, then add rectangles and text elements
+      successCriteria: Drawing remains smooth with no visible lag or frame drops
+    - goal: Pan and zoom with many elements
+      hint: With 20+ elements on canvas, zoom in/out and pan rapidly
+      successCriteria: Pan and zoom are smooth without noticeable jitter
+    - goal: Multiple sticky notes performance
+      hint: Add 5+ sticky notes at different positions
+      successCriteria: All notes render and move smoothly when panning the canvas
+    - goal: Test app memory after extended use
+      hint: Use the app for several minutes — drawing, chatting, generating, adding notes
+      successCriteria: App remains responsive without increasing memory usage or becoming slow
