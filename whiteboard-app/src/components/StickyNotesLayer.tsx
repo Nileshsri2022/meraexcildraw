@@ -5,9 +5,13 @@
  * sticky notes as positioned HTML elements that track the canvas
  * pan/zoom via Excalidraw's appState (scrollX, scrollY, zoom).
  *
+ * Uses requestAnimationFrame polling to read the canvas transform
+ * from excalidrawAPI.getAppState() — this avoids coupling to
+ * Excalidraw's onChange callback and prevents re-render loops.
+ *
  * Also provides the floating "Add Note" FAB and a notes counter badge.
  */
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { CanvasTransform } from "../types/sticky-notes";
 import { StickyNoteComponent } from "./StickyNote";
@@ -18,8 +22,6 @@ import type { UseStickyNotesReturn } from "../hooks/useStickyNotes";
 interface StickyNotesLayerProps {
     excalidrawAPI: ExcalidrawImperativeAPI | null;
     stickyNotes: UseStickyNotesReturn;
-    /** Current canvas transform — passed from App's onChange handler */
-    canvasTransform: CanvasTransform;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -27,7 +29,6 @@ interface StickyNotesLayerProps {
 export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
     excalidrawAPI,
     stickyNotes,
-    canvasTransform,
 }) => {
     const {
         notes,
@@ -44,17 +45,46 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         updateFontSize,
     } = stickyNotes;
 
+    // ── Track canvas transform via RAF polling ───────────────────────────
+    const [canvasTransform, setCanvasTransform] = useState<CanvasTransform>({
+        scrollX: 0,
+        scrollY: 0,
+        zoom: 1,
+    });
+    const transformRef = useRef(canvasTransform);
+
+    useEffect(() => {
+        if (!excalidrawAPI) return;
+        let rafId: number;
+        const poll = () => {
+            const s = excalidrawAPI.getAppState();
+            const scrollX = s.scrollX ?? 0;
+            const scrollY = s.scrollY ?? 0;
+            const zoom = (s.zoom as unknown as { value: number })?.value ?? 1;
+
+            const prev = transformRef.current;
+            if (prev.scrollX !== scrollX || prev.scrollY !== scrollY || prev.zoom !== zoom) {
+                const next = { scrollX, scrollY, zoom };
+                transformRef.current = next;
+                setCanvasTransform(next);
+            }
+            rafId = requestAnimationFrame(poll);
+        };
+        rafId = requestAnimationFrame(poll);
+        return () => cancelAnimationFrame(rafId);
+    }, [excalidrawAPI]);
+
     // ── Add note at viewport center ──────────────────────────────────────
     const handleAddNote = useCallback(() => {
         const vpWidth = window.innerWidth;
         const vpHeight = window.innerHeight;
-        addNote(canvasTransform, vpWidth, vpHeight);
-    }, [addNote, canvasTransform]);
+        addNote(transformRef.current, vpWidth, vpHeight);
+    }, [addNote]);
 
     // ── Duplicate handler wrapping transform ─────────────────────────────
     const handleDuplicate = useCallback(
-        (id: string) => duplicateNote(id, canvasTransform),
-        [duplicateNote, canvasTransform],
+        (id: string) => duplicateNote(id, transformRef.current),
+        [duplicateNote],
     );
 
     // ── Sorted notes for proper z-order rendering ────────────────────────

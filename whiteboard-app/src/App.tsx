@@ -17,7 +17,6 @@ import { ErrorBoundary, PanelFallback, CanvasFallback } from "./components/Error
 import { CollabPresenceBar } from "./components/CollabPresenceBar";
 import { StickyNotesLayer } from "./components/StickyNotesLayer";
 import { useStickyNotes } from "./hooks/useStickyNotes";
-import type { CanvasTransform } from "./types/sticky-notes";
 import { exportWorkspace, importWorkspace } from "./utils/workspaceBundle";
 
 const AIToolsDialog = lazy(() =>
@@ -38,15 +37,10 @@ const App: React.FC = () => {
     // Voice command state: stores the classified command to pass to AIToolsDialog
     const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommandResult | null>(null);
 
-    // Canvas transform state for sticky notes positioning
-    const [canvasTransform, setCanvasTransform] = useState<CanvasTransform>({
-        scrollX: 0,
-        scrollY: 0,
-        zoom: 1,
-    });
-
     // Sticky notes system
     const stickyNotes = useStickyNotes();
+    const stickyNotesRef = useRef(stickyNotes);
+    stickyNotesRef.current = stickyNotes;
 
     // Auto-save hook
     const { saveStatus, lastSaved, triggerSave, clearSavedData, loadSavedData } = useAutoSave({
@@ -130,22 +124,27 @@ const App: React.FC = () => {
         setIsDropdownOpen(false);
     }, [isCollaborating, startCollaboration, stopCollaboration]);
 
-    // Handle scene changes - sync collab, trigger auto-save, and update canvas transform
+    // Handle scene changes - sync collab and trigger auto-save
     const handleChange = useCallback(
         (elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
             onSceneChange(elements);
             if (initialDataLoaded && !isCollaborating) {
                 triggerSave(elements, appState as unknown as Record<string, unknown>, files as unknown as Record<string, unknown>);
             }
-            // Update canvas transform for sticky notes positioning
-            setCanvasTransform({
-                scrollX: appState.scrollX ?? 0,
-                scrollY: appState.scrollY ?? 0,
-                zoom: (appState.zoom as unknown as { value: number })?.value ?? 1,
-            });
         },
         [onSceneChange, triggerSave, initialDataLoaded, isCollaborating]
     );
+
+    /** Read current canvas transform from the Excalidraw API (for one-off use in click handlers) */
+    const getCanvasTransform = useCallback(() => {
+        if (!excalidrawAPI) return { scrollX: 0, scrollY: 0, zoom: 1 };
+        const s = excalidrawAPI.getAppState();
+        return {
+            scrollX: s.scrollX ?? 0,
+            scrollY: s.scrollY ?? 0,
+            zoom: (s.zoom as unknown as { value: number })?.value ?? 1,
+        };
+    }, [excalidrawAPI]);
 
     // Render custom dropdown in top right area
     const renderTopRightUI = useCallback(() => (
@@ -254,7 +253,7 @@ const App: React.FC = () => {
                     <button
                         className="cosmic-dropdown-item"
                         onClick={() => {
-                            stickyNotes.addNote(canvasTransform, window.innerWidth, window.innerHeight);
+                            stickyNotesRef.current.addNote(getCanvasTransform(), window.innerWidth, window.innerHeight);
                             setIsDropdownOpen(false);
                         }}
                     >
@@ -267,25 +266,21 @@ const App: React.FC = () => {
                         </span>
                         <span>
                             Add Sticky Note
-                            <span className="item-desc">
-                                {stickyNotes.notes.length > 0
-                                    ? `${stickyNotes.notes.length} note${stickyNotes.notes.length > 1 ? "s" : ""} on canvas`
-                                    : "Pin notes to the canvas"}
-                            </span>
+                            <span className="item-desc">Pin notes to the canvas</span>
                         </span>
                     </button>
 
-                    {stickyNotes.notes.length > 0 && (
+                    {stickyNotesRef.current.notes.length > 0 && (
                         <button
                             className="cosmic-dropdown-item"
                             onClick={() => {
-                                stickyNotes.setVisible(!stickyNotes.visible);
+                                stickyNotesRef.current.setVisible(!stickyNotesRef.current.visible);
                                 setIsDropdownOpen(false);
                             }}
                         >
                             <span className="item-icon">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={stickyNotes.visible ? "#22c55e" : "#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    {stickyNotes.visible ? (
+                                    {stickyNotesRef.current.visible ? (
                                         <>
                                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                                             <circle cx="12" cy="12" r="3" />
@@ -300,7 +295,7 @@ const App: React.FC = () => {
                                 </svg>
                             </span>
                             <span>
-                                {stickyNotes.visible ? "Hide Notes" : "Show Notes"}
+                                {stickyNotesRef.current.visible ? "Hide Notes" : "Show Notes"}
                                 <span className="item-desc">Toggle sticky note visibility</span>
                             </span>
                         </button>
@@ -490,7 +485,7 @@ const App: React.FC = () => {
                 </div>
             )}
         </div>
-    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, stickyNotes, canvasTransform]);
+    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, getCanvasTransform]);
 
     return (
         <div style={{ width: "100vw", height: "100vh" }}>
@@ -567,7 +562,6 @@ const App: React.FC = () => {
             <StickyNotesLayer
                 excalidrawAPI={excalidrawAPI}
                 stickyNotes={stickyNotes}
-                canvasTransform={canvasTransform}
             />
 
             {/* ─── AI Tools Dialog Error Boundary ─── */}
