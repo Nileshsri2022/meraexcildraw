@@ -122,8 +122,15 @@ export function useChatConversations() {
 
     /** Ensure conversation exists in the list before sending a message */
     const ensureConversation = useCallback(async (content: string) => {
-        const convId = activeConvIdRef.current;
-        if (!convId) return;
+        let convId = activeConvIdRef.current;
+
+        // Auto-create a conversation if none is active (fixes first-message persistence)
+        if (!convId) {
+            convId = crypto.randomUUID();
+            activeConvIdRef.current = convId;          // Update ref immediately for downstream reads
+            setActiveConversationId(convId);
+            rotateSessionId();
+        }
 
         const now = Date.now();
         const currentConv = conversationsRef.current.find(c => c.id === convId);
@@ -141,7 +148,7 @@ export function useChatConversations() {
             await chatDb.saveConversation(updated);
             chatDb.loadConversations().then(setConversations);
         }
-    }, []); // Removed conversations, activeConversationId — reads from refs
+    }, [rotateSessionId]); // rotateSessionId is now used inside
 
     const clearChat = useCallback(async () => {
         setMessages([]);
@@ -178,7 +185,17 @@ export function useChatConversations() {
             content,
             timestamp: now,
         };
-        setMessages(prev => [...prev, msg]);
+        setMessages(prev => {
+            const updated = [...prev, msg];
+            // Explicitly persist messages to DB for robustness
+            const convId = activeConvIdRef.current;
+            if (convId) {
+                chatDb.saveMessages(convId, updated).catch(err => {
+                    console.error("[ChatDB] Failed to save after appendAssistantMessage:", err);
+                });
+            }
+            return updated;
+        });
 
         const convId = activeConvIdRef.current;
         if (convId) {
