@@ -1,0 +1,139 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Collaboration Presence Bar
+   Floating avatar strip showing who's online in a collab room.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Bar Container ──────────────────────────────────────────────────────── */
+
+.presence-bar {
+    position: fixed;
+    bottom: 52px;
+    right: 16px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px 6px 8px;
+    background: var(--cosmic-glass, rgba(22, 22, 37, 0.88));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--cosmic-glass-border, rgba(255, 255, 255, 0.06));
+    border-radius: 40px;
+    box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    animation: presence-fade-in 0.3s ease-out;
+    pointer-events: auto;
+}
+
+.presence-bar__avatars {
+    display: flex;
+    align-items: center;
+    /* Overlap avatars slightly */
+    gap: 0;
+}
+
+.presence-bar__count {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--aurora-teal, #2dd4bf);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+/* ─── Avatar Circle ──────────────────────────────────────────────────────── */
+
+.presence-avatar {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--avatar-bg, hsl(220, 70%, 80%));
+    border: 2px solid var(--cosmic-deep, #0f0f1a);
+    margin-left: -6px;
+    cursor: default;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    flex-shrink: 0;
+}
+
+.presence-avatar:first-child {
+    margin-left: 0;
+}
+
+.presence-avatar:hover {
+    transform: translateY(-2px) scale(1.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 2;
+}
+
+.presence-avatar--you {
+    border-color: var(--aurora-teal, #2dd4bf);
+    box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.25);
+}
+
+.presence-avatar--active {
+    /* Subtle pulse for users with active cursors */
+    animation: presence-pulse 2s ease-in-out infinite;
+}
+
+.presence-avatar__initial {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--avatar-stroke, hsl(220, 70%, 30%));
+    line-height: 1;
+    user-select: none;
+}
+
+/* "You" badge */
+.presence-avatar__badge {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-size: 7px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--cosmic-deep, #0f0f1a);
+    background: var(--aurora-teal, #2dd4bf);
+    padding: 1px 4px;
+    border-radius: 4px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* Active cursor dot */
+.presence-avatar__dot {
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--aurora-teal, #2dd4bf);
+    border: 1.5px solid var(--cosmic-deep, #0f0f1a);
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+
+@keyframes presence-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes presence-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0); }
+    50% { box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.15); }
+}

@@ -14,6 +14,7 @@ import { useAutoSave, SaveStatus } from "./hooks/useAutoSave";
 import { useVoiceCommand } from "./hooks/useVoiceCommand";
 import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
 import { ErrorBoundary, PanelFallback, CanvasFallback } from "./components/ErrorBoundary";
+import { CollabPresenceBar } from "./components/CollabPresenceBar";
 
 const AIToolsDialog = lazy(() =>
     import("./components/AIToolsDialog").then((m) => ({ default: m.AIToolsDialog }))
@@ -385,6 +386,9 @@ const App: React.FC = () => {
                     </Footer>
                 </Excalidraw>
             </ErrorBoundary>
+
+            {/* ─── Collab Presence Bar ─── */}
+            <CollabPresenceBar username={username} />
 
             {/* ─── AI Tools Dialog Error Boundary ─── */}
             <Suspense fallback={null}>
