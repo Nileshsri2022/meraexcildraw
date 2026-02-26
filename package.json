@@ -14,6 +14,7 @@
         "server": "node ./server/index.js",
         "dev": "concurrently \"bun run start\" \"bun run server\"",
         "build": "bun run --cwd ./whiteboard-app build",
+        "preview": "bun run --cwd ./whiteboard-app preview",
         "typecheck": "tsc --noEmit",
         "lint": "eslint --ext .js,.ts,.tsx .",
         "fix": "eslint --ext .js,.ts,.tsx . --fix && prettier --write .",

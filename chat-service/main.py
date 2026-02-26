@@ -32,6 +32,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import os
 from config import CHAT_MODEL_PRIMARY, CHAT_MODEL_FALLBACK, CHAT_PORT, GROQ_API_KEY, OPENROUTER_API_KEY
 
 # ─── LangChain OpenAI Monkey Patch for OpenRouter Reasoning ───────────────────
@@ -76,9 +77,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ─── CORS: restrict in production, allow all in dev ─────────────────────────
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+ALLOWED_ORIGINS = (
+    ["*"] if _raw_origins.strip() == "*"
+    else [o.strip() for o in _raw_origins.split(",") if o.strip()]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

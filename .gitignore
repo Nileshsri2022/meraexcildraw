@@ -16,3 +16,9 @@ my_whiteboard_exploration_report.md
 SKILLS_AUDIT.md
 skills-lock.json
 
+# Android signing secrets
+whiteboard-app/android/app/release/password.txt
+
+# Chat service local env
+chat-service/.env
+

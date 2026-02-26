@@ -13,14 +13,22 @@ const __dirname = dirname(__filename);
 
 dotenv.config({ path: join(__dirname, ".env") });
 
+// ─── CORS: restrict in production, allow all in dev ─────────────────────────
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map(s => s.trim())
+    : ["*"];
+const corsOptions = ALLOWED_ORIGINS.includes("*")
+    ? { origin: true }   // allow any origin (dev mode)
+    : { origin: ALLOWED_ORIGINS };
+
 const app = express();
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: "*",
+        origin: ALLOWED_ORIGINS.includes("*") ? true : ALLOWED_ORIGINS,
         methods: ["GET", "POST"],
     },
 });
