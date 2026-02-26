@@ -15,6 +15,7 @@ import { useVoiceCommand } from "./hooks/useVoiceCommand";
 import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
 import { ErrorBoundary, PanelFallback, CanvasFallback } from "./components/ErrorBoundary";
 import { CollabPresenceBar } from "./components/CollabPresenceBar";
+import { exportWorkspace, importWorkspace } from "./utils/workspaceBundle";
 
 const AIToolsDialog = lazy(() =>
     import("./components/AIToolsDialog").then((m) => ({ default: m.AIToolsDialog }))
@@ -273,6 +274,75 @@ const App: React.FC = () => {
                     {!isCollaborating && (
                         <>
                             <div className="cosmic-dropdown-divider" />
+                            <div className="cosmic-dropdown-label">Data</div>
+
+                            {/* Export Workspace */}
+                            <button
+                                className="cosmic-dropdown-item"
+                                onClick={async () => {
+                                    setIsDropdownOpen(false);
+                                    try {
+                                        await exportWorkspace();
+                                    } catch (err) {
+                                        console.error("Export failed:", err);
+                                        alert("Export failed. See console for details.");
+                                    }
+                                }}
+                            >
+                                <span className="item-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                </span>
+                                <span>
+                                    Export Workspace
+                                    <span className="item-desc">Scene + chat + AI history as JSON</span>
+                                </span>
+                            </button>
+
+                            {/* Import Workspace */}
+                            <button
+                                className="cosmic-dropdown-item"
+                                onClick={async () => {
+                                    setIsDropdownOpen(false);
+                                    const result = await importWorkspace();
+                                    if (result && excalidrawAPI) {
+                                        if (result.scene) {
+                                            if (result.scene.files && Object.keys(result.scene.files).length > 0) {
+                                                excalidrawAPI.addFiles(
+                                                    Object.values(result.scene.files) as unknown as BinaryFileData[]
+                                                );
+                                            }
+                                            excalidrawAPI.updateScene({
+                                                elements: result.scene.elements as OrderedExcalidrawElement[],
+                                                appState: result.scene.appState as unknown as AppState,
+                                            });
+                                        }
+                                        const parts: string[] = [];
+                                        if (result.scene) parts.push("scene");
+                                        if (result.conversationCount > 0) parts.push(`${result.conversationCount} conversation(s)`);
+                                        if (result.aiHistoryCount > 0) parts.push(`${result.aiHistoryCount} AI history item(s)`);
+                                        alert(`Imported: ${parts.join(", ") || "empty workspace"}.`);
+                                    }
+                                }}
+                            >
+                                <span className="item-icon">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="17 8 12 3 7 8" />
+                                        <line x1="12" y1="3" x2="12" y2="15" />
+                                    </svg>
+                                </span>
+                                <span>
+                                    Import Workspace
+                                    <span className="item-desc">Restore from .whiteboard.json file</span>
+                                </span>
+                            </button>
+
+                            <div className="cosmic-dropdown-divider" />
+
                             <button
                                 className="cosmic-dropdown-item cosmic-dropdown-item--danger"
                                 onClick={async () => {
@@ -317,7 +387,7 @@ const App: React.FC = () => {
                 </div>
             )}
         </div>
-    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration]);
+    ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI]);
 
     return (
         <div style={{ width: "100vw", height: "100vh" }}>
