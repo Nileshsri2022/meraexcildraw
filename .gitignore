@@ -9,3 +9,10 @@ build/
 .env
 whiteboard-app/.env
 whiteboard-app/.env.example
+.agents/
+.github/
+.gitignore
+my_whiteboard_exploration_report.md
+SKILLS_AUDIT.md
+skills-lock.json
+

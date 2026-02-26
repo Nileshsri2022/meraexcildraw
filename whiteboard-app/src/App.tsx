@@ -13,6 +13,7 @@ import { useCollaboration } from "./collab";
 import { useAutoSave, SaveStatus } from "./hooks/useAutoSave";
 import { useVoiceCommand } from "./hooks/useVoiceCommand";
 import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
+import { ErrorBoundary, PanelFallback, CanvasFallback } from "./components/ErrorBoundary";
 
 const AIToolsDialog = lazy(() =>
     import("./components/AIToolsDialog").then((m) => ({ default: m.AIToolsDialog }))
@@ -319,87 +320,115 @@ const App: React.FC = () => {
 
     return (
         <div style={{ width: "100vw", height: "100vh" }}>
-            <Excalidraw
-                excalidrawAPI={(api) => setExcalidrawAPI(api)}
-                isCollaborating={isCollaborating}
-                onPointerUpdate={onPointerUpdate}
-                onChange={handleChange}
-                renderTopRightUI={renderTopRightUI}
-                UIOptions={{
-                    canvasActions: {
-                        toggleTheme: true,
-                        export: { saveFileToDisk: true },
-                        loadScene: true,
-                        saveToActiveFile: true,
-                    },
-                }}
+            {/* ─── Canvas Error Boundary ─── */}
+            <ErrorBoundary
+                fallback={(error, reset) => <CanvasFallback onRetry={reset} />}
+                onError={(err) => console.error("[Canvas Boundary]", err)}
             >
-                <MainMenu>
-                    <MainMenu.DefaultItems.LoadScene />
-                    <MainMenu.DefaultItems.SaveToActiveFile />
-                    <MainMenu.DefaultItems.Export />
-                    <MainMenu.DefaultItems.SaveAsImage />
-                    <MainMenu.Separator />
-                    <MainMenu.DefaultItems.ClearCanvas />
-                    <MainMenu.Separator />
-                    <MainMenu.DefaultItems.ToggleTheme />
-                    <MainMenu.DefaultItems.ChangeCanvasBackground />
-                </MainMenu>
+                <Excalidraw
+                    excalidrawAPI={(api) => setExcalidrawAPI(api)}
+                    isCollaborating={isCollaborating}
+                    onPointerUpdate={onPointerUpdate}
+                    onChange={handleChange}
+                    renderTopRightUI={renderTopRightUI}
+                    UIOptions={{
+                        canvasActions: {
+                            toggleTheme: true,
+                            export: { saveFileToDisk: true },
+                            loadScene: true,
+                            saveToActiveFile: true,
+                        },
+                    }}
+                >
+                    <MainMenu>
+                        <MainMenu.DefaultItems.LoadScene />
+                        <MainMenu.DefaultItems.SaveToActiveFile />
+                        <MainMenu.DefaultItems.Export />
+                        <MainMenu.DefaultItems.SaveAsImage />
+                        <MainMenu.Separator />
+                        <MainMenu.DefaultItems.ClearCanvas />
+                        <MainMenu.Separator />
+                        <MainMenu.DefaultItems.ToggleTheme />
+                        <MainMenu.DefaultItems.ChangeCanvasBackground />
+                    </MainMenu>
 
-                <WelcomeScreen>
-                    <WelcomeScreen.Center>
-                        <WelcomeScreen.Center.Logo>
-                            <div style={{ fontSize: "48px" }}>✏️</div>
-                        </WelcomeScreen.Center.Logo>
-                        <WelcomeScreen.Center.Heading>
-                            Welcome to My Whiteboard
-                        </WelcomeScreen.Center.Heading>
-                    </WelcomeScreen.Center>
-                    <WelcomeScreen.Hints.MenuHint />
-                    <WelcomeScreen.Hints.ToolbarHint />
-                    <WelcomeScreen.Hints.HelpHint />
-                </WelcomeScreen>
+                    <WelcomeScreen>
+                        <WelcomeScreen.Center>
+                            <WelcomeScreen.Center.Logo>
+                                <div style={{ fontSize: "48px" }}>✏️</div>
+                            </WelcomeScreen.Center.Logo>
+                            <WelcomeScreen.Center.Heading>
+                                Welcome to My Whiteboard
+                            </WelcomeScreen.Center.Heading>
+                        </WelcomeScreen.Center>
+                        <WelcomeScreen.Hints.MenuHint />
+                        <WelcomeScreen.Hints.ToolbarHint />
+                        <WelcomeScreen.Hints.HelpHint />
+                    </WelcomeScreen>
 
-                <Footer>
-                    <span className="save-status save-status--idle" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        {isCollaborating ? (
-                            <>🟢 {username} in room: {roomId}</>
-                        ) : (
-                            "Powered by Excalidraw"
-                        )}
-                        {!isCollaborating && (
-                            <span className={`save-status save-status--${saveStatus}`}>
-                                {saveStatus === 'saving' && '💾 Saving...'}
-                                {saveStatus === 'saved' && '✅ Saved'}
-                                {saveStatus === 'error' && '❌ Save failed'}
-                                {saveStatus === 'idle' && lastSaved && `Last saved: ${lastSaved.toLocaleTimeString()}`}
-                            </span>
-                        )}
-                    </span>
-                </Footer>
-            </Excalidraw>
+                    <Footer>
+                        <span className="save-status save-status--idle" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                            {isCollaborating ? (
+                                <>🟢 {username} in room: {roomId}</>
+                            ) : (
+                                "Powered by Excalidraw"
+                            )}
+                            {!isCollaborating && (
+                                <span className={`save-status save-status--${saveStatus}`}>
+                                    {saveStatus === 'saving' && '💾 Saving...'}
+                                    {saveStatus === 'saved' && '✅ Saved'}
+                                    {saveStatus === 'error' && '❌ Save failed'}
+                                    {saveStatus === 'idle' && lastSaved && `Last saved: ${lastSaved.toLocaleTimeString()}`}
+                                </span>
+                            )}
+                        </span>
+                    </Footer>
+                </Excalidraw>
+            </ErrorBoundary>
 
-            {/* Unified AI Tools Dialog */}
+            {/* ─── AI Tools Dialog Error Boundary ─── */}
             <Suspense fallback={null}>
                 {isAIToolsOpen && (
-                    <AIToolsDialog
-                        isOpen={isAIToolsOpen}
-                        onClose={() => setIsAIToolsOpen(false)}
-                        excalidrawAPI={excalidrawAPI}
-                        voiceCommand={pendingVoiceCommand}
-                        onVoiceCommandDone={handleVoiceCommandDone}
-                    />
+                    <ErrorBoundary
+                        fallback={(error, reset) => (
+                            <PanelFallback
+                                name="AI Tools"
+                                onRetry={reset}
+                                onClose={() => setIsAIToolsOpen(false)}
+                            />
+                        )}
+                        onError={(err) => console.error("[AITools Boundary]", err)}
+                    >
+                        <AIToolsDialog
+                            isOpen={isAIToolsOpen}
+                            onClose={() => setIsAIToolsOpen(false)}
+                            excalidrawAPI={excalidrawAPI}
+                            voiceCommand={pendingVoiceCommand}
+                            onVoiceCommandDone={handleVoiceCommandDone}
+                        />
+                    </ErrorBoundary>
                 )}
             </Suspense>
 
-            {/* AI Canvas Chat Assistant */}
+            {/* ─── Chat Panel Error Boundary ─── */}
             <Suspense fallback={null}>
                 {isChatOpen && (
-                    <ChatPanel
-                        isOpen={isChatOpen}
-                        onClose={() => setIsChatOpen(false)}
-                        excalidrawAPI={excalidrawAPI}
-                    />
+                    <ErrorBoundary
+                        fallback={(error, reset) => (
+                            <PanelFallback
+                                name="Chat"
+                                onRetry={reset}
+                                onClose={() => setIsChatOpen(false)}
+                            />
+                        )}
+                        onError={(err) => console.error("[Chat Boundary]", err)}
+                    >
+                        <ChatPanel
+                            isOpen={isChatOpen}
+                            onClose={() => setIsChatOpen(false)}
+                            excalidrawAPI={excalidrawAPI}
+                        />
+                    </ErrorBoundary>
                 )}
             </Suspense>
         </div>
