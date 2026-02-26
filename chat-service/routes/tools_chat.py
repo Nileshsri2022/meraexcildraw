@@ -238,29 +238,23 @@ async def _call_builtin_tools(client: httpx.AsyncClient, message: str, enabled: 
     return resp.json()
 
 
-@traceable(name="Direct MCP Tool Call")
-async def _call_mcp_direct(client: httpx.AsyncClient, message: str, mcp_servers: list[McpServerConfig], emit_sse):
-    """Execute MCP tool calls via direct connection (bypasses Groq's MCP gateway).
-    
-    Flow:
-      1. Connect directly to each MCP server and list available tools
-      2. Convert to OpenAI function-calling format and send to Groq
-      3. When Groq picks a tool, execute it directly on the MCP server
-      4. Send the result back to Groq for formatting
-    """
+async def _discover_mcp_tools(
+    client: httpx.AsyncClient,
+    mcp_servers: list[McpServerConfig],
+) -> AsyncGenerator[str | tuple[list[dict], dict[str, tuple[str, dict | None]]], None]:
+    """Step 1: Connect to each MCP server and discover available tools.
 
-    # ── Step 1: List tools from all MCP servers ──
+    Yields SSE status strings, then finally yields a (tools, server_map) tuple.
+    """
     all_tools: list[dict] = []
-    tool_server_map: dict[str, tuple[str, dict | None]] = {}  # tool_name → (server_url, headers)
+    tool_server_map: dict[str, tuple[str, dict | None]] = {}
 
     for srv in mcp_servers:
         server_url = _format_mcp_url(srv.url, srv.headers)
-        # Build headers for direct connection
         srv_headers = None
         if srv.headers:
             srv_headers = {k: v for k, v in srv.headers.items()
                          if k.lower() not in ("content-type",)}
-            # Don't send headers if key is already in URL
             api_key_vals = [v.replace("Bearer ", "").strip() for v in srv_headers.values()]
             if any(val in server_url for val in api_key_vals if val):
                 srv_headers = None
@@ -268,28 +262,27 @@ async def _call_mcp_direct(client: httpx.AsyncClient, message: str, mcp_servers:
         try:
             tools = await list_tools(client, server_url, srv_headers)
             yield _sse({"type": "token", "token": f"📋 Found {len(tools)} tools from {srv.label}\n", "done": False})
-            
-            # Convert and map tools to their server
             openai_fns = mcp_tools_to_openai_functions(tools)
             for fn in openai_fns:
-                fn_name = fn["function"]["name"]
-                tool_server_map[fn_name] = (server_url, srv_headers)
+                tool_server_map[fn["function"]["name"]] = (server_url, srv_headers)
             all_tools.extend(openai_fns)
         except Exception as e:
             print(f"[MCP-Direct] Failed to list tools from {srv.label}: {e}")
             yield _sse({"type": "token", "token": f"⚠️ Could not reach {srv.label}: {str(e)[:100]}\n", "done": False})
 
-    if not all_tools:
-        yield _sse({"type": "error", "error": "No tools discovered from MCP servers.", "done": True})
-        return
+    yield (all_tools, tool_server_map)
 
-    # ── Step 2: Ask Groq to pick the right tool ──
+
+async def _select_tool_with_groq(
+    client: httpx.AsyncClient,
+    message: str,
+    all_tools: list[dict],
+) -> dict:
+    """Step 2: Ask Groq to pick the right tool(s) via function-calling."""
     groq_headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json",
     }
-
-    # Use a model that supports function calling 
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
@@ -300,87 +293,125 @@ async def _call_mcp_direct(client: httpx.AsyncClient, message: str, mcp_servers:
         "tool_choice": "auto",
         "temperature": 0.2,
     }
-
     print(f"[MCP-Direct] Asking Groq to pick tool for: {message[:60]}...")
     resp = await client.post(GROQ_CHAT_URL, headers=groq_headers, json=payload)
     resp.raise_for_status()
-    data = resp.json()
+    return resp.json()
+
+
+async def _execute_mcp_tool(
+    client: httpx.AsyncClient,
+    tc: dict,
+    tool_server_map: dict[str, tuple[str, dict | None]],
+) -> AsyncGenerator[str | dict, None]:
+    """Step 3: Execute a single tool call on its MCP server.
+
+    Yields SSE status strings and a tool_result dict.
+    """
+    fn = tc.get("function", {})
+    tool_name = fn.get("name", "unknown")
+    try:
+        arguments = json.loads(fn.get("arguments", "{}"))
+    except json.JSONDecodeError:
+        arguments = {}
+
+    yield _sse({"type": "tool_call", "server": "mcp", "tool": tool_name})
+    yield _sse({"type": "token", "token": f"⚡ Calling `{tool_name}`...\n", "done": False})
+
+    server_url, srv_headers = tool_server_map.get(tool_name, (None, None))
+    if not server_url:
+        yield {"tool_call_id": tc.get("id", ""), "role": "tool",
+               "content": f"Error: tool '{tool_name}' not found on any MCP server."}
+        return
+
+    try:
+        result_text = await call_tool(client, server_url, srv_headers, tool_name, arguments)
+        yield {"tool_call_id": tc.get("id", ""), "role": "tool",
+               "content": result_text[:8000]}
+        yield _sse({"type": "token", "token": f"✅ Got result from `{tool_name}`\n", "done": False})
+    except Exception as e:
+        error_msg = str(e)[:300]
+        print(f"[MCP-Direct] Tool call '{tool_name}' failed: {error_msg}")
+        yield {"tool_call_id": tc.get("id", ""), "role": "tool",
+               "content": f"Error calling {tool_name}: {error_msg}"}
+        yield _sse({"type": "token", "token": f"⚠️ Error from `{tool_name}`: {error_msg[:80]}\n", "done": False})
+
+
+async def _format_result_with_groq(
+    client: httpx.AsyncClient,
+    message: str,
+    assistant_msg: dict,
+    tool_results: list[dict],
+) -> str:
+    """Step 4: Send tool results back to Groq for a formatted answer."""
+    groq_headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant. Format the tool results into a clear, readable response for the user. Use markdown formatting when appropriate."},
+            {"role": "user", "content": message},
+            assistant_msg,
+            *tool_results,
+        ],
+        "temperature": 0.3,
+    }
+    resp = await client.post(GROQ_CHAT_URL, headers=groq_headers, json=payload)
+    resp.raise_for_status()
+    return resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+
+
+@traceable(name="Direct MCP Tool Call")
+async def _call_mcp_direct(client: httpx.AsyncClient, message: str, mcp_servers: list[McpServerConfig]):
+    """Execute MCP tool calls via direct connection (bypasses Groq's MCP gateway).
+
+    Composed from focused helpers (Clean Code §2):
+      _discover_mcp_tools  → list tools from servers
+      _select_tool_with_groq → pick tool via Groq function-calling
+      _execute_mcp_tool    → run a single tool on its MCP server
+      _format_result_with_groq → send results back for formatting
+    """
+
+    # Step 1: Discover tools
+    all_tools: list[dict] = []
+    tool_server_map: dict[str, tuple[str, dict | None]] = {}
+
+    async for item in _discover_mcp_tools(client, mcp_servers):
+        if isinstance(item, str):
+            yield item
+        else:
+            all_tools, tool_server_map = item
+
+    if not all_tools:
+        yield _sse({"type": "error", "error": "No tools discovered from MCP servers.", "done": True})
+        return
+
+    # Step 2: Ask Groq to select a tool
+    data = await _select_tool_with_groq(client, message, all_tools)
 
     choice = data.get("choices", [{}])[0]
     msg = choice.get("message", {})
     tool_calls = msg.get("tool_calls", [])
 
-    # If Groq responded with text (no tool call needed)
     if not tool_calls:
         content = msg.get("content", "")
         yield {"__content__": content or "I couldn't determine which tool to use for your request."}
         return
 
-    # ── Step 3: Execute tool calls directly on MCP servers ──
-    tool_results = []
+    # Step 3: Execute each tool call
+    tool_results: list[dict] = []
     for tc in tool_calls:
-        fn = tc.get("function", {})
-        tool_name = fn.get("name", "unknown")
-        try:
-            arguments = json.loads(fn.get("arguments", "{}"))
-        except json.JSONDecodeError:
-            arguments = {}
+        async for item in _execute_mcp_tool(client, tc, tool_server_map):
+            if isinstance(item, str):
+                yield item
+            elif isinstance(item, dict) and "role" in item:
+                tool_results.append(item)
 
-        yield _sse({
-            "type": "tool_call",
-            "server": "mcp",
-            "tool": tool_name,
-        })
-        yield _sse({"type": "token", "token": f"⚡ Calling `{tool_name}`...\n", "done": False})
-
-        # Find which server has this tool
-        server_url, srv_headers = tool_server_map.get(tool_name, (None, None))
-        if not server_url:
-            tool_results.append({
-                "tool_call_id": tc.get("id", ""),
-                "role": "tool",
-                "content": f"Error: tool '{tool_name}' not found on any MCP server.",
-            })
-            continue
-
-        try:
-            # Direct call with generous timeout — no Groq gateway limit!
-            result_text = await call_tool(client, server_url, srv_headers, tool_name, arguments)
-            tool_results.append({
-                "tool_call_id": tc.get("id", ""),
-                "role": "tool",
-                "content": result_text[:8000],  # Limit to avoid token overflow
-            })
-            yield _sse({"type": "token", "token": f"✅ Got result from `{tool_name}`\n", "done": False})
-        except Exception as e:
-            error_msg = str(e)[:300]
-            print(f"[MCP-Direct] Tool call '{tool_name}' failed: {error_msg}")
-            tool_results.append({
-                "tool_call_id": tc.get("id", ""),
-                "role": "tool",
-                "content": f"Error calling {tool_name}: {error_msg}",
-            })
-            yield _sse({"type": "token", "token": f"⚠️ Error from `{tool_name}`: {error_msg[:80]}\n", "done": False})
-
-    # ── Step 4: Send results back to Groq for formatting ──
-    format_payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant. Format the tool results into a clear, readable response for the user. Use markdown formatting when appropriate."},
-            {"role": "user", "content": message},
-            msg,  # The assistant's tool_call message
-            *tool_results,
-        ],
-        "temperature": 0.3,
-    }
-
+    # Step 4: Format results
     yield _sse({"type": "token", "token": "📝 Formatting response...\n", "done": False})
-    
-    format_resp = await client.post(GROQ_CHAT_URL, headers=groq_headers, json=format_payload)
-    format_resp.raise_for_status()
-    format_data = format_resp.json()
-
-    content = format_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    content = await _format_result_with_groq(client, message, msg, tool_results)
     yield {"__content__": content}
 
 
@@ -437,7 +468,7 @@ async def tools_chat(req: ToolChatRequest):
                     yield _sse({"type": "token", "token": f"🔌 Connecting to {labels}...\n", "done": False})
 
                     content = ""
-                    async for event in _call_mcp_direct(client, req.message, req.mcp_servers, _sse):
+                    async for event in _call_mcp_direct(client, req.message, req.mcp_servers):
                         if isinstance(event, str):
                             # SSE event strings from yields
                             yield event

@@ -9,7 +9,7 @@
  *
  * Refactored: UI split into focused sub-components (Clean Code §8).
  */
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useDeferredValue } from "react";
 import { useCanvasChat } from "../hooks/useCanvasChat";
 import type { ChatMessage, McpServerConfig } from "../hooks/useCanvasChat";
 import { useCanvasActions } from "../hooks/useCanvasActions";
@@ -118,6 +118,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [matchingSearchIds, setMatchingSearchIds] = useState<string[]>([]);
+    const deferredSearchTerm = useDeferredValue(searchTerm);
 
     const hasActiveTools = activeBuiltinTools.length > 0 || connectedMcpServers.length > 0;
 
@@ -136,19 +137,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
         setShowMcpModal(false);
     }, []);
 
-    // Search effect for message content
+    // Search effect using useDeferredValue — no manual debounce timer (Fix #6)
     useEffect(() => {
-        if (!searchTerm.trim()) {
+        if (!deferredSearchTerm.trim()) {
             setMatchingSearchIds([]);
             return;
         }
 
-        const timer = setTimeout(async () => {
-            const ids = await chatDb.searchConversations(searchTerm);
-            setMatchingSearchIds(ids);
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [searchTerm]);
+        chatDb.searchConversations(deferredSearchTerm).then(setMatchingSearchIds);
+    }, [deferredSearchTerm]);
 
     // AI generation hook — used when chatbot routes to real AI tools
     const aiGen = useAIGeneration(excalidrawAPI, () => {/* no-op: we don't close the chat panel */ });

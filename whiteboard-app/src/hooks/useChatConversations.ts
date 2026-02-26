@@ -5,6 +5,9 @@
  * IndexedDB persistence, and session ID rotation.
  *
  * Extracted from useCanvasChat for Single Responsibility (Clean Code §2, §8).
+ *
+ * Fix #4: Uses refs for `conversations` and `activeConversationId` in callbacks
+ * to prevent stale closures and unnecessary callback recreation (React §Dependencies).
  */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { chatDb, type Conversation } from "../services/chatDb";
@@ -23,6 +26,18 @@ export function useChatConversations() {
     const sessionIdRef = useRef<string | null>(
         typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null
     );
+
+    // ── Refs to avoid stale closures (React §Dependencies) ──
+    // Callbacks that need conversations/activeConversationId read from refs,
+    // so they are never recreated when those values change.
+    const conversationsRef = useRef(conversations);
+    conversationsRef.current = conversations;
+
+    const activeConvIdRef = useRef(activeConversationId);
+    activeConvIdRef.current = activeConversationId;
+
+    const messagesRef = useRef(messages);
+    messagesRef.current = messages;
 
     /** Generate a new session ID */
     const rotateSessionId = useCallback(() => {
@@ -52,22 +67,20 @@ export function useChatConversations() {
         init();
     }, []);
 
-    /** Auto-save messages to DB when streaming completes */
-    useEffect(() => {
-        // This is controlled externally via the `isStreaming` flag from streaming hook
-        // For now, we expose setters so the streaming hook can trigger saves
-    }, []);
-
     /** Persist messages and update conversation title */
     const persistMessages = useCallback((isStreaming: boolean) => {
-        if (activeConversationId && messages.length > 0 && !isStreaming) {
-            chatDb.saveMessages(activeConversationId, messages, { skipTimestamp: true }).catch(err => {
+        const convId = activeConvIdRef.current;
+        const msgs = messagesRef.current;
+        const convs = conversationsRef.current;
+
+        if (convId && msgs.length > 0 && !isStreaming) {
+            chatDb.saveMessages(convId, msgs, { skipTimestamp: true }).catch(err => {
                 console.error("[ChatDB] Failed to save messages:", err);
             });
 
-            const current = conversations.find(c => c.id === activeConversationId);
-            if (current && current.title === "New Conversation" && messages.length > 0) {
-                const firstUserMsg = messages.find(m => m.role === "user");
+            const current = convs.find(c => c.id === convId);
+            if (current && current.title === "New Conversation" && msgs.length > 0) {
+                const firstUserMsg = msgs.find(m => m.role === "user");
                 if (firstUserMsg) {
                     const newTitle = firstUserMsg.content.substring(0, 40) + (firstUserMsg.content.length > 40 ? "..." : "");
                     const updated = { ...current, title: newTitle, updatedAt: Date.now() };
@@ -77,10 +90,10 @@ export function useChatConversations() {
                 }
             }
         }
-    }, [activeConversationId, messages, conversations]);
+    }, []); // No deps — reads from refs
 
     const selectConversation = useCallback(async (id: string) => {
-        if (id === activeConversationId) return;
+        if (id === activeConvIdRef.current) return;
         try {
             const msgs = await chatDb.loadMessages(id);
             setMessages(msgs);
@@ -89,7 +102,7 @@ export function useChatConversations() {
         } catch (err) {
             console.error("[ChatDB] Failed to select conversation:", err);
         }
-    }, [activeConversationId, rotateSessionId]);
+    }, [rotateSessionId]); // Removed activeConversationId — reads from ref
 
     const startNewConversation = useCallback(async () => {
         const id = crypto.randomUUID();
@@ -101,21 +114,23 @@ export function useChatConversations() {
     const deleteConversation = useCallback(async (id: string) => {
         await chatDb.deleteConversation(id);
         setConversations(prev => prev.filter(c => c.id !== id));
-        if (activeConversationId === id) {
+        if (activeConvIdRef.current === id) {
             setMessages([]);
             setActiveConversationId(null);
         }
-    }, [activeConversationId]);
+    }, []); // Removed activeConversationId — reads from ref
 
     /** Ensure conversation exists in the list before sending a message */
     const ensureConversation = useCallback(async (content: string) => {
-        if (!activeConversationId) return;
+        const convId = activeConvIdRef.current;
+        if (!convId) return;
+
         const now = Date.now();
-        const currentConv = conversations.find(c => c.id === activeConversationId);
+        const currentConv = conversationsRef.current.find(c => c.id === convId);
 
         if (!currentConv) {
             const newConv: Conversation = {
-                id: activeConversationId,
+                id: convId,
                 title: content.trim().substring(0, 40) + (content.length > 40 ? "..." : ""),
                 updatedAt: now,
             };
@@ -126,18 +141,19 @@ export function useChatConversations() {
             await chatDb.saveConversation(updated);
             chatDb.loadConversations().then(setConversations);
         }
-    }, [activeConversationId, conversations]);
+    }, []); // Removed conversations, activeConversationId — reads from refs
 
     const clearChat = useCallback(async () => {
         setMessages([]);
         setError(null);
         setPendingActions(null);
 
-        if (activeConversationId) {
+        const convId = activeConvIdRef.current;
+        if (convId) {
             try {
-                await chatDb.clearConversation(activeConversationId);
+                await chatDb.clearConversation(convId);
 
-                const conv = conversations.find(c => c.id === activeConversationId);
+                const conv = conversationsRef.current.find(c => c.id === convId);
                 if (conv) {
                     const updated = { ...conv, updatedAt: Date.now() };
                     await chatDb.saveConversation(updated);
@@ -161,7 +177,7 @@ export function useChatConversations() {
             }
             rotateSessionId();
         }
-    }, [activeConversationId, conversations, rotateSessionId]);
+    }, [rotateSessionId]); // Removed conversations, activeConversationId — reads from refs
 
     const appendAssistantMessage = useCallback((content: string) => {
         const now = Date.now();
@@ -173,8 +189,9 @@ export function useChatConversations() {
         };
         setMessages(prev => [...prev, msg]);
 
-        if (activeConversationId) {
-            const current = conversations.find(c => c.id === activeConversationId);
+        const convId = activeConvIdRef.current;
+        if (convId) {
+            const current = conversationsRef.current.find(c => c.id === convId);
             if (current) {
                 const updated = { ...current, updatedAt: now };
                 chatDb.saveConversation(updated).then(() => {
@@ -182,19 +199,26 @@ export function useChatConversations() {
                 });
             }
         }
-    }, [activeConversationId, conversations]);
+    }, []); // Removed conversations, activeConversationId — reads from refs
+
+    // ── Fix #10: Use refs so these callbacks never change ──
+    const pendingActionsRef = useRef(pendingActions);
+    pendingActionsRef.current = pendingActions;
+
+    const pendingToolActionRef = useRef(pendingToolAction);
+    pendingToolActionRef.current = pendingToolAction;
 
     const consumeActions = useCallback(() => {
-        const actions = pendingActions;
+        const actions = pendingActionsRef.current;
         setPendingActions(null);
         return actions;
-    }, [pendingActions]);
+    }, []);
 
     const consumeToolAction = useCallback(() => {
-        const action = pendingToolAction;
+        const action = pendingToolActionRef.current;
         setPendingToolAction(null);
         return action;
-    }, [pendingToolAction]);
+    }, []);
 
     return {
         messages,

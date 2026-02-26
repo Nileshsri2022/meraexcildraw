@@ -14,6 +14,63 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
 
+// ─── SSE Discriminated Union Types (Fix #5) ──────────────────────────────────
+
+interface SSETokenEvent {
+    readonly type: "token";
+    readonly token: string;
+    readonly done: boolean;
+}
+
+interface SSEDoneEvent {
+    readonly type: "done";
+    readonly session_id?: string;
+    readonly html?: string;
+    readonly token?: string;
+    readonly done: true;
+}
+
+interface SSEErrorEvent {
+    readonly type: "error";
+    readonly error: string;
+    readonly done?: boolean;
+}
+
+interface SSECanvasActionEvent {
+    readonly type: "canvas_action";
+    readonly elements: CanvasActionElement[];
+}
+
+interface SSEToolActionEvent {
+    readonly type: "tool_action";
+    readonly tool: ToolAction["tool"];
+    readonly prompt: string;
+    readonly style?: string;
+    readonly text?: string;
+}
+
+interface SSEToolInfoEvent {
+    readonly type: "tool_info";
+    readonly server: string;
+    readonly tools: unknown[];
+}
+
+interface SSEToolCallEvent {
+    readonly type: "tool_call";
+    readonly tool: string;
+    readonly server?: string;
+}
+
+/** All possible SSE event shapes from the chat service */
+export type SSEEvent =
+    | SSETokenEvent
+    | SSEDoneEvent
+    | SSEErrorEvent
+    | SSECanvasActionEvent
+    | SSEToolActionEvent
+    | SSEToolInfoEvent
+    | SSEToolCallEvent;
+
 /** Minimal shape of ExcalidrawSceneElement for canvas context */
 interface ExcalidrawSceneElement {
     readonly id: string;
@@ -47,7 +104,7 @@ interface StreamingDeps {
  * Maps event type names to handler functions, allowing
  * chat and tools endpoints to register different handlers.
  */
-type EventHandlerMap = Record<string, (data: Record<string, unknown>, assistantId: string) => void>;
+type EventHandlerMap = Record<string, (data: SSEEvent, assistantId: string) => void>;
 
 export function useChatStreaming(deps: StreamingDeps) {
     const {
@@ -115,10 +172,10 @@ export function useChatStreaming(deps: StreamingDeps) {
 
                 onmessage(event: { data: string }) {
                     try {
-                        const data = JSON.parse(event.data) as Record<string, unknown>;
+                        const data = JSON.parse(event.data) as SSEEvent;
 
                         // Check for extra handlers first (e.g., tool_info, tool_call)
-                        if (data.type && typeof data.type === "string" && extraHandlers[data.type]) {
+                        if (data.type && extraHandlers[data.type]) {
                             extraHandlers[data.type](data, assistantId);
                             return;
                         }
@@ -129,7 +186,7 @@ export function useChatStreaming(deps: StreamingDeps) {
                                     setMessages(prev =>
                                         prev.map(m =>
                                             m.id === assistantId
-                                                ? { ...m, content: m.content + (data.token as string) }
+                                                ? { ...m, content: m.content + data.token }
                                                 : m
                                         )
                                     );
@@ -139,7 +196,7 @@ export function useChatStreaming(deps: StreamingDeps) {
                             case "done":
                                 if (data.session_id) {
                                     const isNewSession = !sessionIdRef.current;
-                                    sessionIdRef.current = data.session_id as string;
+                                    sessionIdRef.current = data.session_id;
 
                                     if (isNewSession) {
                                         const els = excalidrawAPIRef.current?.getSceneElements?.() || [];
@@ -152,7 +209,7 @@ export function useChatStreaming(deps: StreamingDeps) {
                                     setMessages(prev =>
                                         prev.map(m =>
                                             m.id === assistantId
-                                                ? { ...m, html: data.html as string }
+                                                ? { ...m, html: data.html }
                                                 : m
                                         )
                                     );
@@ -160,24 +217,22 @@ export function useChatStreaming(deps: StreamingDeps) {
                                 break;
 
                             case "canvas_action":
-                                if (data.elements && Array.isArray(data.elements) && data.elements.length > 0) {
+                                if (data.elements.length > 0) {
                                     setPendingActions(data.elements as CanvasActionElement[]);
                                 }
                                 break;
 
                             case "tool_action":
-                                if (data.tool) {
-                                    setPendingToolAction({
-                                        tool: data.tool as ToolAction["tool"],
-                                        prompt: (data.prompt as string) || "",
-                                        style: data.style as string | undefined,
-                                        text: data.text as string | undefined,
-                                    });
-                                }
+                                setPendingToolAction({
+                                    tool: data.tool,
+                                    prompt: data.prompt,
+                                    style: data.style,
+                                    text: data.text,
+                                });
                                 break;
 
                             case "error":
-                                setError((data.error as string) || "Unknown error");
+                                setError(data.error || "Unknown error");
                                 break;
                         }
                     } catch {
@@ -240,11 +295,12 @@ export function useChatStreaming(deps: StreamingDeps) {
     ) => {
         const extraHandlers: EventHandlerMap = {
             tool_info: (data) => {
-                if (import.meta.env.DEV) {
+                if (import.meta.env.DEV && data.type === "tool_info") {
                     console.log(`[ToolChat] ${data.server} tools:`, data.tools);
                 }
             },
             tool_call: (data, assistantId) => {
+                if (data.type !== "tool_call") return;
                 setMessages(prev =>
                     prev.map(m =>
                         m.id === assistantId
