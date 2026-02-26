@@ -1,0 +1,13 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Cosmic Studio — My Whiteboard Design System
+   Split into logical modules for maintainability.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import './styles/base.css';
+@import './styles/dropdown.css';
+@import './styles/ai-dialog.css';
+@import './styles/legacy.css';
+@import './styles/animations.css';
+@import './styles/tts-voice.css';
+@import './styles/chat-panel.css';
+@import './styles/chat-toolbar.css';

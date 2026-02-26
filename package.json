@@ -1,0 +1,45 @@
+{
+    "name": "whiteboard-monorepo",
+    "private": true,
+    "packageManager": "bun@1.3.8",
+    "workspaces": [
+        "whiteboard-app",
+        "server"
+    ],
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "scripts": {
+        "start": "bun run --cwd ./whiteboard-app start",
+        "server": "node ./server/index.js",
+        "dev": "concurrently \"bun run start\" \"bun run server\"",
+        "build": "bun run --cwd ./whiteboard-app build",
+        "typecheck": "tsc --noEmit",
+        "lint": "eslint --ext .js,.ts,.tsx .",
+        "fix": "eslint --ext .js,.ts,.tsx . --fix && prettier --write .",
+        "clean": "rimraf whiteboard-app/dist"
+    },
+    "devDependencies": {
+        "@types/lodash.throttle": "^4.1.9",
+        "@types/node": "^20.11.0",
+        "@types/react": "^18.2.0",
+        "@types/react-dom": "^18.2.0",
+        "@vitejs/plugin-react": "^4.2.0",
+        "eslint": "^8.57.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-plugin-react": "^7.34.0",
+        "eslint-plugin-react-hooks": "^4.6.0",
+        "husky": "^9.0.0",
+        "lint-staged": "^15.2.0",
+        "prettier": "^3.2.0",
+        "rimraf": "^5.0.0",
+        "typescript": "^5.4.0",
+        "vite": "^5.2.0"
+    },
+    "prettier": {
+        "semi": true,
+        "singleQuote": false,
+        "tabWidth": 2,
+        "trailingComma": "es5"
+    }
+}

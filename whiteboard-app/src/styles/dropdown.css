@@ -1,0 +1,300 @@
+/* ─── Excalidraw Overrides (subtle refinements) ───────────────────────────── */
+
+.excalidraw .App-menu__left {
+  font-family: var(--font-display) !important;
+}
+
+/* ─── Dropdown Menu (Cosmic Glass — Premium) ─────────────────────────────── */
+
+.cosmic-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 260px;
+  padding: 8px;
+  background: var(--cosmic-glass);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--cosmic-glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-aurora);
+  z-index: 9999;
+  animation: dropdownReveal 0.25s var(--transition-spring);
+  overflow: hidden;
+}
+
+/* Top aurora accent line */
+.cosmic-dropdown::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: var(--aurora-gradient);
+  border-radius: 0 0 2px 2px;
+  opacity: 0.7;
+}
+
+@keyframes dropdownReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Section label */
+.cosmic-dropdown-label {
+  padding: 8px 14px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.cosmic-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  text-align: left;
+  transition: all var(--transition-fast);
+  position: relative;
+  letter-spacing: 0.01em;
+}
+
+.cosmic-dropdown-item:hover {
+  background: var(--hover-glow);
+  color: var(--text-bright);
+}
+
+.cosmic-dropdown-item:hover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  background: var(--aurora-gradient);
+  border-radius: 0 3px 3px 0;
+  animation: accentSlide 0.2s ease;
+}
+
+@keyframes accentSlide {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: 18px;
+    opacity: 1;
+  }
+}
+
+/* Item description (small text below label) */
+.cosmic-dropdown-item .item-desc {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 1px;
+  transition: color var(--transition-fast);
+}
+
+.cosmic-dropdown-item:hover .item-desc {
+  color: var(--text-secondary);
+}
+
+.cosmic-dropdown-item--danger {
+  color: var(--error);
+}
+
+.cosmic-dropdown-item--danger:hover {
+  background: rgba(248, 113, 113, 0.08);
+  color: var(--error);
+}
+
+.cosmic-dropdown-item--danger:hover::before {
+  background: var(--error);
+}
+
+.cosmic-dropdown-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
+  margin: 4px 8px;
+}
+
+.cosmic-dropdown-item .item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* ─── Voice Command Highlight — Gradient Border Hero Item ─────────────────── */
+
+.cosmic-dropdown-item--voice {
+  margin-top: 2px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.06) 0%, rgba(45, 212, 191, 0.04) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  transition: all var(--transition-smooth);
+}
+
+.cosmic-dropdown-item--voice:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(45, 212, 191, 0.08) 100%);
+  border-color: rgba(139, 92, 246, 0.3);
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.12);
+}
+
+.cosmic-dropdown-item--voice:hover::before {
+  display: none;
+  /* no left accent — border does the job */
+}
+
+.cosmic-dropdown-item--voice .item-icon svg {
+  stroke: var(--aurora-violet);
+}
+
+/* ─── Dropdown Voice Command States ───────────────────────────────────────── */
+
+.cosmic-dropdown-item--recording {
+  color: var(--error) !important;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(239, 68, 68, 0.06) 100%) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  animation: voiceCmdPulse 2s ease-in-out infinite;
+}
+
+.cosmic-dropdown-item--recording .item-icon svg {
+  stroke: var(--error);
+}
+
+.cosmic-dropdown-item--recording .item-desc {
+  color: rgba(248, 113, 113, 0.7) !important;
+}
+
+.cosmic-dropdown-item--busy {
+  color: var(--aurora-teal) !important;
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.08) 0%, rgba(139, 92, 246, 0.04) 100%) !important;
+  border-color: rgba(45, 212, 191, 0.2) !important;
+  pointer-events: none;
+}
+
+.cosmic-dropdown-item--busy .item-icon svg {
+  stroke: var(--aurora-teal);
+  animation: spin 1s linear infinite;
+}
+
+.cosmic-dropdown-item--busy .item-desc {
+  color: rgba(45, 212, 191, 0.6) !important;
+}
+
+/* ─── Floating Voice Status Pill ──────────────────────────────────────────── */
+
+.voice-status-pill {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius-xl);
+  background: var(--cosmic-deep);
+  border: 1px solid var(--cosmic-glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(139, 92, 246, 0.08), var(--aurora-glow);
+  white-space: nowrap;
+  z-index: 1000;
+  animation: pillReveal 0.3s var(--transition-spring);
+}
+
+/* Subtle glow behind pill */
+.voice-status-pill::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: var(--radius-xl);
+  background: var(--aurora-gradient);
+  opacity: 0.08;
+  z-index: -1;
+  filter: blur(8px);
+}
+
+@keyframes pillReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.voice-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.voice-status-dot--recording {
+  background: var(--error);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+  animation: auroPulse 1s ease-in-out infinite;
+}
+
+.voice-status-dot--busy {
+  background: var(--aurora-teal);
+  box-shadow: 0 0 8px rgba(45, 212, 191, 0.5);
+  animation: auroPulse 1s ease-in-out infinite;
+}
+
+.voice-status-text {
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.voice-status-stop {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  transition: all var(--transition-fast);
+}
+
+.voice-status-stop:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  transform: scale(1.05);
+}

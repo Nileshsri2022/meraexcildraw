@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+.env.local
+.env.*.local
+*.tsbuildinfo
+.env
+whiteboard-app/.env
+whiteboard-app/.env.example

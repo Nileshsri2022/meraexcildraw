@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mera Excalidraw</string>
+    <string name="title_activity_main">Mera Excalidraw</string>
+    <string name="package_name">com.nilesh.meraexcalidraw</string>
+    <string name="custom_url_scheme">com.nilesh.meraexcalidraw</string>
+</resources>

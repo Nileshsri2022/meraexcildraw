@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "clean-code": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "78cc52dda1fa19d4a49b71fa4e9733fe91cb370887a5b91b6e8b4781b56c428a"
+    },
+    "langchain-architecture": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "994dd03b8b03fe557c7a8e2626d1b93496d37725b123746eda0b57bac8b4a330"
+    },
+    "python-performance-optimization": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "05c283d97b1bc4fb033593af9d22095c716312fcc55840f2ef438a015e112865"
+    }
+  }
+}
