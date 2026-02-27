@@ -713,28 +713,28 @@ body.dark .snw-trigger-badge {
 }
 
 body.dark .snw-popup {
-    background: #1e1e2e;
-    border-color: rgba(255,255,255,0.06);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.15);
+    background: #181a20;
+    border-color: #23263a;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.18);
 }
 
 body.dark .snw-tabs {
-    background: #16162a;
-    border-bottom-color: rgba(255,255,255,0.04);
+    background: #20222b;
+    border-bottom-color: #23263a;
 }
 
 body.dark .snw-tab {
-    color: #9ca3af;
-    border-right-color: rgba(255,255,255,0.04);
+    color: #b0b6c3;
+    border-right-color: #23263a;
 }
 
 body.dark .snw-tab:hover {
-    background: rgba(255,255,255,0.04);
-    color: #d1d5db;
+    background: #23263a;
+    color: #e3e6ee;
 }
-
 body.dark .snw-tab--active {
     color: #f3f4f6;
+    background: #23263a;
 }
 
 body.dark .snw-tab-close {
@@ -742,120 +742,120 @@ body.dark .snw-tab-close {
 }
 
 body.dark .snw-tab-close:hover {
-    background: rgba(248,113,113,0.12);
-    color: #f87171;
+    background: rgba(248,113,113,0.10);
+    color: #ff6b81;
 }
 
 body.dark .snw-tabs-add {
-    color: #6b7280;
-    border-left-color: rgba(255,255,255,0.04);
+    color: #7c8190;
+    border-left-color: #23263a;
 }
 
 body.dark .snw-tabs-add:hover {
-    background: rgba(255,255,255,0.06);
-    color: #d1d5db;
+    background: #23263a;
+    color: #e3e6ee;
 }
 
 body.dark .snw-bottom-bar {
-    background: #16162a;
-    border-top-color: rgba(255,255,255,0.04);
+    background: #20222b;
+    border-top-color: #23263a;
 }
 
 body.dark .snw-bottom-divider {
-    background: rgba(255,255,255,0.10);
+    background: #23263a;
 }
 
 body.dark .snw-hex-label--bg {
-    background: linear-gradient(135deg, #d97706, #b45309);
+    background: linear-gradient(135deg, #b8892b, #7a5e1a);
 }
 
 body.dark .snw-hex-label--text {
-    background: #6b7280;
+    background: #23263a;
 }
 
 body.dark .snw-icon-btn:hover {
-    background: rgba(255,255,255,0.06);
+    background: #23263a;
 }
 
 body.dark .snw-icon-btn--danger:hover {
-    background: rgba(248,113,113,0.10);
-    color: #f87171;
+    background: rgba(248,113,113,0.08);
+    color: #ff6b81;
 }
 
 body.dark .snw-color-dot {
-    border-color: rgba(255,255,255,0.10);
+    border-color: #23263a;
 }
 
 body.dark .snw-color-picker {
-    background: #1e1e2e;
-    border-color: rgba(255,255,255,0.06);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2), 0 12px 28px rgba(0,0,0,0.25);
+    background: #23263a;
+    border-color: #2d3146;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.32), 0 12px 28px rgba(0,0,0,0.32);
 }
 
 body.dark .snw-color-swatch--active {
-    border-color: rgba(255,255,255,0.5);
+    border-color: #f3c969;
 }
 
 body.dark .snw-hex-row {
-    border-top-color: rgba(255,255,255,0.06);
+    border-top-color: #2d3146;
 }
 
 body.dark .snw-hex-label {
-    color: #9ca3af;
+    color: #b0b6c3;
 }
 
 body.dark .snw-hex-input {
-    background: #2a2a40;
-    border-color: rgba(255,255,255,0.08);
-    color: #e5e7eb;
+    background: #23263a;
+    border-color: #2d3146;
+    color: #e3e6ee;
 }
 
 body.dark .snw-hex-input:focus {
-    border-color: #d97706;
-    box-shadow: 0 0 0 2px rgba(217,119,6,0.20);
+    border-color: #f3c969;
+    box-shadow: 0 0 0 2px rgba(243,201,105,0.18);
 }
 
 body.dark .snw-hex-input::placeholder {
-    color: #4b5563;
+    color: #7c8190;
 }
 
 body.dark .snw-hex-apply {
-    background: rgba(5,150,105,0.15);
-    color: #34d399;
-    border-color: rgba(255,255,255,0.06);
+    background: #233c2b;
+    color: #7be495;
+    border-color: #2d3146;
 }
 
 body.dark .snw-hex-apply:hover {
-    background: rgba(5,150,105,0.25);
+    background: #295c3b;
 }
 
 body.dark .snw-hex-clear {
-    background: rgba(239,68,68,0.10);
-    color: #f87171;
-    border-color: rgba(255,255,255,0.06);
+    background: #3a2323;
+    color: #ff6b81;
+    border-color: #2d3146;
 }
 
 body.dark .snw-hex-clear:hover {
-    background: rgba(239,68,68,0.18);
+    background: #4a2d2d;
 }
 
 body.dark .snw-empty-text {
-    color: #6b7280;
+    color: #7c8190;
 }
 
 body.dark .snw-format-btn {
-    background: rgba(255,255,255,0.05);
-    border-color: rgba(255,255,255,0.08);
-    color: #d1d5db;
+    background: #23263a;
+    border-color: #2d3146;
+    color: #e3e6ee;
 }
 
 body.dark .snw-format-btn:hover {
-    background: rgba(255,255,255,0.10);
-    border-color: rgba(255,255,255,0.15);
+    background: #2d3146;
+    border-color: #f3c969;
 }
 
 body.dark .snw-format-btn:active {
-    background: rgba(255,255,255,0.14);
+    background: #23263a;
 }
 
 

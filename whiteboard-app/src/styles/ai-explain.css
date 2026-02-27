@@ -305,76 +305,79 @@ button[title="Explain selection"] {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Dark Mode
+   Dark Mode (professional palette)
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body.dark .ai-explain-panel {
-    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
-    border-top-color: rgba(255,255,255,0.06);
+    background:
+        linear-gradient(135deg, rgba(139,149,255,0.04), rgba(139,149,255,0.03)),
+        #181a20;
+    border-top-color: #2d3146;
+    color: #dbe1ea;
 }
 
 body.dark .ai-explain-panel-title {
-    color: #818cf8;
+    color: #8b95ff;
 }
 
 body.dark .ai-explain-spinner {
-    border-color: rgba(129,140,248,0.2);
-    border-top-color: #818cf8;
+    border-color: rgba(139,149,255,0.14);
+    border-top-color: #8b95ff;
 }
 
 body.dark .ai-explain-panel-text {
-    color: #d1d5db;
+    color: #dbe1ea;
 }
 
 body.dark .ai-explain-panel-text code {
-    background: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
 }
 
 body.dark .ai-explain-panel-text blockquote {
-    border-left-color: rgba(129,140,248,0.3);
-    color: #9ca3af;
+    border-left-color: rgba(139,149,255,0.18);
+    color: #9aa3b2;
 }
 
 body.dark .ai-explain-panel-text--thinking {
-    color: #818cf8;
+    color: #8b95ff;
 }
 
 body.dark .ai-explain-btn--accept {
-    background: rgba(5,150,105,0.15);
-    color: #34d399;
-    border-color: rgba(52,211,153,0.2);
+    background: #233c2b;
+    color: #7be495;
+    border-color: #2d4f3c;
 }
 body.dark .ai-explain-btn--accept:hover {
-    background: rgba(5,150,105,0.25);
+    background: #295c3b;
 }
 
 body.dark .ai-explain-btn--reject {
     background: rgba(217,119,6,0.12);
     color: #fbbf24;
-    border-color: rgba(251,191,36,0.2);
+    border-color: rgba(251,191,36,0.18);
 }
 body.dark .ai-explain-btn--reject:hover {
-    background: rgba(217,119,6,0.22);
+    background: rgba(217,119,6,0.2);
 }
 
 body.dark .ai-explain-btn--cancel {
-    background: rgba(255,255,255,0.06);
+    background: #23263a;
     color: #9ca3af;
-    border-color: rgba(255,255,255,0.08);
+    border-color: #2d3146;
 }
 body.dark .ai-explain-btn--cancel:hover {
-    background: rgba(255,255,255,0.10);
-    color: #d1d5db;
+    background: #2d3146;
+    color: #dbe1ea;
 }
 
 body.dark .ai-explain-trigger {
-    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15));
-    border-color: rgba(129,140,248,0.25);
-    color: #818cf8;
+    background: linear-gradient(135deg, rgba(139,149,255,0.08), rgba(139,149,255,0.06));
+    border-color: rgba(139,149,255,0.18);
+    color: #8b95ff;
 }
 body.dark .ai-explain-trigger:hover {
-    background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25));
-    border-color: rgba(129,140,248,0.4);
+    background: linear-gradient(135deg, rgba(139,149,255,0.16), rgba(139,149,255,0.12));
+    border-color: rgba(139,149,255,0.28);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
