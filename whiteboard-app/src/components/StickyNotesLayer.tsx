@@ -16,6 +16,7 @@ import {
 import type { UseStickyNotesReturn } from "../hooks/useStickyNotes";
 import { useAIExplain } from "../hooks/useAIExplain";
 import { AIExplainPanel, AISparkleIcon } from "./AIExplainPanel";
+import MarkdownRenderer from "./MarkdownRenderer";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -27,35 +28,7 @@ interface StickyNotesLayerProps {
 // ─── Helper: strip HTML tags for display ────────────────────────────────────
 const stripHtml = (html: string) => html.replace(/<[^>]*>/g, "");
 
-// ─── Helper: lightweight markdown → HTML (for inserting AI responses) ────────
-const simpleMarkdownToHtml = (md: string): string => {
-    return md
-        .split("\n")
-        .map((line) => {
-            // Headings
-            if (line.startsWith("### ")) return `<h3>${line.slice(4)}</h3>`;
-            if (line.startsWith("## ")) return `<h2>${line.slice(3)}</h2>`;
-            if (line.startsWith("# ")) return `<h1>${line.slice(2)}</h1>`;
-            // Bullet points (* or -)
-            if (/^\s*[\*\-]\s+/.test(line)) {
-                const text = line.replace(/^\s*[\*\-]\s+/, "");
-                return `<li>${text}</li>`;
-            }
-            // Empty line → break
-            if (line.trim() === "") return "<br>";
-            // Paragraph
-            return `<p>${line}</p>`;
-        })
-        .join("\n")
-        // Wrap consecutive <li> in <ul>
-        .replace(/(<li>.*?<\/li>\n?)+/gs, (match) => `<ul>${match}</ul>`)
-        // Bold **text**
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-        // Italic *text*
-        .replace(/\*(.+?)\*/g, "<em>$1</em>")
-        // Inline code `text`
-        .replace(/`([^`]+)`/g, "<code>$1</code>");
-};
+
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -382,22 +355,29 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         aiExplain.explain(content);
     }, [getSelectionContent, aiExplain.explain]);
 
-    // Accept: insert AI response into the editor (convert markdown to HTML)
+    // Accept: insert AI response into the editor (render markdown as React node)
     const handleAIAccept = useCallback(() => {
         if (!aiExplain.state.response || !editorRef.current || !activeNote) return;
-        const rendered = simpleMarkdownToHtml(aiExplain.state.response);
-        const aiHtml = `<div class="ai-explain-inserted"><hr style="border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0"><div style="font-size:12px;opacity:0.5;margin-bottom:4px">✨ AI Explanation</div><div>${rendered}</div></div>`;
+        // Insert a React node for exact markdown rendering
+        const container = document.createElement("div");
+        container.className = "ai-explain-inserted";
+        container.innerHTML = `<hr style='border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0'><div style='font-size:12px;opacity:0.5;margin-bottom:4px'>✨ AI Explanation</div>`;
+        // Create a React root for markdown
+        const markdownDiv = document.createElement("div");
+        container.appendChild(markdownDiv);
+        // Use React 18+ createRoot if available
+        // @ts-ignore
+        (window.ReactDOM || window.require?.("react-dom")).render(
+            React.createElement(MarkdownRenderer, { content: aiExplain.state.response }),
+            markdownDiv
+        );
         const sel = window.getSelection();
         if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
             const range = sel.getRangeAt(0);
             range.collapse(false);
-            const temp = document.createElement("div");
-            temp.innerHTML = aiHtml;
-            const frag = document.createDocumentFragment();
-            while (temp.firstChild) frag.appendChild(temp.firstChild);
-            range.insertNode(frag);
+            range.insertNode(container);
         } else {
-            editorRef.current.innerHTML += aiHtml;
+            editorRef.current.appendChild(container);
         }
         updateText(activeNote.id, editorRef.current.innerHTML);
         aiExplain.reset();

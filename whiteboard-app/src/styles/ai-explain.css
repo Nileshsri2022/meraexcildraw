@@ -339,35 +339,55 @@ body.dark .ai-explain-trigger:hover {
    Responsive
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@media (max-width: 480px) {
+
+@media (max-width: 600px) {
     .ai-explain-panel {
-        padding: 12px 10px;
-        max-height: 160px;
+        padding: 10px 4vw;
+        max-height: 40vh;
+        font-size: 13px;
+        border-radius: 0 0 6px 6px;
     }
-
     .ai-explain-panel-title {
-        font-size: 10px;
+        font-size: 11px;
     }
-
+    .ai-explain-panel-header {
+        gap: 2vw;
+        min-height: 1.2em;
+    }
+    .ai-explain-panel-actions {
+        flex-wrap: wrap;
+        gap: 4px;
+        min-height: 1.2em;
+    }
     .ai-explain-btn {
-        padding: 3px 8px;
-        font-size: 10px;
+        padding: 3px 7px;
+        font-size: 11px;
+        min-width: 60px;
+        margin-bottom: 2px;
+    }
+    .ai-explain-panel-text {
+        font-size: 13px;
     }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 400px) {
     .ai-explain-panel {
-        padding: 12px 8px;
-        max-height: 140px;
+        padding: 8px 2vw;
+        font-size: 12px;
+        max-height: 30vh;
     }
-
-    .ai-explain-panel-actions {
-        flex-wrap: wrap;
+    .ai-explain-panel-title {
+        font-size: 10px;
+    }
+    .ai-explain-btn {
+        font-size: 10px;
+        min-width: 48px;
+        padding: 2px 5px;
     }
 }
 
 @media (max-height: 500px) {
     .ai-explain-panel {
-        max-height: 120px;
+        max-height: 90px;
     }
 }
