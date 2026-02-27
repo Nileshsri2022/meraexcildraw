@@ -140,3 +140,79 @@
         transform: translateY(-50%) translateX(0);
     }
 }
+
+/* ═══ Responsive: Tablets & small laptops ═══════════════════════════════════ */
+@media (max-width: 768px) {
+    .eb-fallback {
+        padding: 24px 18px;
+    }
+    .eb-fallback--panel {
+        width: 280px;
+        padding: 28px 20px;
+        right: 16px;
+    }
+}
+
+/* ═══ Responsive: Phones ════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+    .eb-fallback {
+        padding: 20px 14px;
+        gap: 10px;
+    }
+    .eb-fallback__icon {
+        font-size: 32px;
+    }
+    .eb-fallback__title {
+        font-size: 14px;
+    }
+    .eb-fallback__message {
+        font-size: 12px;
+        max-width: 260px;
+    }
+    .eb-fallback__btn {
+        padding: 7px 16px;
+        font-size: 12px;
+    }
+    .eb-fallback--panel {
+        position: fixed;
+        top: auto;
+        bottom: 16px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        transform: none;
+        padding: 20px 16px;
+        border-radius: 14px;
+        animation: none;
+    }
+    .eb-fallback--canvas .eb-fallback__icon {
+        font-size: 40px;
+    }
+    .eb-fallback--canvas .eb-fallback__title {
+        font-size: 16px;
+    }
+    .eb-fallback--canvas .eb-fallback__message {
+        font-size: 12px;
+        max-width: 280px;
+    }
+}
+
+/* ═══ Responsive: Tiny phones (≤360px) ══════════════════════════════════════ */
+@media (max-width: 360px) {
+    .eb-fallback {
+        padding: 16px 10px;
+    }
+    .eb-fallback__title {
+        font-size: 13px;
+    }
+    .eb-fallback__message {
+        font-size: 11px;
+        max-width: 220px;
+    }
+    .eb-fallback--panel {
+        left: 8px;
+        right: 8px;
+        bottom: 10px;
+        padding: 16px 12px;
+    }
+}

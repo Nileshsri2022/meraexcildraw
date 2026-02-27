@@ -137,3 +137,69 @@
     0%, 100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0); }
     50% { box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.15); }
 }
+
+/* ═══ Responsive: Tablets & small laptops ═══════════════════════════════════ */
+@media (max-width: 768px) {
+    .presence-bar {
+        bottom: 48px;
+        right: 12px;
+        padding: 5px 10px 5px 6px;
+        gap: 8px;
+    }
+    .presence-avatar {
+        width: 26px;
+        height: 26px;
+    }
+    .presence-avatar__initial {
+        font-size: 11px;
+    }
+    .presence-bar__count {
+        font-size: 10px;
+    }
+}
+
+/* ═══ Responsive: Phones ════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+    .presence-bar {
+        bottom: 44px;
+        right: 8px;
+        padding: 4px 8px 4px 4px;
+        gap: 6px;
+        border-radius: 28px;
+    }
+    .presence-avatar {
+        width: 22px;
+        height: 22px;
+        margin-left: -5px;
+    }
+    .presence-avatar__initial {
+        font-size: 10px;
+    }
+    .presence-avatar__badge {
+        font-size: 6px;
+        padding: 0 3px;
+    }
+    .presence-avatar__dot {
+        width: 6px;
+        height: 6px;
+    }
+    .presence-bar__count {
+        font-size: 9px;
+    }
+}
+
+/* ═══ Responsive: Tiny phones (≤360px) ══════════════════════════════════════ */
+@media (max-width: 360px) {
+    .presence-bar {
+        bottom: 40px;
+        right: 6px;
+        padding: 3px 6px 3px 3px;
+    }
+    .presence-avatar {
+        width: 20px;
+        height: 20px;
+    }
+    .presence-avatar__initial {
+        font-size: 9px;
+    }
+}

@@ -677,29 +677,343 @@ body.dark .snw-empty-text {
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 
-@media (max-width: 480px) {
+/* Tablet and smaller laptops */
+@media (max-width: 768px) {
+    :root {
+        --snw-popup-w: 340px;
+        --snw-popup-h: 420px;
+    }
+
     .snw-popup {
-        width: calc(100vw - 24px);
-        right: 12px;
-        bottom: 116px;
-        height: min(400px, calc(100vh - 130px));
+        width: min(var(--snw-popup-w), calc(100vw - 32px));
+        right: 16px;
+        bottom: 120px;
+        max-height: calc(100vh - 134px);
     }
 
     .snw-trigger {
-        bottom: 62px;
-        right: 12px;
-        width: 40px;
-        height: 40px;
+        bottom: 64px;
+        right: 16px;
+        width: 42px;
+        height: 42px;
+    }
+
+    .snw-trigger svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .snw-tab {
+        padding: 0 8px;
+        max-width: 120px;
+        font-size: 10px;
+    }
+
+    .snw-editor-toolbar {
+        padding: 5px 10px;
+    }
+
+    .snw-textarea {
+        padding: 10px 12px;
     }
 }
 
-@media (max-width: 768px) {
+/* Large phones (e.g. iPhone Pro Max, Galaxy S) */
+@media (max-width: 480px) {
+    :root {
+        --snw-popup-w: 100%;
+        --snw-popup-h: 380px;
+        --snw-radius: 12px;
+    }
+
     .snw-popup {
-        width: min(360px, calc(100vw - 32px));
+        width: calc(100vw - 16px);
+        right: 8px;
+        bottom: 112px;
+        max-height: calc(100vh - 124px);
     }
 
     .snw-trigger {
-        bottom: 66px;
-        right: 16px;
+        bottom: 58px;
+        right: 10px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .snw-trigger svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .snw-trigger-badge {
+        min-width: 17px;
+        height: 17px;
+        font-size: 9px;
+        padding: 0 4px;
+    }
+
+    .snw-tabs {
+        min-height: 32px;
+    }
+
+    .snw-tab {
+        padding: 0 7px;
+        height: 32px;
+        max-width: 100px;
+        font-size: 10px;
+        gap: 4px;
+    }
+
+    .snw-tab-dot {
+        width: 6px;
+        height: 6px;
+    }
+
+    .snw-tabs-add {
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
+        font-size: 16px;
+    }
+
+    .snw-editor-toolbar {
+        padding: 4px 8px;
+        gap: 4px;
+    }
+
+    .snw-editor-toolbar-left {
+        gap: 6px;
+    }
+
+    .snw-editor-toolbar-right {
+        gap: 2px;
+    }
+
+    .snw-color-dot {
+        width: 12px;
+        height: 12px;
+    }
+
+    .snw-icon-btn {
+        width: 22px;
+        height: 22px;
+    }
+
+    .snw-icon-btn svg {
+        width: 10px;
+        height: 10px;
+    }
+
+    .snw-textarea {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .snw-color-picker {
+        top: 34px;
+        left: 6px;
+        right: 6px;
+        padding: 8px 8px;
+        gap: 8px;
+    }
+
+    .snw-color-swatch {
+        width: 22px;
+        height: 22px;
+    }
+
+    .snw-hex-input {
+        height: 26px;
+        font-size: 11px;
+        padding: 0 6px;
+    }
+
+    .snw-hex-apply,
+    .snw-hex-clear {
+        width: 26px;
+        height: 26px;
+        font-size: 12px;
+    }
+
+    .snw-empty {
+        padding: 20px;
+    }
+
+    .snw-empty-text {
+        font-size: 12px;
+    }
+}
+
+/* Very small phones (iPhone SE, Galaxy S Mini, tiny screens ≤360px) */
+@media (max-width: 360px) {
+    .snw-popup {
+        width: calc(100vw - 10px);
+        right: 5px;
+        bottom: 104px;
+        max-height: calc(100vh - 114px);
+        --snw-radius: 10px;
+    }
+
+    .snw-trigger {
+        bottom: 52px;
+        right: 8px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .snw-trigger svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .snw-trigger-badge {
+        min-width: 15px;
+        height: 15px;
+        font-size: 8px;
+        padding: 0 3px;
+        top: -3px;
+        right: -3px;
+        border-width: 1.5px;
+    }
+
+    .snw-tab {
+        padding: 0 5px;
+        height: 30px;
+        max-width: 80px;
+        font-size: 9px;
+        gap: 3px;
+    }
+
+    .snw-tab-dot {
+        width: 5px;
+        height: 5px;
+    }
+
+    .snw-tab-close {
+        width: 14px;
+        height: 14px;
+        font-size: 12px;
+    }
+
+    .snw-tabs-add {
+        width: 28px;
+        min-width: 28px;
+        height: 30px;
+        font-size: 14px;
+    }
+
+    .snw-editor-toolbar {
+        padding: 3px 6px;
+        gap: 3px;
+    }
+
+    .snw-editor-toolbar-left {
+        gap: 4px;
+    }
+
+    .snw-color-dot {
+        width: 10px;
+        height: 10px;
+    }
+
+    .snw-timestamp {
+        font-size: 9px;
+    }
+
+    .snw-charcount {
+        font-size: 8px;
+    }
+
+    .snw-font-label {
+        font-size: 9px;
+        min-width: 14px;
+    }
+
+    .snw-icon-btn {
+        width: 20px;
+        height: 20px;
+    }
+
+    .snw-icon-btn svg {
+        width: 9px;
+        height: 9px;
+    }
+
+    .snw-textarea {
+        padding: 6px 8px;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .snw-color-picker {
+        top: 30px;
+        left: 4px;
+        right: 4px;
+        padding: 6px;
+        gap: 6px;
+        border-radius: 8px;
+    }
+
+    .snw-color-swatches {
+        gap: 4px;
+    }
+
+    .snw-color-swatch {
+        width: 20px;
+        height: 20px;
+    }
+
+    .snw-hex-row {
+        gap: 4px;
+    }
+
+    .snw-hex-label {
+        font-size: 9px;
+    }
+
+    .snw-hex-input {
+        height: 24px;
+        font-size: 10px;
+        padding: 0 5px;
+    }
+
+    .snw-hex-apply,
+    .snw-hex-clear {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+
+    .snw-empty {
+        padding: 16px;
+        gap: 8px;
+    }
+
+    .snw-empty-icon svg {
+        width: 30px;
+        height: 30px;
+    }
+
+    .snw-empty-text {
+        font-size: 11px;
+    }
+}
+
+/* Ultra-short screens (landscape phones, small height) */
+@media (max-height: 500px) {
+    .snw-popup {
+        max-height: calc(100vh - 80px);
+        bottom: 60px;
+    }
+
+    .snw-trigger {
+        bottom: 10px;
+        width: 36px;
+        height: 36px;
+    }
+
+    .snw-trigger svg {
+        width: 16px;
+        height: 16px;
     }
 }

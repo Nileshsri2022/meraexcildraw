@@ -708,3 +708,144 @@ body.presenting .excalidraw .excalidraw__canvas {
     font-weight: 700;
     margin-left: 4px;
 }
+
+/* ═══ Responsive: Tablets & small laptops ═══════════════════════════════════ */
+@media (max-width: 768px) {
+    .pres-toolbar {
+        width: 190px;
+        left: 8px;
+        top: 70px;
+    }
+    .pres-action-btn {
+        padding: 7px 8px;
+        font-size: 11.5px;
+    }
+    .presentation-nav {
+        width: 40px;
+        height: 40px;
+    }
+    .presentation-notes {
+        width: min(500px, 85vw);
+    }
+}
+
+/* ═══ Responsive: Phones ════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+    .pres-toolbar {
+        width: 170px;
+        left: 6px;
+        top: 60px;
+        border-radius: 10px;
+    }
+    .pres-toolbar__header {
+        padding: 8px 10px;
+    }
+    .pres-toolbar__title {
+        font-size: 12px;
+        gap: 6px;
+    }
+    .pres-toolbar__actions {
+        padding: 6px;
+        gap: 3px;
+    }
+    .pres-action-btn {
+        padding: 6px 7px;
+        font-size: 11px;
+        gap: 6px;
+    }
+    .pres-slide-list {
+        max-height: 160px;
+        padding: 3px 6px;
+    }
+    .pres-slide-item__label {
+        font-size: 10px;
+    }
+    .presentation-nav {
+        width: 36px;
+        height: 36px;
+    }
+    .presentation-nav--prev {
+        left: 8px;
+    }
+    .presentation-nav--next {
+        right: 8px;
+    }
+    .presentation-topbar {
+        padding: 6px 10px;
+    }
+    .presentation-slide-counter {
+        font-size: 12px;
+        padding: 3px 10px;
+    }
+    .presentation-slide-label {
+        font-size: 11px;
+    }
+    .presentation-btn {
+        width: 28px;
+        height: 28px;
+    }
+    .presentation-notes {
+        width: min(400px, 92vw);
+        max-height: 160px;
+        bottom: 24px;
+    }
+    .presentation-notes__content {
+        padding: 10px 12px;
+        font-size: 12.5px;
+        max-height: 110px;
+    }
+    .presentation-notes__header {
+        padding: 6px 12px;
+        font-size: 10px;
+    }
+    .frame-label-bar {
+        min-width: 70px;
+        max-width: 200px;
+        height: 22px;
+        top: -24px;
+        padding: 2px 8px;
+    }
+    .frame-label-text {
+        font-size: 10px;
+    }
+}
+
+/* ═══ Responsive: Tiny phones (≤360px) ══════════════════════════════════════ */
+@media (max-width: 360px) {
+    .pres-toolbar {
+        width: 150px;
+        left: 4px;
+        top: 54px;
+    }
+    .pres-toolbar__title {
+        font-size: 11px;
+    }
+    .pres-action-btn {
+        padding: 5px 6px;
+        font-size: 10px;
+    }
+    .presentation-nav {
+        width: 32px;
+        height: 32px;
+    }
+    .presentation-notes {
+        width: 96vw;
+    }
+    .presentation-notes__content {
+        font-size: 12px;
+    }
+}
+
+/* ═══ Responsive: Short screens ═════════════════════════════════════════════ */
+@media (max-height: 500px) {
+    .pres-toolbar {
+        top: 50px;
+    }
+    .pres-slide-list {
+        max-height: 120px;
+    }
+    .presentation-notes {
+        max-height: 120px;
+        bottom: 16px;
+    }
+}

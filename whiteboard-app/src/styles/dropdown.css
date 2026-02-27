@@ -298,3 +298,56 @@
   border-color: rgba(239, 68, 68, 0.4);
   transform: scale(1.05);
 }
+
+/* ═══ Responsive: Tablets & small laptops ═══════════════════════════════════ */
+@media (max-width: 768px) {
+  .cosmic-dropdown {
+    min-width: 220px;
+  }
+  .cosmic-dropdown-item {
+    padding: 9px 12px;
+    font-size: 13px;
+    gap: 10px;
+  }
+}
+
+/* ═══ Responsive: Phones ════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .cosmic-dropdown {
+    min-width: 180px;
+    padding: 6px;
+    border-radius: var(--radius-md);
+  }
+  .cosmic-dropdown-item {
+    padding: 8px 10px;
+    font-size: 12px;
+    gap: 8px;
+  }
+  .cosmic-dropdown-item .item-desc {
+    font-size: 9.5px;
+  }
+  .cosmic-dropdown-label {
+    padding: 6px 10px 2px;
+    font-size: 9px;
+  }
+  .voice-status-pill {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .voice-status-text {
+    font-size: 11px;
+  }
+}
+
+/* ═══ Responsive: Tiny phones (≤360px) ══════════════════════════════════════ */
+@media (max-width: 360px) {
+  .cosmic-dropdown {
+    min-width: 160px;
+    padding: 4px;
+  }
+  .cosmic-dropdown-item {
+    padding: 7px 8px;
+    font-size: 11.5px;
+    gap: 6px;
+  }
+}

@@ -557,3 +557,113 @@
 .ai-slider::-webkit-slider-thumb:hover {
   transform: scale(1.2);
 }
+
+/* ═══ Responsive: Tablets & small laptops ═══════════════════════════════════ */
+@media (max-width: 768px) {
+  .ai-dialog {
+    width: min(600px, 96vw);
+    height: min(520px, 88vh);
+  }
+  .ai-sidebar {
+    width: 155px;
+  }
+  .ai-content {
+    padding: 20px 22px;
+  }
+  .ai-tab-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+    gap: 8px;
+  }
+  .sparkle-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 18px;
+  }
+}
+
+/* ═══ Responsive: Phones ════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .ai-dialog {
+    width: 98vw;
+    height: 90vh;
+    border-radius: var(--radius-lg);
+    flex-direction: column;
+  }
+  .ai-sidebar {
+    width: 100%;
+    flex-direction: row;
+    padding: 8px 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+  }
+  .ai-sidebar-header {
+    display: none;
+  }
+  .ai-sidebar-nav {
+    flex-direction: row;
+    gap: 2px;
+    padding: 0 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .ai-tab-btn {
+    padding: 7px 10px;
+    font-size: 11.5px;
+    gap: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .ai-sidebar-voice-cmd {
+    display: none;
+  }
+  .ai-content {
+    padding: 14px 12px;
+  }
+  .ai-content-header h2 {
+    font-size: 16px;
+  }
+  .ai-content-header p {
+    font-size: 12px;
+  }
+  .sparkle-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+}
+
+/* ═══ Responsive: Tiny phones (≤360px) ══════════════════════════════════════ */
+@media (max-width: 360px) {
+  .ai-dialog {
+    width: 100vw;
+    height: 92vh;
+    border-radius: var(--radius-md);
+  }
+  .ai-sidebar-nav {
+    padding: 0 4px;
+  }
+  .ai-tab-btn {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .ai-content {
+    padding: 10px 8px;
+  }
+  .ai-content-header h2 {
+    font-size: 14px;
+  }
+}
+
+/* ═══ Responsive: Short screens ═════════════════════════════════════════════ */
+@media (max-height: 500px) {
+  .ai-dialog {
+    height: 95vh;
+  }
+  .ai-content {
+    padding: 10px 12px;
+  }
+}
