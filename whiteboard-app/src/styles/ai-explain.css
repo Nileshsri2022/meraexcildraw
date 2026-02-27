@@ -1,0 +1,285 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   AI Explain Panel — Shared styles
+   Reusable across Sticky Notes, Chat Panel, Canvas overlays, etc.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Panel Container ─────────────────────────────────────────────────────── */
+
+.ai-explain-panel {
+    border-top: 1px solid rgba(0,0,0,0.08);
+    background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(168,85,247,0.06));
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    animation: aiExplainFadeIn 0.2s ease;
+    border-radius: 0 0 8px 8px;
+}
+
+@keyframes aiExplainFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Header ──────────────────────────────────────────────────────────────── */
+
+.ai-explain-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.ai-explain-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6366f1;
+    font-family: inherit;
+}
+
+/* ─── Spinner ─────────────────────────────────────────────────────────────── */
+
+.ai-explain-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(99,102,241,0.2);
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: aiExplainSpin 0.6s linear infinite;
+}
+
+@keyframes aiExplainSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ─── Body ────────────────────────────────────────────────────────────────── */
+
+.ai-explain-panel-body {
+    flex: 1;
+    min-height: 0;
+}
+
+.ai-explain-panel-text {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #374151;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: inherit;
+}
+
+.ai-explain-panel-text--thinking {
+    color: #6366f1;
+    font-style: italic;
+    opacity: 0.7;
+}
+
+/* ─── Action Buttons ──────────────────────────────────────────────────────── */
+
+.ai-explain-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-top: 4px;
+}
+
+.ai-explain-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid rgba(0,0,0,0.10);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.ai-explain-btn:hover {
+    transform: translateY(-1px);
+}
+
+.ai-explain-btn:active {
+    transform: translateY(0);
+}
+
+/* Accept (green) */
+.ai-explain-btn--accept {
+    background: #ecfdf5;
+    color: #059669;
+    border-color: rgba(5,150,105,0.2);
+}
+.ai-explain-btn--accept:hover {
+    background: #d1fae5;
+    border-color: rgba(5,150,105,0.35);
+}
+
+/* Reject / Regenerate (amber) */
+.ai-explain-btn--reject {
+    background: #fef3c7;
+    color: #d97706;
+    border-color: rgba(217,119,6,0.2);
+}
+.ai-explain-btn--reject:hover {
+    background: #fde68a;
+    border-color: rgba(217,119,6,0.35);
+}
+
+/* Cancel / Dismiss (gray) */
+.ai-explain-btn--cancel {
+    background: #f3f4f6;
+    color: #6b7280;
+    border-color: rgba(0,0,0,0.08);
+    padding: 4px 8px;
+}
+.ai-explain-btn--cancel:hover {
+    background: #e5e7eb;
+    color: #374151;
+}
+
+/* ─── Trigger Button (AI sparkle glow) ────────────────────────────────────── */
+
+.ai-explain-trigger {
+    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
+    border-color: rgba(99,102,241,0.2);
+    color: #6366f1;
+}
+
+.ai-explain-trigger:hover {
+    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15));
+    border-color: rgba(99,102,241,0.35);
+}
+
+.ai-explain-trigger--loading {
+    opacity: 0.5;
+    pointer-events: none;
+    animation: aiExplainPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes aiExplainPulse {
+    0%, 100% { opacity: 0.5; }
+    50%      { opacity: 1; }
+}
+
+/* ─── Inserted AI Content (rendered into host editor) ─────────────────────── */
+
+.ai-explain-inserted {
+    margin: 6px 0;
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dark Mode
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body.dark .ai-explain-panel {
+    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
+    border-top-color: rgba(255,255,255,0.06);
+}
+
+body.dark .ai-explain-panel-title {
+    color: #818cf8;
+}
+
+body.dark .ai-explain-spinner {
+    border-color: rgba(129,140,248,0.2);
+    border-top-color: #818cf8;
+}
+
+body.dark .ai-explain-panel-text {
+    color: #d1d5db;
+}
+
+body.dark .ai-explain-panel-text--thinking {
+    color: #818cf8;
+}
+
+body.dark .ai-explain-btn--accept {
+    background: rgba(5,150,105,0.15);
+    color: #34d399;
+    border-color: rgba(52,211,153,0.2);
+}
+body.dark .ai-explain-btn--accept:hover {
+    background: rgba(5,150,105,0.25);
+}
+
+body.dark .ai-explain-btn--reject {
+    background: rgba(217,119,6,0.12);
+    color: #fbbf24;
+    border-color: rgba(251,191,36,0.2);
+}
+body.dark .ai-explain-btn--reject:hover {
+    background: rgba(217,119,6,0.22);
+}
+
+body.dark .ai-explain-btn--cancel {
+    background: rgba(255,255,255,0.06);
+    color: #9ca3af;
+    border-color: rgba(255,255,255,0.08);
+}
+body.dark .ai-explain-btn--cancel:hover {
+    background: rgba(255,255,255,0.10);
+    color: #d1d5db;
+}
+
+body.dark .ai-explain-trigger {
+    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15));
+    border-color: rgba(129,140,248,0.25);
+    color: #818cf8;
+}
+body.dark .ai-explain-trigger:hover {
+    background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25));
+    border-color: rgba(129,140,248,0.4);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Responsive
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+    .ai-explain-panel {
+        padding: 8px 10px;
+        max-height: 160px;
+        gap: 6px;
+    }
+
+    .ai-explain-panel-title {
+        font-size: 10px;
+    }
+
+    .ai-explain-panel-text {
+        font-size: 11px;
+    }
+
+    .ai-explain-btn {
+        padding: 3px 8px;
+        font-size: 10px;
+    }
+}
+
+@media (max-width: 360px) {
+    .ai-explain-panel {
+        padding: 6px 8px;
+        max-height: 140px;
+    }
+
+    .ai-explain-panel-actions {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-height: 500px) {
+    .ai-explain-panel {
+        max-height: 120px;
+    }
+}
