@@ -180,32 +180,77 @@ const App: React.FC = () => {
                 </svg>
             </button>
 
-            {/* AI Explain Top Button (uses selection or canvas text) */}
+            {/* Left floating Explain button — visible always; detects Excalidraw text selection */}
             <button
-                className="ai-top-explain"
+                style={{
+                    position: "fixed",
+                    left: 18,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    zIndex: 9999,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 22,
+                    background: "#6d28d9",
+                    color: "white",
+                    border: "none",
+                    boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                }}
                 onClick={() => {
-                    // Try DOM selection first
-                    let selected = window.getSelection?.()?.toString()?.trim() || "";
-                    if (!selected && excalidrawAPI) {
-                        try {
-                            // Best-effort: attempt to read selected text from Excalidraw's textarea
+                    // First, try to get Excalidraw selected text elements
+                    let selected = "";
+                    try {
+                        const appState = excalidrawAPI?.getAppState?.();
+                        const selIds: Record<string, boolean> | undefined = appState?.selectedElementIds as any;
+                        if (selIds && excalidrawAPI?.getSceneElements) {
+                            const ids = Object.keys(selIds || {});
+                            if (ids.length > 0) {
+                                const elements = excalidrawAPI.getSceneElements?.() || [];
+                                const texts: string[] = [];
+                                ids.forEach((id) => {
+                                    const el = (elements as any).find((e: any) => e.id === id);
+                                    if (el && (el.type === "text" || el.type === "sticky")) {
+                                        texts.push(el.text || el.originalText || "");
+                                    }
+                                });
+                                selected = texts.join("\n").trim();
+                            }
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    // If no Excalidraw text, fall back to DOM selection or inputs (notes)
+                    if (!selected) {
+                        selected = window.getSelection?.()?.toString()?.trim() || "";
+                        if (!selected) {
                             const textInput = document.querySelector("textarea") || document.querySelector("input[type=text]");
                             const val = (textInput as HTMLInputElement | HTMLTextAreaElement | null)?.value;
                             if (val) selected = val.trim();
-                        } catch (e) {
-                            // ignore
                         }
                     }
+
                     if (!selected) {
                         alert("Select text on the canvas or in a note, then click Explain.");
                         return;
                     }
+
                     aiExplain.explain({ text: selected });
                     setIsDropdownOpen(false);
                 }}
                 title="Explain selection with AI"
+                aria-label="Explain selection"
             >
-                ✨
+                {/* Lightbulb icon */}
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18h6" stroke="#fff" />
+                    <path d="M10 22h4" stroke="#fff" />
+                    <path d="M12 2a6 6 0 00-4 10c0 2 1 3 1 3h6s1-1 1-3a6 6 0 00-4-10z" stroke="#fff" />
+                </svg>
             </button>
 
             {/* Sparkle Button */}
