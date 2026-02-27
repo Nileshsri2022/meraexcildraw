@@ -197,12 +197,13 @@ const App: React.FC = () => {
             </button>
 
             {/* Explain bulb — shown only when a canvas text element is selected. Placed top-left with padding to avoid toolbar overlap. */}
-            {showExplainBulb && (
+                {showExplainBulb && (
                 <button
                     style={{
                         position: "fixed",
-                        left: 72,
-                        top: 72,
+                        // Move bulb right to avoid overlapping the left toolbar
+                        left: 140,
+                        top: 92,
                         zIndex: 11010,
                         width: 44,
                         height: 44,
