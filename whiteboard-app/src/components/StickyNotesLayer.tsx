@@ -35,7 +35,6 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         updateText,
         updateColor,
         deleteNote,
-        duplicateNote,
         updateFontSize,
         updateCustomBg,
     } = stickyNotes;
@@ -139,12 +138,11 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         deleteNote(activeNoteId);
     }, [activeNoteId, deleteNote]);
 
-    // ── Duplicate active note ────────────────────────────────────────────
-    const handleDuplicateActive = useCallback(() => {
-        if (!activeNoteId) return;
-        const dummyTransform = { scrollX: 0, scrollY: 0, zoom: 1 };
-        duplicateNote(activeNoteId, dummyTransform);
-    }, [activeNoteId, duplicateNote]);
+    // ── Copy active note text to clipboard ─────────────────────────────
+    const handleCopyActive = useCallback(() => {
+        if (!activeNote) return;
+        navigator.clipboard.writeText(activeNote.text);
+    }, [activeNote]);
 
     // ── Hex color submit ─────────────────────────────────────────────────
     const handleHexSubmit = useCallback(() => {
@@ -292,7 +290,7 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                     >
                                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                                     </button>
-                                    <button className="snw-icon-btn" onClick={handleDuplicateActive} title="Duplicate">
+                                    <button className="snw-icon-btn" onClick={handleCopyActive} title="Copy">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                                     </button>
                                     <button className="snw-icon-btn snw-icon-btn--danger" onClick={handleDeleteActive} title="Delete">
