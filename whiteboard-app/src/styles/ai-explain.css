@@ -6,17 +6,31 @@
 /* ─── Panel Container ─────────────────────────────────────────────────────── */
 
 .ai-explain-panel {
-    border-top: 1px solid rgba(0,0,0,0.08);
-    background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(168,85,247,0.06));
-    padding: 10px 12px;
+    border-top: 1px dashed rgba(99,102,241,0.25);
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent,
+            transparent calc(1.6em - 1px),
+            rgba(0,0,0,0.06) calc(1.6em - 1px),
+            rgba(0,0,0,0.06) 1.6em
+        ),
+        linear-gradient(135deg, rgba(99,102,241,0.06), rgba(168,85,247,0.05)),
+        var(--sn-bg, #fef9ef);
+    background-size: 100% 1.6em, 100% 100%, 100% 100%;
+    background-position-y: 12px, 0, 0;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 0;
     flex-shrink: 0;
     max-height: 200px;
-    overflow-y: auto;
+    overflow: hidden;
     animation: aiExplainFadeIn 0.2s ease;
     border-radius: 0 0 8px 8px;
+    font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
 }
 
 @keyframes aiExplainFadeIn {
@@ -31,6 +45,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
+    line-height: 1.6;
+    min-height: 1.6em;
 }
 
 .ai-explain-panel-title {
@@ -40,7 +56,8 @@
     font-size: 11px;
     font-weight: 600;
     color: #6366f1;
-    font-family: inherit;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.6;
 }
 
 /* ─── Spinner ─────────────────────────────────────────────────────────────── */
@@ -63,72 +80,84 @@
 .ai-explain-panel-body {
     flex: 1;
     min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
 }
 
 .ai-explain-panel-text {
-    font-size: 12px;
+    font-size: inherit;
     line-height: 1.6;
-    color: #374151;
+    color: var(--sn-text, #374151);
     white-space: normal;
     word-break: break-word;
     font-family: inherit;
 }
 
-/* Scale down markdown rendered inside the AI panel */
+/* Scale down markdown rendered inside the AI panel — keep line-height aligned */
 .ai-explain-panel-text h1,
 .ai-explain-panel-text h2,
 .ai-explain-panel-text h3 {
-    font-size: 13px;
+    font-size: 1em;
     font-weight: 700;
-    margin: 6px 0 2px;
-    line-height: 1.4;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
 }
 
-.ai-explain-panel-text h1 { font-size: 14px; }
+.ai-explain-panel-text h1 { font-size: 1.05em; }
 
 .ai-explain-panel-text p {
-    margin: 2px 0;
-    font-size: 12px;
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    line-height: 1.6;
 }
 
 .ai-explain-panel-text ul,
 .ai-explain-panel-text ol {
-    margin: 2px 0;
+    margin: 0;
     padding-left: 18px;
-    font-size: 12px;
+    font-size: inherit;
+    line-height: 1.6;
 }
 
 .ai-explain-panel-text li {
-    margin: 1px 0;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
 }
 
 .ai-explain-panel-text code {
-    font-size: 11px;
+    font-size: 0.9em;
     padding: 1px 4px;
     background: rgba(0,0,0,0.05);
     border-radius: 3px;
+    line-height: 1.6;
 }
 
 .ai-explain-panel-text pre {
-    font-size: 11px;
-    margin: 4px 0;
-    padding: 6px 8px;
+    font-size: 0.9em;
+    margin: 0;
+    padding: 0 8px;
     border-radius: 6px;
     overflow-x: auto;
+    line-height: 1.6;
 }
 
 .ai-explain-panel-text blockquote {
-    margin: 4px 0;
-    padding: 2px 8px;
+    margin: 0;
+    padding: 0 8px;
     border-left: 3px solid rgba(99,102,241,0.3);
-    font-size: 12px;
+    font-size: inherit;
     color: #6b7280;
+    line-height: 1.6;
 }
 
 .ai-explain-panel-text hr {
     border: none;
     border-top: 1px solid rgba(0,0,0,0.08);
-    margin: 6px 0;
+    margin: 0;
+    line-height: 1.6;
 }
 
 .ai-explain-panel-text--thinking {
@@ -143,7 +172,11 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding-top: 4px;
+    padding-top: 0;
+    margin-top: 0;
+    min-height: 1.6em;
+    line-height: 1.6;
+    flex-shrink: 0;
 }
 
 .ai-explain-btn {
@@ -229,10 +262,10 @@
 /* ─── Inserted AI Content (rendered into host editor) ─────────────────────── */
 
 .ai-explain-inserted {
-    margin: 6px 0;
+    margin: 0;
     padding: 0;
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: inherit;
+    line-height: 1.6;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -240,7 +273,17 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body.dark .ai-explain-panel {
-    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent,
+            transparent calc(1.6em - 1px),
+            rgba(255,255,255,0.06) calc(1.6em - 1px),
+            rgba(255,255,255,0.06) 1.6em
+        ),
+        linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
+    background-size: 100% 1.6em, 100% 100%;
+    background-position-y: 12px, 0;
     border-top-color: rgba(255,255,255,0.06);
 }
 
@@ -314,17 +357,12 @@ body.dark .ai-explain-trigger:hover {
 
 @media (max-width: 480px) {
     .ai-explain-panel {
-        padding: 8px 10px;
+        padding: 12px 10px;
         max-height: 160px;
-        gap: 6px;
     }
 
     .ai-explain-panel-title {
         font-size: 10px;
-    }
-
-    .ai-explain-panel-text {
-        font-size: 11px;
     }
 
     .ai-explain-btn {
@@ -335,7 +373,7 @@ body.dark .ai-explain-trigger:hover {
 
 @media (max-width: 360px) {
     .ai-explain-panel {
-        padding: 6px 8px;
+        padding: 12px 8px;
         max-height: 140px;
     }
 

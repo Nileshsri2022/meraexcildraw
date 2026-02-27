@@ -31,6 +31,8 @@ export interface AIExplainPanelProps {
     onCancel: () => void;
     /** Additional CSS class for the outer container */
     className?: string;
+    /** Inline style (e.g. fontSize) to align with host container */
+    style?: React.CSSProperties;
 }
 
 // ─── Sparkle SVG (star icon) ─────────────────────────────────────────────────
@@ -58,11 +60,12 @@ export const AIExplainPanel: React.FC<AIExplainPanelProps> = ({
     onRegenerate,
     onCancel,
     className,
+    style,
 }) => {
     if (!state.loading && !state.response) return null;
 
     return (
-        <div className={`ai-explain-panel${className ? ` ${className}` : ""}`}>
+        <div className={`ai-explain-panel${className ? ` ${className}` : ""}`} style={style}>
             {/* Header */}
             <div className="ai-explain-panel-header">
                 <span className="ai-explain-panel-title">

@@ -521,6 +521,8 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    position: relative;
+    z-index: 0;
 }
 
 .snw-content {

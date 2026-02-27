@@ -82,6 +82,7 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
     const [isNoteFocused, setIsNoteFocused] = useState(true);
     const editorRef = useRef<HTMLDivElement>(null);
     const colorPickerRef = useRef<HTMLDivElement>(null);
+    const colorDotRef = useRef<HTMLButtonElement>(null);
     const widgetRef = useRef<HTMLDivElement>(null);
 
     // ── Active note data ─────────────────────────────────────────────────
@@ -133,7 +134,10 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
     useEffect(() => {
         if (!showColorPicker) return;
         const handler = (e: MouseEvent) => {
-            if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+            const target = e.target as Node;
+            // Don't close if clicking the toggle button (it handles its own toggle)
+            if (colorDotRef.current && colorDotRef.current.contains(target)) return;
+            if (colorPickerRef.current && !colorPickerRef.current.contains(target)) {
                 setShowColorPicker(false);
             }
         };
@@ -517,6 +521,11 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                     onAccept={handleAIAccept}
                                     onRegenerate={aiExplain.regenerate}
                                     onCancel={aiExplain.cancel}
+                                    style={{
+                                        fontSize: `${activeNote.fontSize}px`,
+                                        backgroundColor: effectiveBg,
+                                        color: effectiveTextColor,
+                                    }}
                                 />
                             </div>
 
@@ -598,9 +607,11 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                             <div className={`snw-bottom-bar${!isNoteFocused ? " snw-bottom-bar--hidden" : ""}`}>
                                 <div className="snw-bottom-bar-left">
                                     <button
+                                        ref={colorDotRef}
                                         className="snw-color-dot"
                                         style={{ backgroundColor: activeNote.customBg || activeTheme.accent }}
-                                        onMouseDown={(e) => { e.preventDefault(); setShowColorPicker((v) => !v); }}
+                                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                        onClick={() => setShowColorPicker((v) => !v)}
                                         title="Change color"
                                     >
                                         <span className="snw-color-dot-letter" style={{ color: effectiveTextColor }}>A</span>
