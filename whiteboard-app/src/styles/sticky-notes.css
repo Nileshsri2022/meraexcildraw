@@ -546,6 +546,46 @@
     margin: 0;
 }
 
+/* ─── Formatting Toolbar ──────────────────────────────────────────────────── */
+
+.snw-format-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 10px;
+    border-top: 1px solid rgba(0,0,0,0.06);
+    background: #f8f9fa;
+    flex-shrink: 0;
+}
+
+.snw-format-btn {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: #fff;
+    border-radius: 7px;
+    cursor: pointer;
+    color: #374151;
+    font-size: 14px;
+    font-family: var(--snw-font);
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+    padding: 0;
+}
+
+.snw-format-btn:hover {
+    background: #f3f4f6;
+    border-color: rgba(0,0,0,0.15);
+    transform: translateY(-1px);
+}
+
+.snw-format-btn:active {
+    transform: translateY(0);
+    background: #e5e7eb;
+}
+
 /* ─── Dark Mode ───────────────────────────────────────────────────────────── */
 
 body.dark .snw-trigger {
@@ -675,6 +715,26 @@ body.dark .snw-empty-text {
     color: #6b7280;
 }
 
+body.dark .snw-format-bar {
+    background: #16162a;
+    border-top-color: rgba(255,255,255,0.04);
+}
+
+body.dark .snw-format-btn {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.08);
+    color: #d1d5db;
+}
+
+body.dark .snw-format-btn:hover {
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.15);
+}
+
+body.dark .snw-format-btn:active {
+    background: rgba(255,255,255,0.14);
+}
+
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 
 /* Tablet and smaller laptops */
@@ -715,6 +775,11 @@ body.dark .snw-empty-text {
 
     .snw-textarea {
         padding: 10px 12px;
+    }
+
+    .snw-format-btn {
+        width: 32px;
+        height: 32px;
     }
 }
 
@@ -841,6 +906,18 @@ body.dark .snw-empty-text {
 
     .snw-empty-text {
         font-size: 12px;
+    }
+
+    .snw-format-bar {
+        padding: 4px 6px;
+        gap: 2px;
+    }
+
+    .snw-format-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 13px;
+        border-radius: 6px;
     }
 }
 
@@ -996,6 +1073,23 @@ body.dark .snw-empty-text {
 
     .snw-empty-text {
         font-size: 11px;
+    }
+
+    .snw-format-bar {
+        padding: 3px 4px;
+        gap: 1px;
+    }
+
+    .snw-format-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+        border-radius: 5px;
+    }
+
+    .snw-format-btn svg {
+        width: 13px;
+        height: 13px;
     }
 }
 

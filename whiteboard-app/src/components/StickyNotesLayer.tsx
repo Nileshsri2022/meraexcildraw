@@ -162,6 +162,78 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         setHexInput("");
     }, [activeNote, updateCustomBg]);
 
+    // ── Text formatting helpers ─────────────────────────────────────────
+    const wrapSelection = useCallback((before: string, after: string) => {
+        const ta = textareaRef.current;
+        if (!ta || !activeNote) return;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const text = activeNote.text;
+        const selected = text.slice(start, end);
+        const newText = text.slice(0, start) + before + selected + after + text.slice(end);
+        updateText(activeNote.id, newText);
+        // restore cursor after React re-render
+        requestAnimationFrame(() => {
+            ta.focus();
+            const cursorPos = selected.length > 0 ? start + before.length + selected.length + after.length : start + before.length;
+            ta.setSelectionRange(cursorPos, cursorPos);
+        });
+    }, [activeNote, updateText]);
+
+    const handleBold = useCallback(() => wrapSelection("**", "**"), [wrapSelection]);
+    const handleItalic = useCallback(() => wrapSelection("*", "*"), [wrapSelection]);
+    const handleUnderline = useCallback(() => wrapSelection("<u>", "</u>"), [wrapSelection]);
+    const handleStrikethrough = useCallback(() => wrapSelection("~~", "~~"), [wrapSelection]);
+
+    const handleBulletList = useCallback(() => {
+        const ta = textareaRef.current;
+        if (!ta || !activeNote) return;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const text = activeNote.text;
+        const beforeBlock = text.lastIndexOf("\n", start - 1) + 1;
+        const afterBlock = text.indexOf("\n", end);
+        const blockEnd = afterBlock === -1 ? text.length : afterBlock;
+        const block = text.slice(beforeBlock, blockEnd);
+        const lines = block.split("\n");
+        const allBulleted = lines.every((l) => l.trimStart().startsWith("• "));
+        const newLines = allBulleted
+            ? lines.map((l) => l.replace(/^(\s*)• /, "$1"))
+            : lines.map((l) => (l.trimStart().startsWith("• ") ? l : "• " + l));
+        const newText = text.slice(0, beforeBlock) + newLines.join("\n") + text.slice(blockEnd);
+        updateText(activeNote.id, newText);
+        requestAnimationFrame(() => ta.focus());
+    }, [activeNote, updateText]);
+
+    const handleImageInsert = useCallback(() => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file || !activeNote) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result as string;
+                const ta = textareaRef.current;
+                const pos = ta ? ta.selectionStart : activeNote.text.length;
+                const text = activeNote.text;
+                const insertion = `\n![${file.name}](${dataUrl})\n`;
+                const newText = text.slice(0, pos) + insertion + text.slice(pos);
+                updateText(activeNote.id, newText);
+                requestAnimationFrame(() => {
+                    if (ta) {
+                        ta.focus();
+                        const cp = pos + insertion.length;
+                        ta.setSelectionRange(cp, cp);
+                    }
+                });
+            };
+            reader.readAsDataURL(file);
+        };
+        input.click();
+    }, [activeNote, updateText]);
+
     // ── Format timestamp ─────────────────────────────────────────────────
     const formatTime = (ts: number) => {
         const d = new Date(ts);
@@ -356,6 +428,39 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                         backgroundColor: effectiveBg,
                                     }}
                                 />
+                            </div>
+
+                            {/* Formatting toolbar */}
+                            <div className="snw-format-bar">
+                                <button className="snw-format-btn" onClick={handleBold} title="Bold">
+                                    <b>B</b>
+                                </button>
+                                <button className="snw-format-btn" onClick={handleItalic} title="Italic">
+                                    <i>I</i>
+                                </button>
+                                <button className="snw-format-btn" onClick={handleUnderline} title="Underline">
+                                    <u>U</u>
+                                </button>
+                                <button className="snw-format-btn" onClick={handleStrikethrough} title="Strikethrough">
+                                    <span style={{ textDecoration: "line-through" }}>ab</span>
+                                </button>
+                                <button className="snw-format-btn" onClick={handleBulletList} title="Bullet list">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="8" y1="6" x2="21" y2="6"/>
+                                        <line x1="8" y1="12" x2="21" y2="12"/>
+                                        <line x1="8" y1="18" x2="21" y2="18"/>
+                                        <circle cx="3" cy="6" r="1.5" fill="currentColor" stroke="none"/>
+                                        <circle cx="3" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+                                        <circle cx="3" cy="18" r="1.5" fill="currentColor" stroke="none"/>
+                                    </svg>
+                                </button>
+                                <button className="snw-format-btn" onClick={handleImageInsert} title="Insert image">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                                        <polyline points="21 15 16 10 5 21"/>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     ) : (
