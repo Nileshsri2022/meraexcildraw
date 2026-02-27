@@ -17,6 +17,7 @@ import type { UseStickyNotesReturn } from "../hooks/useStickyNotes";
 import { useAIExplain } from "../hooks/useAIExplain";
 import { AIExplainPanel, AISparkleIcon } from "./AIExplainPanel";
 import MarkdownRenderer from "./MarkdownRenderer";
+import { renderToStaticMarkup } from "react-dom/server";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -355,32 +356,35 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         aiExplain.explain(content);
     }, [getSelectionContent, aiExplain.explain]);
 
-    // Accept: insert AI response into the editor (render markdown as React node)
+    // Accept: insert AI response into the editor (render markdown to static HTML)
     const handleAIAccept = useCallback(() => {
         if (!aiExplain.state.response || !editorRef.current || !activeNote) return;
-        // Insert a React node for exact markdown rendering
-        const container = document.createElement("div");
-        container.className = "ai-explain-inserted";
-        container.innerHTML = `<hr style='border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0'><div style='font-size:12px;opacity:0.5;margin-bottom:4px'>✨ AI Explanation</div>`;
-        // Create a React root for markdown
-        const markdownDiv = document.createElement("div");
-        container.appendChild(markdownDiv);
-        // Use React 18+ createRoot if available
-        // @ts-ignore
-        (window.ReactDOM || window.require?.("react-dom")).render(
-            React.createElement(MarkdownRenderer, { content: aiExplain.state.response }),
-            markdownDiv
-        );
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
-            const range = sel.getRangeAt(0);
-            range.collapse(false);
-            range.insertNode(container);
-        } else {
-            editorRef.current.appendChild(container);
+        try {
+            const renderedHtml = renderToStaticMarkup(
+                React.createElement(MarkdownRenderer, { content: aiExplain.state.response })
+            );
+            const aiHtml = `<div class="ai-explain-inserted"><hr style="border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0"><div style="font-size:12px;opacity:0.5;margin-bottom:4px">✨ AI Explanation</div><div>${renderedHtml}</div></div>`;
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                const range = sel.getRangeAt(0);
+                range.collapse(false);
+                const temp = document.createElement("div");
+                temp.innerHTML = aiHtml;
+                const frag = document.createDocumentFragment();
+                while (temp.firstChild) frag.appendChild(temp.firstChild);
+                range.insertNode(frag);
+            } else {
+                editorRef.current.innerHTML += aiHtml;
+            }
+            updateText(activeNote.id, editorRef.current.innerHTML);
+        } catch (err) {
+            // Fallback: insert plain text if render fails
+            const aiHtml = `<div class="ai-explain-inserted"><div style="font-size:12px;opacity:0.5;margin-bottom:4px">✨ AI Explanation</div><pre>${aiExplain.state.response.replace(/</g, "&lt;")}</pre></div>`;
+            editorRef.current.innerHTML += aiHtml;
+            updateText(activeNote.id, editorRef.current.innerHTML);
+        } finally {
+            aiExplain.reset();
         }
-        updateText(activeNote.id, editorRef.current.innerHTML);
-        aiExplain.reset();
     }, [aiExplain.state.response, activeNote, updateText, aiExplain.reset]);
 
     // Reset AI state on note switch
