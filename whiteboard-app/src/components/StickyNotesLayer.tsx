@@ -235,7 +235,19 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
             reader.onload = () => {
                 const dataUrl = reader.result as string;
                 editorRef.current?.focus();
-                document.execCommand("insertImage", false, dataUrl);
+                // Insert image wrapped in .snw-img-wrap
+                const temp = document.createElement("div");
+                temp.innerHTML = `<div class='snw-img-wrap'><img src='${dataUrl}' /></div>`;
+                const frag = document.createDocumentFragment();
+                while (temp.firstChild) frag.appendChild(temp.firstChild);
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                    const range = sel.getRangeAt(0);
+                    range.collapse(false);
+                    range.insertNode(frag);
+                } else {
+                    editorRef.current?.appendChild(frag);
+                }
                 if (editorRef.current && activeNote) {
                     updateText(activeNote.id, editorRef.current.innerHTML);
                 }
@@ -285,12 +297,12 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         if (!el) return;
 
         const makeImagesResizable = () => {
-            el.querySelectorAll("img").forEach((img) => {
+            el.querySelectorAll(".snw-img-wrap > img").forEach((imgEl) => {
+                const img = imgEl as HTMLImageElement;
                 if (img.dataset.resizable) return;
                 img.dataset.resizable = "true";
                 img.style.cursor = "nwse-resize";
                 img.style.maxWidth = "100%";
-
                 let startX = 0, startW = 0;
                 const onMouseDown = (e: MouseEvent) => {
                     e.preventDefault();
@@ -300,6 +312,11 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                         const newW = Math.max(40, startW + e2.clientX - startX);
                         img.style.width = `${newW}px`;
                         img.style.height = "auto";
+                        // Also resize the wrapper
+                        const wrap = img.parentElement as HTMLElement | null;
+                        if (wrap && wrap.classList.contains("snw-img-wrap")) {
+                            wrap.style.width = `${newW}px`;
+                        }
                     };
                     const onMouseUp = () => {
                         document.removeEventListener("mousemove", onMouseMove);
@@ -311,7 +328,14 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                     document.addEventListener("mousemove", onMouseMove);
                     document.addEventListener("mouseup", onMouseUp);
                 };
-                img.addEventListener("mousedown", onMouseDown);
+                img.addEventListener("mousedown", onMouseDown as EventListener);
+                // Ensure wrapper matches image width
+                const wrap = img.parentElement as HTMLElement | null;
+                if (wrap && wrap.classList.contains("snw-img-wrap")) {
+                    wrap.style.display = "inline-block";
+                    wrap.style.background = "none";
+                    wrap.style.width = img.style.width || `${img.offsetWidth}px`;
+                }
             });
         };
 

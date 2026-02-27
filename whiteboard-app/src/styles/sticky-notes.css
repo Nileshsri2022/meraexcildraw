@@ -540,6 +540,7 @@
         );
     background-size: 100% 1.6em;
     background-position-y: 12px;
+
     color: var(--sn-text, #4a3728);
     font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
     padding: 12px 14px;
@@ -550,6 +551,11 @@
     user-select: text;
     line-height: 1.6;
     letter-spacing: 0.01em;
+}
+
+.snw-content .ai-explain-inserted,
+.snw-content .snw-img-wrap {
+    background: none !important;
 }
 
 .snw-content:empty::before {

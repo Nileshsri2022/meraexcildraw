@@ -8,17 +8,10 @@
 .ai-explain-panel {
     border-top: 1px dashed rgba(99,102,241,0.25);
     background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent,
-            transparent calc(1.6em - 1px),
-            rgba(0,0,0,0.06) calc(1.6em - 1px),
-            rgba(0,0,0,0.06) 1.6em
-        ),
         linear-gradient(135deg, rgba(99,102,241,0.06), rgba(168,85,247,0.05)),
         var(--sn-bg, #fef9ef);
-    background-size: 100% 1.6em, 100% 100%, 100% 100%;
-    background-position-y: 12px, 0, 0;
+    background-size: 100% 100%, 100% 100%;
+    background-position-y: 0, 0;
     padding: 12px 14px;
     display: flex;
     flex-direction: column;
@@ -266,6 +259,7 @@
     padding: 0;
     font-size: inherit;
     line-height: 1.6;
+    background: none !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
