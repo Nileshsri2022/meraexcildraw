@@ -125,6 +125,8 @@ export interface StickyNote {
     minimized: boolean;
     /** Font size in px */
     fontSize: number;
+    /** Optional custom background hex color (overrides theme background) */
+    customBg?: string;
     /** Creation timestamp */
     createdAt: number;
     /** Last modification timestamp */

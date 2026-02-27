@@ -52,6 +52,8 @@ export interface UseStickyNotesReturn {
     duplicateNote: (id: string, transform: CanvasTransform) => void;
     /** Update font size */
     updateFontSize: (id: string, fontSize: number) => void;
+    /** Update custom background hex color */
+    updateCustomBg: (id: string, customBg: string | undefined) => void;
     /** Whether notes have loaded from DB */
     loaded: boolean;
 }
@@ -275,6 +277,21 @@ export function useStickyNotes(): UseStickyNotesReturn {
         [persistNote],
     );
 
+    // ── Update Custom Background ──────────────────────────────────────
+    const updateCustomBg = useCallback(
+        (id: string, customBg: string | undefined) => {
+            setNotes((prev) =>
+                prev.map((n) => {
+                    if (n.id !== id) return n;
+                    const updated = { ...n, customBg, updatedAt: Date.now() };
+                    persistNote(updated);
+                    return updated;
+                }),
+            );
+        },
+        [persistNote],
+    );
+
     return {
         notes,
         visible,
@@ -290,6 +307,7 @@ export function useStickyNotes(): UseStickyNotesReturn {
         clearAll,
         duplicateNote,
         updateFontSize,
+        updateCustomBg,
         loaded,
     };
 }
