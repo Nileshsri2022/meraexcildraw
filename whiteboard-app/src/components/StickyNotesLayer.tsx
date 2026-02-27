@@ -94,6 +94,24 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         return () => document.removeEventListener("mousedown", handler);
     }, [showColorPicker]);
 
+    // ── Close popup on outside click ─────────────────────────────────────
+    useEffect(() => {
+        if (!isWidgetOpen) return;
+        const handler = (e: MouseEvent) => {
+            const target = e.target as Node;
+            // Don't close if clicking the trigger button or inside the popup
+            if (
+                widgetRef.current && !widgetRef.current.contains(target) &&
+                !(target as Element).closest?.(".snw-trigger")
+            ) {
+                setIsWidgetOpen(false);
+                setShowColorPicker(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [isWidgetOpen]);
+
     // ── Add note handler ─────────────────────────────────────────────────
     const handleAddNote = useCallback(() => {
         const dummyTransform = { scrollX: 0, scrollY: 0, zoom: 1 };
@@ -185,30 +203,6 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
             {/* ── Popup Widget Window ──────────────────────────────────── */}
             {isWidgetOpen && (
                 <div ref={widgetRef} className="snw-popup">
-                    {/* Popup Header */}
-                    <div className="snw-popup-header">
-                        <div className="snw-popup-header-left">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M15.5 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V8.5L15.5 3z" />
-                                <polyline points="14 3 14 8 21 8" />
-                            </svg>
-                            <span className="snw-popup-title">Sticky Notes</span>
-                            <span className="snw-popup-count">{notes.length}</span>
-                        </div>
-                        <div className="snw-popup-header-right">
-                            <button
-                                className="snw-header-btn"
-                                onClick={handleAddNote}
-                                title="Add new note"
-                            >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                    <line x1="12" y1="5" x2="12" y2="19" />
-                                    <line x1="5" y1="12" x2="19" y2="12" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
                     {/* Note Tabs */}
                     <div className="snw-tabs">
                         <div className="snw-tabs-scroll">

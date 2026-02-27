@@ -17,11 +17,11 @@
 
 .snw-trigger {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    bottom: 70px;
+    right: 20px;
     z-index: 100;
-    width: 50px;
-    height: 50px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     border: none;
     background: linear-gradient(135deg, #fbbf24, #f59e0b);
@@ -67,10 +67,11 @@
 
 .snw-popup {
     position: fixed;
-    bottom: 86px;
-    right: 24px;
+    bottom: 124px;
+    right: 20px;
     z-index: 99;
     width: var(--snw-popup-w);
+    max-height: calc(100vh - 140px);
     height: var(--snw-popup-h);
     background: #fff;
     border-radius: var(--snw-radius);
@@ -91,63 +92,6 @@
         opacity: 1;
         transform: translateY(0) scale(1);
     }
-}
-
-/* ─── Popup Header ────────────────────────────────────────────────────────── */
-
-.snw-popup-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    background: linear-gradient(135deg, #fbbf24, #f59e0b);
-    color: #fff;
-    flex-shrink: 0;
-}
-
-.snw-popup-header-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.snw-popup-title {
-    font-family: var(--snw-font);
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-}
-
-.snw-popup-count {
-    font-size: 11px;
-    font-weight: 600;
-    background: rgba(255,255,255,0.25);
-    padding: 1px 7px;
-    border-radius: 10px;
-}
-
-.snw-popup-header-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.snw-header-btn {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(255,255,255,0.2);
-    color: #fff;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s ease;
-}
-
-.snw-header-btn:hover {
-    background: rgba(255,255,255,0.35);
 }
 
 /* ─── Note Tabs ───────────────────────────────────────────────────────────── */
@@ -619,10 +563,6 @@ body.dark .snw-popup {
     box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.15);
 }
 
-body.dark .snw-popup-header {
-    background: linear-gradient(135deg, #d97706, #b45309);
-}
-
 body.dark .snw-tabs {
     background: #16162a;
     border-bottom-color: rgba(255,255,255,0.04);
@@ -741,20 +681,25 @@ body.dark .snw-empty-text {
     .snw-popup {
         width: calc(100vw - 24px);
         right: 12px;
-        bottom: 80px;
-        height: 420px;
+        bottom: 116px;
+        height: min(400px, calc(100vh - 130px));
     }
 
     .snw-trigger {
-        bottom: 16px;
-        right: 16px;
-        width: 46px;
-        height: 46px;
+        bottom: 62px;
+        right: 12px;
+        width: 40px;
+        height: 40px;
     }
 }
 
 @media (max-width: 768px) {
     .snw-popup {
-        width: min(380px, calc(100vw - 40px));
+        width: min(360px, calc(100vw - 32px));
+    }
+
+    .snw-trigger {
+        bottom: 66px;
+        right: 16px;
     }
 }
