@@ -50,8 +50,6 @@ const App: React.FC = () => {
 
     // Sticky notes system
     const stickyNotes = useStickyNotes();
-    const stickyNotesRef = useRef(stickyNotes);
-    stickyNotesRef.current = stickyNotes;
 
     // Presentation mode system
     const presentation = usePresentation(excalidrawAPI);
