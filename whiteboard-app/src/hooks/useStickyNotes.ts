@@ -30,8 +30,14 @@ export interface UseStickyNotesReturn {
     /** Whether notes layer is visible */
     visible: boolean;
     setVisible: (v: boolean) => void;
-    /** Add a new note at the center of the viewport */
-    addNote: (transform: CanvasTransform, viewportWidth: number, viewportHeight: number) => void;
+    /** Add a new note at the center of the viewport or at provided canvas coords.
+     *  options.text may contain HTML/content for the note. */
+    addNote: (
+        transform: CanvasTransform,
+        viewportWidth: number,
+        viewportHeight: number,
+        options?: { text?: string; canvasX?: number; canvasY?: number }
+    ) => void;
     /** Update a note's text */
     updateText: (id: string, text: string) => void;
     /** Update a note's color */
@@ -99,13 +105,16 @@ export function useStickyNotes(): UseStickyNotesReturn {
 
     // ── Add Note ─────────────────────────────────────────────────────────
     const addNote = useCallback(
-        (transform: CanvasTransform, viewportWidth: number, viewportHeight: number) => {
-            // Place at center of current viewport in canvas coords
-            const center = screenToCanvas(
-                viewportWidth / 2,
-                viewportHeight / 2,
-                transform,
-            );
+        (
+            transform: CanvasTransform,
+            viewportWidth: number,
+            viewportHeight: number,
+            options?: { text?: string; canvasX?: number; canvasY?: number },
+        ) => {
+            // If explicit canvas coords provided, use them, otherwise place at center of viewport
+            const center = typeof options?.canvasX === "number" && typeof options?.canvasY === "number"
+                ? { x: options.canvasX, y: options.canvasY }
+                : screenToCanvas(viewportWidth / 2, viewportHeight / 2, transform);
 
             // Slight random offset so stacked notes don't overlap perfectly
             const offsetX = (Math.random() - 0.5) * 60;
@@ -113,7 +122,7 @@ export function useStickyNotes(): UseStickyNotesReturn {
 
             const newNote: StickyNote = {
                 id: generateId(),
-                text: "",
+                text: options?.text ?? "",
                 color: STICKY_NOTE_DEFAULTS.color,
                 canvasX: center.x - STICKY_NOTE_DEFAULTS.width / 2 + offsetX,
                 canvasY: center.y - STICKY_NOTE_DEFAULTS.height / 2 + offsetY,

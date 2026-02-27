@@ -17,6 +17,11 @@ import { ErrorBoundary, PanelFallback, CanvasFallback } from "./components/Error
 import { CollabPresenceBar } from "./components/CollabPresenceBar";
 import { StickyNotesLayer } from "./components/StickyNotesLayer";
 import { useStickyNotes } from "./hooks/useStickyNotes";
+import { useAIExplain } from "./hooks/useAIExplain";
+import { AIExplainPanel } from "./components/AIExplainPanel";
+import MarkdownRenderer from "./components/MarkdownRenderer";
+import { renderToStaticMarkup } from "react-dom/server";
+import { screenToCanvas } from "./types/sticky-notes";
 import { exportWorkspace, importWorkspace } from "./utils/workspaceBundle";
 import { usePresentation } from "./hooks/usePresentation";
 import "./styles/presentation.css";
@@ -158,6 +163,9 @@ const App: React.FC = () => {
         };
     }, [excalidrawAPI]);
 
+    // Global AI explain instance for whiteboard-level explain actions
+    const aiExplain = useAIExplain();
+
     // Render custom dropdown in top right area
     const renderTopRightUI = useCallback(() => (
         <div ref={dropdownRef} style={{ position: "relative", display: "flex", gap: "8px", alignItems: "center" }}>
@@ -170,6 +178,34 @@ const App: React.FC = () => {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
+            </button>
+
+            {/* AI Explain Top Button (uses selection or canvas text) */}
+            <button
+                className="ai-top-explain"
+                onClick={() => {
+                    // Try DOM selection first
+                    let selected = window.getSelection?.()?.toString()?.trim() || "";
+                    if (!selected && excalidrawAPI) {
+                        try {
+                            // Best-effort: attempt to read selected text from Excalidraw's textarea
+                            const textInput = document.querySelector("textarea") || document.querySelector("input[type=text]");
+                            const val = (textInput as HTMLInputElement | HTMLTextAreaElement | null)?.value;
+                            if (val) selected = val.trim();
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+                    if (!selected) {
+                        alert("Select text on the canvas or in a note, then click Explain.");
+                        return;
+                    }
+                    aiExplain.explain({ text: selected });
+                    setIsDropdownOpen(false);
+                }}
+                title="Explain selection with AI"
+            >
+                ✨
             </button>
 
             {/* Sparkle Button */}
@@ -572,6 +608,55 @@ const App: React.FC = () => {
             <StickyNotesLayer
                 excalidrawAPI={excalidrawAPI}
                 stickyNotes={stickyNotes}
+            />
+
+            {/* ─── Global AI Explain Panel (creates sticky on accept) ─── */}
+            <AIExplainPanel
+                state={aiExplain.state}
+                onAccept={() => {
+                    if (!aiExplain.state.response) return;
+                    try {
+                        const renderedHtml = renderToStaticMarkup(
+                            React.createElement(MarkdownRenderer, { content: aiExplain.state.response })
+                        );
+
+                        const tmp = document.createElement("div");
+                        tmp.innerHTML = renderedHtml;
+                        tmp.querySelectorAll("h1,h2,h3,h4,p,li,blockquote,code,pre").forEach((el) => {
+                            (el as HTMLElement).style.fontFamily = "inherit";
+                        });
+
+                        const processed = tmp.innerHTML;
+                        const aiHtml = `<div class="ai-explain-inserted"><hr style="border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0"><div style="font-size:12px;opacity:0.5;margin-bottom:4px">✨ AI Explanation</div><div>${processed}</div></div>`;
+
+                        // Determine screen position from selection (if any)
+                        let screenX = window.innerWidth / 2;
+                        let screenY = window.innerHeight / 2;
+                        const sel = window.getSelection();
+                        if (sel && sel.rangeCount > 0) {
+                            try {
+                                const rect = sel.getRangeAt(0).getBoundingClientRect();
+                                if (rect && (rect.width || rect.height)) {
+                                    screenX = rect.left + rect.width / 2;
+                                    screenY = rect.top + rect.height / 2;
+                                }
+                            } catch (err) {
+                                // ignore
+                            }
+                        }
+
+                        const transform = getCanvasTransform();
+                        const canvasPos = screenToCanvas(screenX, screenY, transform);
+
+                        stickyNotes.addNote(transform, window.innerWidth, window.innerHeight, { text: aiHtml, canvasX: canvasPos.x, canvasY: canvasPos.y });
+                    } catch (err) {
+                        console.error("Failed to create sticky from AI response", err);
+                    } finally {
+                        aiExplain.reset();
+                    }
+                }}
+                onRegenerate={aiExplain.regenerate}
+                onCancel={aiExplain.cancel}
             />
 
             {/* ─── AI Tools Dialog Error Boundary ─── */}
