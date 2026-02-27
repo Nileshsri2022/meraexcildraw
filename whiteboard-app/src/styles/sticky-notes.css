@@ -234,7 +234,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
 }
 
@@ -257,8 +257,8 @@
 }
 
 .snw-color-dot {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     border: 2px solid rgba(0,0,0,0.08);
     cursor: pointer;
@@ -266,6 +266,17 @@
     transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s ease;
     background: none;
     padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.snw-color-dot-letter {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: var(--snw-font);
+    line-height: 1;
+    pointer-events: none;
 }
 
 .snw-color-dot:hover {
@@ -403,6 +414,27 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     flex-shrink: 0;
+    min-width: 22px;
+    text-align: center;
+}
+
+.snw-hex-label--bg {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #fff;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 9px;
+}
+
+.snw-hex-label--text {
+    background: #374151;
+    color: #fff;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--snw-font);
+    letter-spacing: 0;
 }
 
 .snw-hex-input {
@@ -503,6 +535,18 @@
     height: auto;
     border-radius: 4px;
     margin: 4px 0;
+    cursor: nwse-resize;
+    transition: outline 0.15s ease;
+}
+
+.snw-content img:hover {
+    outline: 2px solid rgba(59,130,246,0.5);
+    outline-offset: 2px;
+}
+
+.snw-content img:active {
+    outline: 2px solid rgba(59,130,246,0.8);
+    outline-offset: 2px;
 }
 
 .snw-content::-webkit-scrollbar {
@@ -681,6 +725,14 @@ body.dark .snw-bottom-bar {
 
 body.dark .snw-bottom-divider {
     background: rgba(255,255,255,0.10);
+}
+
+body.dark .snw-hex-label--bg {
+    background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+body.dark .snw-hex-label--text {
+    background: #6b7280;
 }
 
 body.dark .snw-icon-btn:hover {

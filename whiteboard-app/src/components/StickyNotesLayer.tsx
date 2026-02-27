@@ -39,12 +39,14 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         deleteNote,
         updateFontSize,
         updateCustomBg,
+        updateTextColor,
     } = stickyNotes;
 
     const [isWidgetOpen, setIsWidgetOpen] = useState(false);
     const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [hexInput, setHexInput] = useState("");
+    const [textColorHex, setTextColorHex] = useState("");
     const [isNoteFocused, setIsNoteFocused] = useState(true);
     const editorRef = useRef<HTMLDivElement>(null);
     const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -61,6 +63,9 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
     // Effective background: custom hex overrides theme
     const effectiveBg = activeNote?.customBg || activeTheme?.background || "#fef9ef";
 
+    // Effective text color: custom hex overrides theme
+    const effectiveTextColor = activeNote?.customTextColor || activeTheme?.text || "#4a3728";
+
     // ── Auto-select first note if active is deleted ──────────────────────
     useEffect(() => {
         if (activeNoteId && !notes.find((n) => n.id === activeNoteId)) {
@@ -68,14 +73,19 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         }
     }, [notes, activeNoteId]);
 
-    // ── Sync hex input when switching notes ──────────────────────────────
+    // ── Sync hex inputs when switching notes ───────────────────────────
     useEffect(() => {
         if (activeNote?.customBg) {
             setHexInput(activeNote.customBg);
         } else {
             setHexInput("");
         }
-    }, [activeNoteId, activeNote?.customBg]);
+        if (activeNote?.customTextColor) {
+            setTextColorHex(activeNote.customTextColor);
+        } else {
+            setTextColorHex("");
+        }
+    }, [activeNoteId, activeNote?.customBg, activeNote?.customTextColor]);
 
     // ── Sync contentEditable when switching notes ────────────────────────
     useEffect(() => {
@@ -216,6 +226,65 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         setHexInput("");
     }, [activeNote, updateCustomBg]);
 
+    // ── Text color hex submit ────────────────────────────────────────────
+    const handleTextColorSubmit = useCallback(() => {
+        if (!activeNote) return;
+        const hex = textColorHex.trim();
+        if (/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
+            const formatted = hex.startsWith("#") ? hex : `#${hex}`;
+            updateTextColor(activeNote.id, formatted);
+            setTextColorHex(formatted);
+        }
+    }, [activeNote, textColorHex, updateTextColor]);
+
+    const handleClearTextColor = useCallback(() => {
+        if (!activeNote) return;
+        updateTextColor(activeNote.id, undefined);
+        setTextColorHex("");
+    }, [activeNote, updateTextColor]);
+
+    // ── Image resize setup for contentEditable ──────────────────────────
+    useEffect(() => {
+        const el = editorRef.current;
+        if (!el) return;
+
+        const makeImagesResizable = () => {
+            el.querySelectorAll("img").forEach((img) => {
+                if (img.dataset.resizable) return;
+                img.dataset.resizable = "true";
+                img.style.cursor = "nwse-resize";
+                img.style.maxWidth = "100%";
+
+                let startX = 0, startW = 0;
+                const onMouseDown = (e: MouseEvent) => {
+                    e.preventDefault();
+                    startX = e.clientX;
+                    startW = img.offsetWidth;
+                    const onMouseMove = (e2: MouseEvent) => {
+                        const newW = Math.max(40, startW + e2.clientX - startX);
+                        img.style.width = `${newW}px`;
+                        img.style.height = "auto";
+                    };
+                    const onMouseUp = () => {
+                        document.removeEventListener("mousemove", onMouseMove);
+                        document.removeEventListener("mouseup", onMouseUp);
+                        if (editorRef.current && activeNote) {
+                            updateText(activeNote.id, editorRef.current.innerHTML);
+                        }
+                    };
+                    document.addEventListener("mousemove", onMouseMove);
+                    document.addEventListener("mouseup", onMouseUp);
+                };
+                img.addEventListener("mousedown", onMouseDown);
+            });
+        };
+
+        makeImagesResizable();
+        const observer = new MutationObserver(makeImagesResizable);
+        observer.observe(el, { childList: true, subtree: true });
+        return () => observer.disconnect();
+    }, [activeNoteId, activeNote, updateText]);
+
     // ── Format timestamp ─────────────────────────────────────────────────
     const formatTime = (ts: number) => {
         const d = new Date(ts);
@@ -335,13 +404,18 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                     style={{
                                         fontSize: `${activeNote.fontSize}px`,
                                         backgroundColor: effectiveBg,
+                                        color: effectiveTextColor,
                                     }}
                                 />
                             </div>
 
                             {/* Color picker popover — positioned above bottom bar */}
                             {showColorPicker && (
-                                <div ref={colorPickerRef} className="snw-color-picker">
+                                <div
+                                    ref={colorPickerRef}
+                                    className="snw-color-picker"
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                >
                                     <div className="snw-color-swatches">
                                         {STICKY_NOTE_COLOR_KEYS.map((c) => (
                                             <button
@@ -351,15 +425,18 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                                 onClick={() => {
                                                     updateColor(activeNote.id, c);
                                                     updateCustomBg(activeNote.id, undefined);
+                                                    updateTextColor(activeNote.id, undefined);
                                                     setHexInput("");
+                                                    setTextColorHex("");
                                                     setShowColorPicker(false);
                                                 }}
                                                 title={c}
                                             />
                                         ))}
                                     </div>
+                                    {/* Background color hex */}
                                     <div className="snw-hex-row">
-                                        <span className="snw-hex-label">Hex</span>
+                                        <span className="snw-hex-label snw-hex-label--bg">BG</span>
                                         <input
                                             className="snw-hex-input"
                                             type="text"
@@ -371,11 +448,34 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                             }}
                                             maxLength={7}
                                         />
-                                        <button className="snw-hex-apply" onClick={handleHexSubmit} title="Apply hex color">
+                                        <button className="snw-hex-apply" onClick={handleHexSubmit} title="Apply background color">
                                             ✓
                                         </button>
                                         {activeNote.customBg && (
-                                            <button className="snw-hex-clear" onClick={handleClearCustomBg} title="Reset to preset">
+                                            <button className="snw-hex-clear" onClick={handleClearCustomBg} title="Reset background">
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                    {/* Text color hex */}
+                                    <div className="snw-hex-row">
+                                        <span className="snw-hex-label snw-hex-label--text">A</span>
+                                        <input
+                                            className="snw-hex-input"
+                                            type="text"
+                                            placeholder="#4a3728"
+                                            value={textColorHex}
+                                            onChange={(e) => setTextColorHex(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") handleTextColorSubmit();
+                                            }}
+                                            maxLength={7}
+                                        />
+                                        <button className="snw-hex-apply" onClick={handleTextColorSubmit} title="Apply text color">
+                                            ✓
+                                        </button>
+                                        {activeNote.customTextColor && (
+                                            <button className="snw-hex-clear" onClick={handleClearTextColor} title="Reset text color">
                                                 ✕
                                             </button>
                                         )}
@@ -391,7 +491,9 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                         style={{ backgroundColor: activeNote.customBg || activeTheme.accent }}
                                         onMouseDown={(e) => { e.preventDefault(); setShowColorPicker((v) => !v); }}
                                         title="Change color"
-                                    />
+                                    >
+                                        <span className="snw-color-dot-letter" style={{ color: effectiveTextColor }}>A</span>
+                                    </button>
                                     <span className="snw-bottom-divider" />
                                     <button className="snw-format-btn" onMouseDown={(e) => { e.preventDefault(); handleBold(); }} title="Bold">
                                         <b>B</b>
