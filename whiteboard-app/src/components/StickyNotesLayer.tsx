@@ -363,7 +363,23 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
             const renderedHtml = renderToStaticMarkup(
                 React.createElement(MarkdownRenderer, { content: aiExplain.state.response })
             );
-            const aiHtml = `<div class="ai-explain-inserted"><hr style="border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0"><div style="font-size:12px;opacity:0.5;margin-bottom:4px">✨ AI Explanation</div><div>${renderedHtml}</div></div>`;
+
+            // Post-process the rendered HTML to inline key styles so headings/lists
+            // remain visible and copy/paste preserves appearance in external apps.
+            const tmp = document.createElement("div");
+            tmp.innerHTML = renderedHtml;
+            const applyInline = (el: Element) => {
+                const elAny = el as HTMLElement;
+                if (!elAny) return;
+                elAny.style.color = effectiveTextColor;
+                elAny.style.fontFamily = "inherit";
+                // Use active note font size as base for paragraphs and list items
+                if (activeNote?.fontSize) elAny.style.fontSize = `${activeNote.fontSize}px`;
+            };
+            tmp.querySelectorAll("h1,h2,h3,h4,p,li,blockquote,code,pre").forEach(applyInline);
+
+            const processed = tmp.innerHTML;
+            const aiHtml = `<div class="ai-explain-inserted"><hr style="border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0"><div style="font-size:12px;opacity:0.5;margin-bottom:4px">✨ AI Explanation</div><div>${processed}</div></div>`;
             const sel = window.getSelection();
             if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
                 const range = sel.getRangeAt(0);

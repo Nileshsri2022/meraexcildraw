@@ -95,6 +95,8 @@
     margin: 0;
     padding: 0;
     line-height: 1.6;
+    color: inherit;
+    font-family: inherit;
 }
 
 .ai-explain-panel-text h1 { font-size: 1.05em; }
