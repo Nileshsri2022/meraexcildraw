@@ -436,6 +436,14 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                             })}
                         </div>
                         <button
+                            className={`snw-tabs-ai ai-explain-trigger${aiExplain.state.loading ? " ai-explain-trigger--loading" : ""}`}
+                            onMouseDown={(e) => { e.preventDefault(); handleAIExplain(); }}
+                            title="Explain with AI (select text or image first)"
+                            disabled={aiExplain.state.loading}
+                        >
+                            <AISparkleIcon size={14} />
+                        </button>
+                        <button
                             className="snw-tabs-add"
                             onClick={handleAddNote}
                             title="Add note"
@@ -595,15 +603,6 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                             <circle cx="8.5" cy="8.5" r="1.5"/>
                                             <polyline points="21 15 16 10 5 21"/>
                                         </svg>
-                                    </button>
-                                    <span className="snw-bottom-divider" />
-                                    <button
-                                        className={`snw-format-btn ai-explain-trigger${aiExplain.state.loading ? " ai-explain-trigger--loading" : ""}`}
-                                        onMouseDown={(e) => { e.preventDefault(); handleAIExplain(); }}
-                                        title="Explain with AI (select text or image first)"
-                                        disabled={aiExplain.state.loading}
-                                    >
-                                        <AISparkleIcon />
                                     </button>
                                 </div>
                                 <div className="snw-bottom-bar-right">

@@ -15,6 +15,7 @@
  */
 import React from "react";
 import type { AIExplainState } from "../hooks/useAIExplain";
+import MarkdownRenderer from "./MarkdownRenderer";
 import "../styles/ai-explain.css";
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -74,7 +75,9 @@ export const AIExplainPanel: React.FC<AIExplainPanelProps> = ({
             {/* Body: streaming text */}
             <div className="ai-explain-panel-body">
                 {state.response ? (
-                    <div className="ai-explain-panel-text">{state.response}</div>
+                    <div className="ai-explain-panel-text">
+                        <MarkdownRenderer content={state.response} />
+                    </div>
                 ) : (
                     <div className="ai-explain-panel-text ai-explain-panel-text--thinking">
                         Thinking...

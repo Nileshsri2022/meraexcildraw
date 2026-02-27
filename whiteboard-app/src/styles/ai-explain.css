@@ -69,9 +69,66 @@
     font-size: 12px;
     line-height: 1.6;
     color: #374151;
-    white-space: pre-wrap;
+    white-space: normal;
     word-break: break-word;
     font-family: inherit;
+}
+
+/* Scale down markdown rendered inside the AI panel */
+.ai-explain-panel-text h1,
+.ai-explain-panel-text h2,
+.ai-explain-panel-text h3 {
+    font-size: 13px;
+    font-weight: 700;
+    margin: 6px 0 2px;
+    line-height: 1.4;
+}
+
+.ai-explain-panel-text h1 { font-size: 14px; }
+
+.ai-explain-panel-text p {
+    margin: 2px 0;
+    font-size: 12px;
+}
+
+.ai-explain-panel-text ul,
+.ai-explain-panel-text ol {
+    margin: 2px 0;
+    padding-left: 18px;
+    font-size: 12px;
+}
+
+.ai-explain-panel-text li {
+    margin: 1px 0;
+}
+
+.ai-explain-panel-text code {
+    font-size: 11px;
+    padding: 1px 4px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 3px;
+}
+
+.ai-explain-panel-text pre {
+    font-size: 11px;
+    margin: 4px 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+
+.ai-explain-panel-text blockquote {
+    margin: 4px 0;
+    padding: 2px 8px;
+    border-left: 3px solid rgba(99,102,241,0.3);
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.ai-explain-panel-text hr {
+    border: none;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    margin: 6px 0;
 }
 
 .ai-explain-panel-text--thinking {
@@ -198,6 +255,15 @@ body.dark .ai-explain-spinner {
 
 body.dark .ai-explain-panel-text {
     color: #d1d5db;
+}
+
+body.dark .ai-explain-panel-text code {
+    background: rgba(255,255,255,0.08);
+}
+
+body.dark .ai-explain-panel-text blockquote {
+    border-left-color: rgba(129,140,248,0.3);
+    color: #9ca3af;
 }
 
 body.dark .ai-explain-panel-text--thinking {

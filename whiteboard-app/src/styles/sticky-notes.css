@@ -78,7 +78,7 @@
     box-shadow: var(--snw-shadow);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     animation: snwSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     border: 1px solid rgba(0,0,0,0.06);
 }
@@ -350,7 +350,7 @@
     border: 1px solid rgba(0,0,0,0.06);
     border-radius: 12px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 12px 28px rgba(0,0,0,0.10);
-    z-index: 10;
+    z-index: 200;
     animation: snwPopIn 0.18s cubic-bezier(0.34,1.56,0.64,1);
     display: flex;
     flex-direction: column;
@@ -495,6 +495,23 @@
     background: #fee2e2;
 }
 
+/* ─── AI Button in Tabs Bar ────────────────────────────────────────────────── */
+
+.snw-tabs-ai {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    border-left: 1px solid rgba(0,0,0,0.04);
+    transition: background 0.15s ease;
+}
+
 /* ─── ContentEditable Area ─────────────────────────────────────────────────── */
 
 .snw-editor-body {
@@ -511,7 +528,16 @@
     min-height: 60px;
     flex: 1;
     border: none;
-    background: transparent;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent,
+            transparent calc(1.6em - 1px),
+            rgba(0,0,0,0.06) calc(1.6em - 1px),
+            rgba(0,0,0,0.06) 1.6em
+        );
+    background-size: 100% 1.6em;
+    background-position-y: 12px;
     color: var(--sn-text, #4a3728);
     font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
     padding: 12px 14px;
@@ -821,6 +847,25 @@ body.dark .snw-format-btn:hover {
 
 body.dark .snw-format-btn:active {
     background: rgba(255,255,255,0.14);
+}
+
+/* Dark mode — Ruled lines */
+body.dark .snw-content {
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent,
+            transparent calc(1.6em - 1px),
+            rgba(255,255,255,0.06) calc(1.6em - 1px),
+            rgba(255,255,255,0.06) 1.6em
+        );
+    background-size: 100% 1.6em;
+    background-position-y: 12px;
+}
+
+/* Dark mode — Editor header */
+body.dark .snw-tabs-ai {
+    border-left-color: rgba(255,255,255,0.04);
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
