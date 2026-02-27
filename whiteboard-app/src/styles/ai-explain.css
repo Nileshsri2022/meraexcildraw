@@ -267,17 +267,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body.dark .ai-explain-panel {
-    background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent,
-            transparent calc(1.6em - 1px),
-            rgba(255,255,255,0.06) calc(1.6em - 1px),
-            rgba(255,255,255,0.06) 1.6em
-        ),
-        linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
-    background-size: 100% 1.6em, 100% 100%;
-    background-position-y: 12px, 0;
+    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08));
     border-top-color: rgba(255,255,255,0.06);
 }
 

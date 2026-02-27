@@ -530,16 +530,7 @@
     min-height: 60px;
     flex: 1;
     border: none;
-    background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent,
-            transparent calc(1.6em - 1px),
-            rgba(0,0,0,0.06) calc(1.6em - 1px),
-            rgba(0,0,0,0.06) 1.6em
-        );
-    background-size: 100% 1.6em;
-    background-position-y: 12px;
+    background: var(--sn-bg, #fef9ef);
 
     color: var(--sn-text, #4a3728);
     font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
@@ -867,19 +858,6 @@ body.dark .snw-format-btn:active {
     background: rgba(255,255,255,0.14);
 }
 
-/* Dark mode — Ruled lines */
-body.dark .snw-content {
-    background:
-        repeating-linear-gradient(
-            to bottom,
-            transparent,
-            transparent calc(1.6em - 1px),
-            rgba(255,255,255,0.06) calc(1.6em - 1px),
-            rgba(255,255,255,0.06) 1.6em
-        );
-    background-size: 100% 1.6em;
-    background-position-y: 12px;
-}
 
 /* Dark mode — Editor header */
 body.dark .snw-tabs-ai {
