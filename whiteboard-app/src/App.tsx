@@ -50,6 +50,8 @@ const App: React.FC = () => {
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // Explain bulb visibility (shows when a text element is selected)
+    const [showExplainBulb, setShowExplainBulb] = useState(false);
     // Voice command state: stores the classified command to pass to AIToolsDialog
     const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommandResult | null>(null);
 
@@ -145,6 +147,19 @@ const App: React.FC = () => {
     const handleChange = useCallback(
         (elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
             onSceneChange(elements);
+
+            // Detect whether selection contains a canvas text element and show bulb
+            try {
+                const selIdsObj = (appState as any)?.selectedElementIds || {};
+                const selIds = Object.keys(selIdsObj || {});
+                const hasText = selIds.length > 0 && selIds.some((id) => {
+                    return !!(elements as any).find((el: any) => el.id === id && el.type === "text");
+                });
+                setShowExplainBulb(Boolean(hasText));
+            } catch (e) {
+                setShowExplainBulb(false);
+            }
+
             if (initialDataLoaded && !isCollaborating) {
                 triggerSave(elements, appState as unknown as Record<string, unknown>, files as unknown as Record<string, unknown>);
             }
@@ -165,6 +180,7 @@ const App: React.FC = () => {
 
     // Global AI explain instance for whiteboard-level explain actions
     const aiExplain = useAIExplain();
+    const [aiPanelPos, setAiPanelPos] = useState<{ x: number; y: number } | null>(null);
 
     // Render custom dropdown in top right area
     const renderTopRightUI = useCallback(() => (
@@ -180,78 +196,72 @@ const App: React.FC = () => {
                 </svg>
             </button>
 
-            {/* Left floating Explain button — visible always; detects Excalidraw text selection */}
-            <button
-                style={{
-                    position: "fixed",
-                    left: 18,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    zIndex: 9999,
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    background: "#6d28d9",
-                    color: "white",
-                    border: "none",
-                    boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                }}
-                onClick={() => {
-                    // First, try to get Excalidraw selected text elements
-                    let selected = "";
-                    try {
-                        const appState = excalidrawAPI?.getAppState?.();
-                        const selIds: Record<string, boolean> | undefined = appState?.selectedElementIds as any;
-                        if (selIds && excalidrawAPI?.getSceneElements) {
-                            const ids = Object.keys(selIds || {});
-                            if (ids.length > 0) {
-                                const elements = excalidrawAPI.getSceneElements?.() || [];
-                                const texts: string[] = [];
-                                ids.forEach((id) => {
-                                    const el = (elements as any).find((e: any) => e.id === id);
-                                    if (el && (el.type === "text" || el.type === "sticky")) {
-                                        texts.push(el.text || el.originalText || "");
-                                    }
-                                });
-                                selected = texts.join("\n").trim();
+            {/* Explain bulb — shown only when a canvas text element is selected. Placed top-left with padding to avoid toolbar overlap. */}
+            {showExplainBulb && (
+                <button
+                    style={{
+                        position: "fixed",
+                        left: 72,
+                        top: 72,
+                        zIndex: 11010,
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        background: "#6d28d9",
+                        color: "white",
+                        border: "none",
+                        boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                    }}
+                    onClick={() => {
+                        // Read selected canvas text elements
+                        let selected = "";
+                        try {
+                            const appState = excalidrawAPI?.getAppState?.();
+                            const selIds: Record<string, boolean> | undefined = appState?.selectedElementIds as any;
+                            if (selIds && excalidrawAPI?.getSceneElements) {
+                                const ids = Object.keys(selIds || {});
+                                if (ids.length > 0) {
+                                    const elements = excalidrawAPI.getSceneElements?.() || [];
+                                    const texts: string[] = [];
+                                    ids.forEach((id) => {
+                                        const el = (elements as any).find((e: any) => e.id === id);
+                                        if (el && el.type === "text") {
+                                            texts.push(el.text || el.originalText || "");
+                                        }
+                                    });
+                                    selected = texts.join("\n").trim();
+                                }
                             }
+                        } catch (e) {
+                            // ignore
                         }
-                    } catch (e) {
-                        // ignore
-                    }
 
-                    // If no Excalidraw text, fall back to DOM selection or inputs (notes)
-                    if (!selected) {
-                        selected = window.getSelection?.()?.toString()?.trim() || "";
                         if (!selected) {
-                            const textInput = document.querySelector("textarea") || document.querySelector("input[type=text]");
-                            const val = (textInput as HTMLInputElement | HTMLTextAreaElement | null)?.value;
-                            if (val) selected = val.trim();
+                            alert("Select a text element on the canvas, then click Explain.");
+                            return;
                         }
-                    }
 
-                    if (!selected) {
-                        alert("Select text on the canvas or in a note, then click Explain.");
-                        return;
-                    }
-
-                    aiExplain.explain({ text: selected });
-                    setIsDropdownOpen(false);
-                }}
-                title="Explain selection with AI"
-                aria-label="Explain selection"
-            >
-                {/* Lightbulb icon */}
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 18h6" stroke="#fff" />
-                    <path d="M10 22h4" stroke="#fff" />
-                    <path d="M12 2a6 6 0 00-4 10c0 2 1 3 1 3h6s1-1 1-3a6 6 0 00-4-10z" stroke="#fff" />
-                </svg>
-            </button>
+                        // Panel near top-left by default
+                        const panelX = 72 + 56; // offset to the right of bulb
+                        const panelY = 72;
+                        setAiPanelPos({ x: panelX, y: panelY });
+                        aiExplain.explain({ text: selected });
+                        setIsDropdownOpen(false);
+                    }}
+                    title="Explain selection with AI"
+                    aria-label="Explain selection"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 18h6" stroke="#fff" />
+                        <path d="M10 22h4" stroke="#fff" />
+                        <path d="M12 2a6 6 0 00-4 10c0 2 1 3 1 3h6s1-1 1-3a6 6 0 00-4-10z" stroke="#fff" />
+                    </svg>
+                </button>
+            )}
 
             {/* Sparkle Button */}
             <button
@@ -658,6 +668,11 @@ const App: React.FC = () => {
             {/* ─── Global AI Explain Panel (creates sticky on accept) ─── */}
             <AIExplainPanel
                 state={aiExplain.state}
+                style={
+                    aiPanelPos
+                        ? ({ position: "fixed", left: aiPanelPos.x, top: aiPanelPos.y, zIndex: 11000, width: 340 } as React.CSSProperties)
+                        : { display: "none" }
+                }
                 onAccept={() => {
                     if (!aiExplain.state.response) return;
                     try {
@@ -698,6 +713,7 @@ const App: React.FC = () => {
                         console.error("Failed to create sticky from AI response", err);
                     } finally {
                         aiExplain.reset();
+                        setAiPanelPos(null);
                     }
                 }}
                 onRegenerate={aiExplain.regenerate}
