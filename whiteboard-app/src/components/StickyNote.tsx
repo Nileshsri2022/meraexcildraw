@@ -262,7 +262,7 @@ export const StickyNoteComponent: React.FC<StickyNoteProps> = React.memo(({
                         }}
                         title="More options"
                     >
-                        ⋯
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
                     </button>
                     <button
                         className="sticky-note-btn sticky-note-icon-btn"
@@ -272,7 +272,11 @@ export const StickyNoteComponent: React.FC<StickyNoteProps> = React.memo(({
                         }}
                         title={note.minimized ? "Expand" : "Minimize"}
                     >
-                        {note.minimized ? "▢" : "─"}
+                        {note.minimized ? (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                        ) : (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        )}
                     </button>
                     <button
                         className="sticky-note-btn sticky-note-icon-btn sticky-note-close-btn"
@@ -282,7 +286,7 @@ export const StickyNoteComponent: React.FC<StickyNoteProps> = React.memo(({
                         }}
                         title="Delete note"
                     >
-                        ✕
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                 </div>
             </div>

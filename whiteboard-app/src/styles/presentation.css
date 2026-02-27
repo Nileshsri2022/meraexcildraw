@@ -416,6 +416,37 @@
 
 /* ─── Fullscreen Presentation Overlay ───────────────────────────────────── */
 
+/* Hide Excalidraw UI when presenting */
+body.presenting .excalidraw .App-toolbar,
+body.presenting .excalidraw .App-menu,
+body.presenting .excalidraw .layer-ui__wrapper__top-right,
+body.presenting .excalidraw .layer-ui__wrapper__footer,
+body.presenting .excalidraw .HelpButton,
+body.presenting .excalidraw .welcome-screen-center,
+body.presenting .excalidraw .welcome-screen-hints,
+body.presenting .save-status,
+body.presenting .cosmic-dropdown,
+body.presenting .sparkle-btn,
+body.presenting .chat-trigger-btn,
+body.presenting .collab-presence-bar,
+body.presenting .pres-toolbar,
+body.presenting .frame-overlay,
+body.presenting .sticky-notes-layer {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Also hide Excalidraw toolbars that use different selectors */
+body.presenting .excalidraw .Island {
+    display: none !important;
+}
+
+/* Keep just the canvas visible */
+body.presenting .excalidraw .excalidraw__canvas {
+    cursor: none;
+}
+
 .presentation-overlay {
     position: fixed;
     inset: 0;

@@ -32,7 +32,6 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
     const [showNotes, setShowNotes] = useState(false);
     const [showControls, setShowControls] = useState(true);
     const controlsTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-    const containerRef = useRef<HTMLDivElement>(null);
 
     const currentFrame = frames[currentSlideIndex];
     const totalSlides = frames.length;
@@ -85,16 +84,22 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [handleKeyDown]);
 
-    // ─── Fullscreen ──────────────────────────────────────────────────────────
+    // ─── Fullscreen on document + hide Excalidraw UI ─────────────────────────
 
     useEffect(() => {
-        const el = containerRef.current;
-        if (el && document.fullscreenElement !== el) {
-            el.requestFullscreen?.().catch(() => {
-                // Fullscreen may be blocked in some environments
+        // Add class to hide Excalidraw toolbars/menus during presentation
+        document.body.classList.add("presenting");
+
+        // Request fullscreen on the root element so the canvas is still visible
+        const root = document.documentElement;
+        if (!document.fullscreenElement) {
+            root.requestFullscreen?.().catch(() => {
+                // Fullscreen may be blocked — presentation still works without it
             });
         }
+
         return () => {
+            document.body.classList.remove("presenting");
             if (document.fullscreenElement) {
                 document.exitFullscreen?.().catch(() => {});
             }
@@ -133,7 +138,6 @@ export const PresentationMode: React.FC<PresentationModeProps> = ({
 
     return (
         <div
-            ref={containerRef}
             className="presentation-overlay"
             onMouseMove={resetControlsTimer}
             onClick={resetControlsTimer}

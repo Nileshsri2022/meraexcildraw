@@ -299,38 +299,28 @@ export function usePresentation(excalidrawAPI: ExcalidrawImperativeAPI | null) {
     const zoomToFrame = useCallback((frame: PresentationFrame) => {
         if (!excalidrawAPI) return;
 
-        // Use Excalidraw's scrollToContent to zoom to the frame area
-        // We create a temporary element-like object for the bounds
-        const padding = 40;
-        const elements = excalidrawAPI.getSceneElements();
-        const frameElements = elements.filter((el: any) => {
-            if (el.isDeleted) return false;
-            return isElementInFrame(
-                { x: el.x, y: el.y, width: el.width || 0, height: el.height || 0 },
-                frame
-            );
-        });
+        // Calculate zoom to fit the frame rectangle in the viewport
+        const padding = 60;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
 
-        if (frameElements.length > 0) {
-            excalidrawAPI.scrollToContent(frameElements, {
-                fitToContent: true,
-                animate: true,
-            });
-        } else {
-            // If no elements, just scroll to frame center
-            const zoom = Math.min(
-                (window.innerWidth - padding * 2) / frame.width,
-                (window.innerHeight - padding * 2) / frame.height,
-                2
-            );
-            excalidrawAPI.updateScene({
-                appState: {
-                    scrollX: -(frame.x + frame.width / 2) + window.innerWidth / 2 / zoom,
-                    scrollY: -(frame.y + frame.height / 2) + window.innerHeight / 2 / zoom,
-                    zoom: { value: zoom },
-                } as any,
-            });
-        }
+        const zoom = Math.min(
+            (vw - padding * 2) / frame.width,
+            (vh - padding * 2) / frame.height,
+            2  // max zoom
+        );
+
+        // Center the frame in the viewport
+        const scrollX = -(frame.x + frame.width / 2) + vw / 2 / zoom;
+        const scrollY = -(frame.y + frame.height / 2) + vh / 2 / zoom;
+
+        excalidrawAPI.updateScene({
+            appState: {
+                scrollX,
+                scrollY,
+                zoom: { value: zoom },
+            } as any,
+        });
     }, [excalidrawAPI]);
 
     // ─── Toggle toolbar ──────────────────────────────────────────────────────
