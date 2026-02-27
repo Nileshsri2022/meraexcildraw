@@ -9,11 +9,30 @@
  * - Accent bar always visible at top
  */
 import React, { useCallback, useMemo, useState, useRef, useEffect } from "react";
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 import {
     STICKY_NOTE_COLORS,
     STICKY_NOTE_COLOR_KEYS,
 } from "../types/sticky-notes";
 import type { UseStickyNotesReturn } from "../hooks/useStickyNotes";
+
+const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || "http://localhost:3003";
+
+// ─── AI Explain state ───────────────────────────────────────────────────────
+interface AIExplainState {
+    /** Whether an AI request is in progress */
+    loading: boolean;
+    /** The streamed response so far */
+    response: string;
+    /** The original selected text / image prompt */
+    prompt: string;
+    /** Image data URI if the selection was an image */
+    imageData?: string;
+    /** Session ID for follow-up requests */
+    sessionId?: string;
+    /** AbortController to cancel in-flight request */
+    controller?: AbortController;
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -285,6 +304,212 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         return () => observer.disconnect();
     }, [activeNoteId, activeNote, updateText]);
 
+    // ── AI Explain feature ───────────────────────────────────────────────
+    const [aiExplain, setAiExplain] = useState<AIExplainState>({
+        loading: false,
+        response: "",
+        prompt: "",
+    });
+    const aiBlockRef = useRef<HTMLDivElement>(null);
+
+    // Cancel any in-flight AI request
+    const cancelAI = useCallback(() => {
+        aiExplain.controller?.abort();
+        setAiExplain({ loading: false, response: "", prompt: "" });
+    }, [aiExplain.controller]);
+
+    // Detect what the user selected: text or image
+    const getSelectionContent = useCallback((): { text: string; imageData?: string } | null => {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return null;
+        const range = sel.getRangeAt(0);
+        // Check if selection is inside our editor
+        if (!editorRef.current?.contains(range.commonAncestorContainer)) return null;
+
+        // Check if an image is selected or in the selection
+        const fragment = range.cloneContents();
+        const img = fragment.querySelector("img") as HTMLImageElement | null;
+        if (img?.src) {
+            return { text: sel.toString().trim(), imageData: img.src };
+        }
+
+        // Also check if the selection is directly on an img node
+        const anchorNode = sel.anchorNode;
+        if (anchorNode?.nodeType === Node.ELEMENT_NODE) {
+            const el = anchorNode as Element;
+            const directImg = el.querySelector("img");
+            if (directImg?.src) {
+                return { text: sel.toString().trim(), imageData: directImg.src };
+            }
+        }
+
+        const text = sel.toString().trim();
+        if (!text) return null;
+        return { text };
+    }, []);
+
+    // Send to AI chat service
+    const sendAIRequest = useCallback(
+        (prompt: string, imageData?: string, sessionId?: string) => {
+            const controller = new AbortController();
+            setAiExplain({
+                loading: true,
+                response: "",
+                prompt,
+                imageData,
+                sessionId,
+                controller,
+            });
+
+            let accumulated = "";
+            let newSessionId = sessionId;
+
+            fetchEventSource(`${CHAT_SERVICE_URL}/chat`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: imageData
+                        ? `Explain this image concisely. What does it show? ${prompt ? `Context: "${prompt}"` : ""}`
+                        : `Explain the following text concisely and clearly:\n\n"${prompt}"`,
+                    session_id: sessionId || undefined,
+                    image_data: imageData || undefined,
+                }),
+                signal: controller.signal,
+                openWhenHidden: true,
+                onmessage(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === "token" && data.token) {
+                            accumulated += data.token;
+                            setAiExplain((prev) => ({ ...prev, response: accumulated }));
+                        } else if (data.type === "done") {
+                            newSessionId = data.session_id || newSessionId;
+                            setAiExplain((prev) => ({
+                                ...prev,
+                                loading: false,
+                                sessionId: newSessionId,
+                            }));
+                        } else if (data.type === "error") {
+                            setAiExplain((prev) => ({
+                                ...prev,
+                                loading: false,
+                                response: prev.response || `Error: ${data.error}`,
+                            }));
+                        }
+                    } catch {
+                        // ignore parse errors
+                    }
+                },
+                onerror(err) {
+                    console.error("AI Explain SSE error:", err);
+                    setAiExplain((prev) => ({
+                        ...prev,
+                        loading: false,
+                        response: prev.response || "Failed to reach AI service.",
+                    }));
+                },
+            });
+        },
+        [],
+    );
+
+    // Handle "Explain with AI" button click
+    const handleAIExplain = useCallback(() => {
+        const content = getSelectionContent();
+        if (!content) return;
+        sendAIRequest(content.text, content.imageData);
+    }, [getSelectionContent, sendAIRequest]);
+
+    // Accept: insert AI response below selection in the editor
+    const handleAIAccept = useCallback(() => {
+        if (!aiExplain.response || !editorRef.current || !activeNote) return;
+        // Create a styled block with the AI response
+        const aiHtml = `<div class="snw-ai-inserted"><hr style="border:none;border-top:1px dashed rgba(0,0,0,0.15);margin:8px 0"><div style="font-size:12px;opacity:0.5;margin-bottom:4px">✨ AI Explanation</div><div>${aiExplain.response.replace(/\n/g, "<br>")}</div></div>`;
+        // Insert at end of current selection or at end
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+            const range = sel.getRangeAt(0);
+            range.collapse(false);
+            const temp = document.createElement("div");
+            temp.innerHTML = aiHtml;
+            const frag = document.createDocumentFragment();
+            while (temp.firstChild) frag.appendChild(temp.firstChild);
+            range.insertNode(frag);
+        } else {
+            editorRef.current.innerHTML += aiHtml;
+        }
+        updateText(activeNote.id, editorRef.current.innerHTML);
+        setAiExplain({ loading: false, response: "", prompt: "" });
+    }, [aiExplain.response, activeNote, updateText]);
+
+    // Reject: regenerate with request for better clarity
+    const handleAIReject = useCallback(() => {
+        const promptText = aiExplain.imageData
+            ? `The previous explanation wasn't clear enough. Please provide a more detailed and clearer explanation of this image. ${aiExplain.prompt ? `Context: "${aiExplain.prompt}"` : ""}`
+            : `The previous explanation wasn't clear enough. Please provide a more detailed, clearer, and better-structured explanation of:\n\n"${aiExplain.prompt}"`;
+        const controller = new AbortController();
+        let accumulated = "";
+        let sid = aiExplain.sessionId;
+
+        setAiExplain((prev) => ({
+            ...prev,
+            loading: true,
+            response: "",
+            controller,
+        }));
+
+        fetchEventSource(`${CHAT_SERVICE_URL}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                message: promptText,
+                session_id: sid || undefined,
+                image_data: aiExplain.imageData || undefined,
+            }),
+            signal: controller.signal,
+            openWhenHidden: true,
+            onmessage(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "token" && data.token) {
+                        accumulated += data.token;
+                        setAiExplain((prev) => ({ ...prev, response: accumulated }));
+                    } else if (data.type === "done") {
+                        sid = data.session_id || sid;
+                        setAiExplain((prev) => ({
+                            ...prev,
+                            loading: false,
+                            sessionId: sid,
+                        }));
+                    } else if (data.type === "error") {
+                        setAiExplain((prev) => ({
+                            ...prev,
+                            loading: false,
+                            response: prev.response || `Error: ${data.error}`,
+                        }));
+                    }
+                } catch {
+                    // ignore
+                }
+            },
+            onerror(err) {
+                console.error("AI Explain SSE error:", err);
+                setAiExplain((prev) => ({
+                    ...prev,
+                    loading: false,
+                    response: prev.response || "Failed to reach AI service.",
+                }));
+            },
+        });
+    }, [aiExplain.prompt, aiExplain.imageData, aiExplain.sessionId]);
+
+    // Cleanup on unmount / note switch
+    useEffect(() => {
+        return () => {
+            aiExplain.controller?.abort();
+        };
+    }, [activeNoteId]);
+
     // ── Format timestamp ─────────────────────────────────────────────────
     const formatTime = (ts: number) => {
         const d = new Date(ts);
@@ -407,6 +632,75 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                         color: effectiveTextColor,
                                     }}
                                 />
+
+                                {/* AI Explain response panel */}
+                                {(aiExplain.loading || aiExplain.response) && (
+                                    <div ref={aiBlockRef} className="snw-ai-panel">
+                                        <div className="snw-ai-panel-header">
+                                            <span className="snw-ai-panel-title">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/>
+                                                </svg>
+                                                AI Explanation
+                                            </span>
+                                            {aiExplain.loading && <span className="snw-ai-spinner" />}
+                                        </div>
+                                        <div className="snw-ai-panel-body">
+                                            {aiExplain.response ? (
+                                                <div className="snw-ai-panel-text">
+                                                    {aiExplain.response}
+                                                </div>
+                                            ) : (
+                                                <div className="snw-ai-panel-text snw-ai-panel-text--thinking">
+                                                    Thinking...
+                                                </div>
+                                            )}
+                                        </div>
+                                        {!aiExplain.loading && aiExplain.response && (
+                                            <div className="snw-ai-panel-actions">
+                                                <button
+                                                    className="snw-ai-btn snw-ai-btn--accept"
+                                                    onClick={handleAIAccept}
+                                                    title="Accept and insert into note"
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="20 6 9 17 4 12"/>
+                                                    </svg>
+                                                    Accept
+                                                </button>
+                                                <button
+                                                    className="snw-ai-btn snw-ai-btn--reject"
+                                                    onClick={handleAIReject}
+                                                    title="Regenerate with better clarity"
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="23 4 23 10 17 10"/>
+                                                        <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                                                    </svg>
+                                                    Regenerate
+                                                </button>
+                                                <button
+                                                    className="snw-ai-btn snw-ai-btn--cancel"
+                                                    onClick={cancelAI}
+                                                    title="Dismiss"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        )}
+                                        {aiExplain.loading && (
+                                            <div className="snw-ai-panel-actions">
+                                                <button
+                                                    className="snw-ai-btn snw-ai-btn--cancel"
+                                                    onClick={cancelAI}
+                                                    title="Cancel"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Color picker popover — positioned above bottom bar */}
@@ -522,6 +816,17 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                             <rect x="3" y="3" width="18" height="18" rx="2"/>
                                             <circle cx="8.5" cy="8.5" r="1.5"/>
                                             <polyline points="21 15 16 10 5 21"/>
+                                        </svg>
+                                    </button>
+                                    <span className="snw-bottom-divider" />
+                                    <button
+                                        className={`snw-format-btn snw-format-btn--ai${aiExplain.loading ? " snw-format-btn--loading" : ""}`}
+                                        onMouseDown={(e) => { e.preventDefault(); handleAIExplain(); }}
+                                        title="Explain with AI (select text or image first)"
+                                        disabled={aiExplain.loading}
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z"/>
                                         </svg>
                                     </button>
                                 </div>
