@@ -104,3 +104,31 @@ body.dark {
   width: 100%;
   height: 100%;
 }
+
+/* ─── Responsive Tweaks for Small Devices ──────────────────────────────────── */
+
+@media (max-width: 480px) {
+  /* Slightly compact core Excalidraw chrome so tools fit on narrow screens */
+  .excalidraw .App-toolbar {
+    transform: scale(0.9);
+    transform-origin: top center;
+  }
+
+  .excalidraw .layer-ui__wrapper__footer {
+    transform: scale(0.9);
+    transform-origin: bottom center;
+  }
+
+  .excalidraw .layer-ui__wrapper__top-right {
+    transform: scale(0.9);
+    transform-origin: top right;
+  }
+}
+
+@media (max-width: 360px) {
+  .excalidraw .App-toolbar,
+  .excalidraw .layer-ui__wrapper__footer,
+  .excalidraw .layer-ui__wrapper__top-right {
+    transform: scale(0.82);
+  }
+}
