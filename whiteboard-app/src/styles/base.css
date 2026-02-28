@@ -78,7 +78,11 @@ html,
 body,
 #root {
   width: 100%;
-  height: 100%;
+  /* Use dynamic viewport units to avoid mobile 100vh issues, with safe fallbacks */
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100svh;
+  max-height: 100lvh;
   overflow: hidden;
 }
 
@@ -93,4 +97,10 @@ body {
 body.dark {
   background-color: var(--cosmic-void);
   color: var(--text-primary);
+}
+
+/* Root React shell for the Excalidraw canvas and overlays */
+.whiteboard-root {
+  width: 100%;
+  height: 100%;
 }

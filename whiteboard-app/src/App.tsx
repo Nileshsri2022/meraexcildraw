@@ -590,7 +590,7 @@ const App: React.FC = () => {
     ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, getCanvasTransform, presentation]);
 
     return (
-        <div style={{ width: "100vw", height: "100vh" }}>
+        <div className="whiteboard-root">
             {/* ─── Canvas Error Boundary ─── */}
             <ErrorBoundary
                 fallback={(error, reset) => <CanvasFallback onRetry={reset} />}
