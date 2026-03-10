@@ -245,9 +245,16 @@ export const AIToolsDialog: React.FC<AIToolsDialogProps> = ({
                                 ☰
                             </button>
                         )}
-                        <h3 className="ai-content-title" style={{ margin: 0 }}>
+                        <h3 className="ai-content-title" style={{ margin: 0, flex: 1 }}>
                             {activeTab === "ocr" ? "OCR" : activeTab === "tts" ? "Text to Speech" : activeTab}
                         </h3>
+                        <button
+                            className="ai-sidebar-close mobile-only-close"
+                            onClick={onClose}
+                            style={{ flexShrink: 0 }}
+                        >
+                            ✕
+                        </button>
                     </div>
 
                     {(activeTab === "diagram" || activeTab === "image" || activeTab === "sketch") && (

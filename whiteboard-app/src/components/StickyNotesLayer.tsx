@@ -22,19 +22,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 interface StickyNotesLayerProps {
-    excalidrawAPI: unknown;
+    excalidrawAPI: any;
     stickyNotes: UseStickyNotesReturn;
+    theme?: string;
 }
 
 // ─── Helper: strip HTML tags for display ────────────────────────────────────
 const stripHtml = (html: string) => html.replace(/<[^>]*>/g, "");
 
-
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
     stickyNotes,
+    theme,
 }) => {
     const {
         notes,
@@ -65,13 +65,28 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
         [notes, activeNoteId],
     );
 
-    const activeTheme = activeNote ? STICKY_NOTE_COLORS[activeNote.color] : null;
+    const activeTheme = useMemo(
+        () => (activeNote ? STICKY_NOTE_COLORS[activeNote.color] : null),
+        [activeNote],
+    );
 
-    // Effective background: custom hex overrides theme
-    const effectiveBg = activeNote?.customBg || activeTheme?.background || "#fef9ef";
+    // Detect dark mode
+    const isDark = theme === "dark" || document.body.classList.contains("dark");
+
+    // Effective background: custom hex overrides theme. 
+    // In dark mode, we fallback to transparent to let the cosmic glass show through.
+    const effectiveBg = useMemo(() => {
+        if (activeNote?.customBg) return activeNote.customBg;
+        if (isDark) return "transparent";
+        return activeTheme?.background || "#fef9ef";
+    }, [activeNote?.customBg, isDark, activeTheme?.background]);
 
     // Effective text color: custom hex overrides theme
-    const effectiveTextColor = activeNote?.customTextColor || activeTheme?.text || "#4a3728";
+    const effectiveTextColor = useMemo(() => {
+        if (activeNote?.customTextColor) return activeNote.customTextColor;
+        if (isDark) return "var(--text-bright)";
+        return activeTheme?.text || "#4a3728";
+    }, [activeNote?.customTextColor, isDark, activeTheme?.text]);
 
     // ── Auto-select first note if active is deleted ──────────────────────
     useEffect(() => {
@@ -655,36 +670,36 @@ export const StickyNotesLayer: React.FC<StickyNotesLayerProps> = ({
                                     </button>
                                     <button className="snw-format-btn" onMouseDown={(e) => { e.preventDefault(); handleBulletList(); }} title="Bullet list">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <line x1="8" y1="6" x2="21" y2="6"/>
-                                            <line x1="8" y1="12" x2="21" y2="12"/>
-                                            <line x1="8" y1="18" x2="21" y2="18"/>
-                                            <circle cx="3" cy="6" r="1.5" fill="currentColor" stroke="none"/>
-                                            <circle cx="3" cy="12" r="1.5" fill="currentColor" stroke="none"/>
-                                            <circle cx="3" cy="18" r="1.5" fill="currentColor" stroke="none"/>
+                                            <line x1="8" y1="6" x2="21" y2="6" />
+                                            <line x1="8" y1="12" x2="21" y2="12" />
+                                            <line x1="8" y1="18" x2="21" y2="18" />
+                                            <circle cx="3" cy="6" r="1.5" fill="currentColor" stroke="none" />
+                                            <circle cx="3" cy="12" r="1.5" fill="currentColor" stroke="none" />
+                                            <circle cx="3" cy="18" r="1.5" fill="currentColor" stroke="none" />
                                         </svg>
                                     </button>
                                     <button className="snw-format-btn" onMouseDown={(e) => { e.preventDefault(); handleImageInsert(); }} title="Insert image">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <rect x="3" y="3" width="18" height="18" rx="2"/>
-                                            <circle cx="8.5" cy="8.5" r="1.5"/>
-                                            <polyline points="21 15 16 10 5 21"/>
+                                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                                            <circle cx="8.5" cy="8.5" r="1.5" />
+                                            <polyline points="21 15 16 10 5 21" />
                                         </svg>
                                     </button>
                                 </div>
                                 <div className="snw-bottom-bar-right">
                                     <span className="snw-timestamp">{formatTime(activeNote.updatedAt)}</span>
                                     <button className="snw-icon-btn" onMouseDown={(e) => { e.preventDefault(); updateFontSize(activeNote.id, activeNote.fontSize - 1); }} title="Smaller font">
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
                                     </button>
                                     <span className="snw-font-label">{activeNote.fontSize}</span>
                                     <button className="snw-icon-btn" onMouseDown={(e) => { e.preventDefault(); updateFontSize(activeNote.id, activeNote.fontSize + 1); }} title="Larger font">
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                                     </button>
                                     <button className="snw-icon-btn" onMouseDown={(e) => { e.preventDefault(); handleCopyActive(); }} title="Copy">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
                                     </button>
                                     <button className="snw-icon-btn snw-icon-btn--danger" onMouseDown={(e) => { e.preventDefault(); handleDeleteActive(); }} title="Delete">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                                     </button>
                                 </div>
                             </div>

@@ -148,6 +148,13 @@ const App: React.FC = () => {
         (elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
             onSceneChange(elements);
 
+            // Sync theme to body class for custom CSS overrides
+            if (appState.theme === "dark") {
+                document.body.classList.add("dark");
+            } else {
+                document.body.classList.remove("dark");
+            }
+
             // Detect whether selection contains a canvas text element and show bulb
             try {
                 const selIdsObj = (appState as any)?.selectedElementIds || {};
@@ -184,7 +191,7 @@ const App: React.FC = () => {
 
     // Render custom dropdown in top right area
     const renderTopRightUI = useCallback(() => (
-        <div ref={dropdownRef} style={{ position: "relative", display: "flex", gap: "8px", alignItems: "center" }}>
+        <div ref={dropdownRef} className="top-right-ui-container">
             {/* Chat Button */}
             <button
                 className={`chat-trigger-btn${isChatOpen ? " chat-trigger-btn--active" : ""}`}
@@ -197,26 +204,9 @@ const App: React.FC = () => {
             </button>
 
             {/* Explain bulb — shown only when a canvas text element is selected. Placed top-left with padding to avoid toolbar overlap. */}
-                {showExplainBulb && (
+            {showExplainBulb && (
                 <button
-                    style={{
-                        position: "fixed",
-                        // Move bulb right to avoid overlapping the left toolbar
-                        left: 140,
-                        top: 92,
-                        zIndex: 11010,
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        background: "#6d28d9",
-                        color: "white",
-                        border: "none",
-                        boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                    }}
+                    className="explain-bulb-btn"
                     onClick={() => {
                         // Read selected canvas text elements
                         let selected = "";
@@ -590,7 +580,7 @@ const App: React.FC = () => {
     ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, getCanvasTransform, presentation]);
 
     return (
-        <div className="whiteboard-root">
+        <div className={`whiteboard-root${(isAIToolsOpen || isChatOpen) ? " has-open-panel" : ""}`}>
             {/* ─── Canvas Error Boundary ─── */}
             <ErrorBoundary
                 fallback={(error, reset) => <CanvasFallback onRetry={reset} />}
@@ -664,14 +654,16 @@ const App: React.FC = () => {
             <StickyNotesLayer
                 excalidrawAPI={excalidrawAPI}
                 stickyNotes={stickyNotes}
+                theme={excalidrawAPI?.getAppState?.().theme || "light"}
             />
 
             {/* ─── Global AI Explain Panel (creates sticky on accept) ─── */}
             <AIExplainPanel
                 state={aiExplain.state}
+                className="ai-explain-panel-fixed"
                 style={
                     aiPanelPos
-                        ? ({ position: "fixed", left: aiPanelPos.x, top: aiPanelPos.y, zIndex: 11000, width: 340 } as React.CSSProperties)
+                        ? ({ position: "fixed", left: aiPanelPos.x, top: aiPanelPos.y } as React.CSSProperties)
                         : { display: "none" }
                 }
                 onAccept={() => {

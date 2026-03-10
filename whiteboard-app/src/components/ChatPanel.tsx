@@ -120,7 +120,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
     const [activeBuiltinTools, setActiveBuiltinTools] = useState<string[]>([]);
     const [connectedMcpServers, setConnectedMcpServers] = useState<McpServerConfig[]>([]);
     const [showMcpModal, setShowMcpModal] = useState(false);
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [matchingSearchIds, setMatchingSearchIds] = useState<string[]>([]);
     const deferredSearchTerm = useDeferredValue(searchTerm);
@@ -244,6 +244,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
     // ── Resizability ──
     const [panelWidth, setPanelWidth] = useState(() => {
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile) return window.innerWidth;
         const raw = localStorage.getItem("chat-panel-width:v1");
         if (!raw) return 600;
         const parsed = parseInt(raw, 10);
@@ -265,6 +267,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
     const resize = useCallback((e: MouseEvent) => {
         if (!isResizing.current) return;
+        const isMobile = window.innerWidth <= 768;
+        if (isMobile) return;
         const newWidth = window.innerWidth - e.clientX;
         if (newWidth >= 450 && newWidth <= 1200) {
             setPanelWidth(newWidth);
@@ -293,8 +297,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose, excalidra
 
     return (
         <div
-            className={`chat-panel ${isOpen ? "chat-panel--open" : ""} ${isSidebarCollapsed ? "chat-panel--sidebar-collapsed" : ""}`}
-            style={{ width: isOpen ? `${panelWidth}px` : "0" } as React.CSSProperties}
+            className={`chat-panel ${isOpen ? "chat-panel--open" : ""} ${isSidebarCollapsed ? "chat-panel--sidebar-collapsed" : "chat-panel--sidebar-open"}`}
+            style={{ width: isOpen ? (window.innerWidth <= 768 ? "100%" : `${panelWidth}px`) : "0" } as React.CSSProperties}
         >
             {/* Resize Handle */}
             <div className="chat-panel-resizer" onMouseDown={startResizing} />

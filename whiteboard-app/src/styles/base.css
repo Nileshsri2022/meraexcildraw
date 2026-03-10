@@ -78,12 +78,12 @@ html,
 body,
 #root {
   width: 100%;
-  /* Use dynamic viewport units to avoid mobile 100vh issues, with safe fallbacks */
-  height: 100vh;
-  height: 100dvh;
-  min-height: 100svh;
-  max-height: 100lvh;
+  height: 100%;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
+  position: fixed;
+  /* prevent rubber-banding and ensure 100% height */
 }
 
 body {
@@ -111,44 +111,23 @@ body.dark {
   height: 100%;
 }
 
-/* On phones, gently scale the entire Excalidraw UI so tools don't feel cramped */
-@media (max-width: 480px) {
-  .excalidraw {
-    transform: scale(0.9);
-    transform-origin: top left;
-  }
+/* Fluid Typography for Welcome Screen (Skill Pattern 2) */
+.excalidraw .WelcomeScreen-Center-Heading {
+  font-size: clamp(1.5rem, 5vw + 1rem, 3rem) !important;
+  line-height: 1.2;
+  margin-top: 1rem;
 }
 
-@media (max-width: 360px) {
-  .excalidraw {
-    transform: scale(0.82);
-  }
+.excalidraw .WelcomeScreen-Center-Logo {
+  font-size: clamp(3rem, 10vw, 6rem) !important;
 }
 
 /* ─── Responsive Tweaks for Small Devices ──────────────────────────────────── */
 
 @media (max-width: 480px) {
-  /* Slightly compact core Excalidraw chrome so tools fit on narrow screens */
+
+  /* No scale! Let content adapt. */
   .excalidraw .App-toolbar {
-    transform: scale(0.9);
     transform-origin: top center;
-  }
-
-  .excalidraw .layer-ui__wrapper__footer {
-    transform: scale(0.9);
-    transform-origin: bottom center;
-  }
-
-  .excalidraw .layer-ui__wrapper__top-right {
-    transform: scale(0.9);
-    transform-origin: top right;
-  }
-}
-
-@media (max-width: 360px) {
-  .excalidraw .App-toolbar,
-  .excalidraw .layer-ui__wrapper__footer,
-  .excalidraw .layer-ui__wrapper__top-right {
-    transform: scale(0.82);
   }
 }

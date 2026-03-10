@@ -564,17 +564,21 @@
     width: min(600px, 96vw);
     height: min(520px, 88vh);
   }
+
   .ai-sidebar {
     width: 155px;
   }
+
   .ai-content {
     padding: 20px 22px;
   }
+
   .ai-tab-btn {
     padding: 8px 10px;
     font-size: 12px;
     gap: 8px;
   }
+
   .sparkle-btn {
     width: 34px;
     height: 34px;
@@ -590,45 +594,81 @@
     border-radius: var(--radius-lg);
     flex-direction: column;
   }
+
   .ai-sidebar {
     width: 100%;
+    height: 52px;
     flex-direction: row;
-    padding: 8px 0;
+    padding: 0;
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
     flex-shrink: 0;
   }
+
   .ai-sidebar-header {
     display: none;
   }
+
   .ai-sidebar-nav {
     flex-direction: row;
-    gap: 2px;
-    padding: 0 8px;
-    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 0 12px;
+    flex: 1;
     overflow-x: auto;
+    scrollbar-width: none;
+    align-items: center;
   }
-  .ai-tab-btn {
-    padding: 7px 10px;
-    font-size: 11.5px;
-    gap: 6px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .ai-sidebar-voice-cmd {
+
+  .ai-sidebar-nav::-webkit-scrollbar {
     display: none;
   }
+
+  .ai-tab-btn {
+    padding: 8px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    justify-content: center;
+    font-size: 0;
+    /* Hide text, only icons on small phones */
+    flex-shrink: 0;
+  }
+
+  .ai-tab-btn--active::before {
+    display: none;
+  }
+
+  .ai-tab-btn--active {
+    background: var(--aurora-gradient-subtle);
+    border: 1px solid var(--border-active);
+  }
+
+  .ai-tab-icon {
+    width: 22px;
+    height: 22px;
+    opacity: 1;
+  }
+
   .ai-content {
-    padding: 14px 12px;
+    padding: 16px 12px;
   }
-  .ai-content-header h2 {
+
+  .ai-content-title {
     font-size: 16px;
+    margin-bottom: 12px;
   }
-  .ai-content-header p {
-    font-size: 12px;
+
+  .ai-generate-btn {
+    height: 48px;
+    font-size: 14px;
   }
+
+  .ai-footer {
+    display: none;
+    /* Hide footer to save space on mobile */
+  }
+
   .sparkle-btn {
     width: 32px;
     height: 32px;
@@ -643,16 +683,20 @@
     height: 92vh;
     border-radius: var(--radius-md);
   }
+
   .ai-sidebar-nav {
     padding: 0 4px;
   }
+
   .ai-tab-btn {
     padding: 6px 8px;
     font-size: 11px;
   }
+
   .ai-content {
     padding: 10px 8px;
   }
+
   .ai-content-header h2 {
     font-size: 14px;
   }
@@ -663,6 +707,7 @@
   .ai-dialog {
     height: 95vh;
   }
+
   .ai-content {
     padding: 10px 12px;
   }

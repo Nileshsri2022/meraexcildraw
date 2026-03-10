@@ -1,0 +1,281 @@
+/* Explain Bulb — responsive positioning */
+.top-right-ui-container {
+    position: relative;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.explain-bulb-btn {
+    position: fixed;
+    left: 140px;
+    /* Default desktop */
+    top: 92px;
+    z-index: 10010;
+    width: 44px;
+    height: 44px;
+    border-radius: 22px;
+    background: var(--aurora-violet);
+    color: white;
+    border: none;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-smooth);
+}
+
+.explain-bulb-btn:hover {
+    transform: scale(1.1) translateY(-2px);
+    box-shadow: var(--shadow-aurora);
+}
+
+.explain-bulb-btn svg {
+    stroke: #fff;
+}
+
+/* AI Explain Panel — Mobile First */
+.ai-explain-panel-fixed {
+    z-index: 11000;
+    width: 380px;
+    max-width: 90vw;
+}
+
+/* ═══ Responsive: Tablets ══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .explain-bulb-btn {
+        left: 80px;
+        /* Move closer to edge on tablets */
+        top: 80px;
+    }
+
+    .ai-explain-panel-fixed {
+        width: 320px;
+        left: 20px !important;
+        top: 80px !important;
+    }
+}
+
+/* ═══ Responsive: Phones ═══════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+    /* Vertical Right Toolbar — Exact Native Match */
+    .top-right-ui-container {
+        position: fixed !important;
+        right: 12px !important;
+        top: 240px !important;
+        bottom: auto !important;
+        left: auto !important;
+        flex-direction: column !important;
+        gap: 0 !important;
+        z-index: 11005 !important;
+        padding: 0;
+        margin: 0;
+        background: #fdfdfd !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 11px !important;
+        /* Excalidraw native rounding */
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1) !important;
+        overflow: hidden;
+        pointer-events: none;
+    }
+
+    .top-right-ui-container>button {
+        pointer-events: auto;
+        width: 36px !important;
+        /* Excalidraw native tool size */
+        height: 36px !important;
+        border-radius: 0 !important;
+        border: none !important;
+        border-bottom: 1px solid #f1f3f5 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        color: #495057;
+        /* Light mode text */
+    }
+
+    .top-right-ui-container>button:last-child {
+        border-bottom: none !important;
+    }
+
+    /* Sticky Notes trigger — Integrated into the same stack profile */
+    .snw-trigger {
+        position: fixed !important;
+        right: 12px !important;
+        top: 200px !important;
+        bottom: auto !important;
+        left: auto !important;
+        width: 36px !important;
+        height: 36px !important;
+        border-radius: 11px !important;
+        border: 1px solid #dee2e6 !important;
+        background: #fdfdfd !important;
+        color: #495057 !important;
+        z-index: 11005 !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1) !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        padding: 0 !important;
+        transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .snw-trigger:active {
+        transform: scale(0.95);
+    }
+
+    .snw-trigger-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        min-width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #fff;
+    }
+
+    .explain-bulb-btn {
+        position: static !important;
+        width: 36px !important;
+        height: 36px !important;
+        color: #495057 !important;
+        display: flex !important;
+        background: transparent !important;
+    }
+
+    .explain-bulb-btn svg {
+        stroke: #495057 !important;
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Centered AI Explain Panel on phones */
+    .ai-explain-panel-fixed {
+        width: calc(100% - 32px) !important;
+        left: 16px !important;
+        bottom: 100px !important;
+        top: auto !important;
+        transform: none !important;
+        max-height: 50vh;
+        border-radius: var(--radius-xl) !important;
+    }
+
+    /* Chat & Sparkle Triggers — Simple White Style */
+    .chat-trigger-btn,
+    .sparkle-btn {
+        width: 36px !important;
+        height: 36px !important;
+        padding: 0 !important;
+        font-size: 16px !important;
+        background: transparent !important;
+        border: none !important;
+        color: #495057 !important;
+        box-shadow: none !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* AI Dialog Container Query (Skill Pattern 1) */
+    .ai-dialog-overlay {
+        container-type: size;
+    }
+
+    @container (max-width: 500px) {
+        .ai-dialog {
+            flex-direction: column !important;
+            height: 95% !important;
+            width: 95% !important;
+        }
+
+        .ai-sidebar {
+            width: 100% !important;
+            max-height: 200px !important;
+        }
+    }
+
+    /* Global Mobile-Only Helper */
+    .mobile-only-close {
+        display: flex !important;
+        width: 36px;
+        height: 36px;
+        background: var(--cosmic-elevated);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+    }
+
+    /* Hide triggers when a full-page panel is open on mobile */
+    .has-open-panel .top-right-ui-container,
+    .has-open-panel .snw-trigger {
+        display: none !important;
+    }
+}
+
+/* ═══ Dark Mode Support: Vertical Toolbar (Exact Match) ══════════════════════ */
+body.dark .top-right-ui-container,
+body.dark .snw-trigger {
+    background: #232329 !important;
+    border-color: #3b3b44 !important;
+    box-shadow: 0 0 0 1px rgba(138, 43, 226, 0.2), 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark .top-right-ui-container>button {
+    border-bottom-color: #313138 !important;
+    color: #ced4da !important;
+}
+
+body.dark .snw-trigger {
+    color: #ced4da !important;
+}
+
+body.dark .snw-trigger-badge {
+    border-color: #232329 !important;
+}
+
+body.dark .explain-bulb-btn svg path {
+    stroke: #ced4da !important;
+}
+
+body.dark .chat-trigger-btn,
+body.dark .sparkle-btn {
+    color: #ced4da !important;
+}
+
+/* Helper to hide mobile-only elements on desktop */
+@media (min-width: 481px) {
+    .mobile-only-close {
+        display: none !important;
+    }
+}
+
+/* ═══ Responsive: Tiny Phones ══════════════════════════════════════════════ */
+@media (max-width: 360px) {
+
+    .top-right-ui-container,
+    .snw-trigger {
+        right: 8px !important;
+    }
+
+    .chat-trigger-btn,
+    .explain-bulb-btn,
+    .sparkle-btn,
+    .snw-trigger {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 16px !important;
+    }
+}

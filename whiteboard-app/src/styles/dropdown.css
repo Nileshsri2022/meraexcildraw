@@ -304,6 +304,7 @@
   .cosmic-dropdown {
     min-width: 220px;
   }
+
   .cosmic-dropdown-item {
     padding: 9px 12px;
     font-size: 13px;
@@ -314,26 +315,53 @@
 /* ═══ Responsive: Phones ════════════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .cosmic-dropdown {
-    min-width: 180px;
-    padding: 6px;
-    border-radius: var(--radius-md);
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 280px !important;
+    min-width: unset !important;
+    max-height: 70vh !important;
+    overflow-y: auto !important;
+    padding: 8px;
+    border-radius: var(--radius-lg);
+    z-index: 12000 !important;
+    margin: 0 !important;
   }
+
+  /* Custom compact scrollbar for the dropdown */
+  .cosmic-dropdown::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .cosmic-dropdown::-webkit-scrollbar-thumb {
+    background: var(--aurora-violet);
+    border-radius: 4px;
+    opacity: 0.3;
+  }
+
   .cosmic-dropdown-item {
     padding: 8px 10px;
     font-size: 12px;
     gap: 8px;
   }
+
   .cosmic-dropdown-item .item-desc {
     font-size: 9.5px;
   }
+
   .cosmic-dropdown-label {
     padding: 6px 10px 2px;
     font-size: 9px;
   }
+
   .voice-status-pill {
     padding: 8px 12px;
     gap: 8px;
   }
+
   .voice-status-text {
     font-size: 11px;
   }
@@ -345,6 +373,7 @@
     min-width: 160px;
     padding: 4px;
   }
+
   .cosmic-dropdown-item {
     padding: 7px 8px;
     font-size: 11.5px;

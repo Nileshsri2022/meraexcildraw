@@ -1,0 +1,34 @@
+{
+  "plugins": {
+    "superpowers": {
+      "enabled": true
+    },
+    "clerk": {
+      "enabled": true
+    },
+    "vercel": {
+      "enabled": true
+    },
+    "neon-postgres": {
+      "enabled": true
+    },
+    "functions": {
+      "enabled": true
+    },
+    "runlayer": {
+      "enabled": true
+    },
+    "prisma": {
+      "enabled": true
+    },
+    "huggingface-skills": {
+      "enabled": true
+    },
+    "supabase": {
+      "enabled": true
+    },
+    "firecrawl": {
+      "enabled": true
+    }
+  }
+}
