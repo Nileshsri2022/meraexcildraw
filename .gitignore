@@ -1,24 +1,16 @@
 node_modules/
+temp
+.venv
+__pycache__
+.env
+.env.example
+.env.production
 dist/
 build/
 *.log
 .DS_Store
-.env.local
-.env.*.local
-*.tsbuildinfo
-.env
-whiteboard-app/.env
-whiteboard-app/.env.example
-.agents/
-.github/
-.gitignore
-my_whiteboard_exploration_report.md
-SKILLS_AUDIT.md
-skills-lock.json
 
-# Android signing secrets
-whiteboard-app/android/app/release/password.txt
 
-# Chat service local env
-chat-service/.env
+
+
 
