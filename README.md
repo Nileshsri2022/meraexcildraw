@@ -37,14 +37,14 @@ my-whiteboard/
 ├── whiteboard-app/              # React 18 + Vite 5 SPA
 │   ├── src/
 │   │   ├── App.tsx              # Main app — Excalidraw + lazy-loaded dialogs
-│   │   ├── components/          # 12 components (ChatPanel, AIToolsDialog, etc.)
-│   │   ├── hooks/               # 11 hooks + hooks/ai/ (4 AI-specific hooks)
+│   │   ├── components/          # 20 components (ChatPanel, AIToolsDialog, etc.)
+│   │   ├── hooks/               # 14 hooks + hooks/ai/ (4 AI-specific hooks)
 │   │   ├── collab/              # WebSocket collaboration logic
 │   │   ├── data/                # IndexedDB persistence (LocalStorage, chatDb)
 │   │   ├── services/            # API service layer
-│   │   ├── styles/              # 8 CSS modules (base, chat, AI, animations…)
+│   │   ├── styles/              # 14 CSS modules (base, chat, AI, animations…)
 │   │   ├── types/               # TypeScript type definitions
-│   │   └── utils/               # Shared utilities (apiClient, mathJaxParser…)
+│   │   └── utils/               # 8 shared utilities (apiClient, mathJaxParser…)
 │   ├── vite.config.ts           # Vite + manualChunks vendor splitting
 │   └── package.json
 ├── server/                      # Express + Socket.IO collaboration server
@@ -119,7 +119,7 @@ The codebase applies Vercel React Best Practices and aggressive bundle splitting
 - **React.memo** — ChatSidebar, ChatToolBar, ChatInputBar, McpConnectionModal, CodeBlock
 - **Hoisted components** — 13 static ReactMarkdown overrides + plugin arrays at module level
 - **No polling** — streaming state pushed directly from SSE handler (no setInterval)
-- **Dead dep removal** — removed unused @capacitor/*, @elevenlabs/react, markmap-*
+- **Dead dep removal** — removed unused @elevenlabs/react, markmap-* (Capacitor config kept: `whiteboard-app/capacitor.config.ts` still uses `@capacitor/cli`, even though `@capacitor/core` is not imported in `src/`)
 
 ## License
 
