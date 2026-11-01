@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, lazy, Suspense } from "react";
+import React, { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import {
     Excalidraw,
     MainMenu,
@@ -11,8 +11,7 @@ import type { ExcalidrawImperativeAPI, BinaryFileData, AppState, BinaryFiles } f
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCollaboration } from "./collab";
 import { useAutoSave, SaveStatus } from "./hooks/useAutoSave";
-import { useVoiceCommand } from "./hooks/useVoiceCommand";
-import type { VoiceCommandResult } from "./hooks/useVoiceCommand";
+import { useAppShell } from "./hooks/useAppShell";
 import { ErrorBoundary, PanelFallback, CanvasFallback } from "./components/ErrorBoundary";
 import { CollabPresenceBar } from "./components/CollabPresenceBar";
 import { StickyNotesLayer } from "./components/StickyNotesLayer";
@@ -24,6 +23,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { screenToCanvas } from "./types/sticky-notes";
 import { exportWorkspace, importWorkspace } from "./utils/workspaceBundle";
 import { usePresentation } from "./hooks/usePresentation";
+import { useBoards } from "./hooks/useBoards";
+import { BoardsPanel } from "./components/BoardsPanel";
+import { LibraryPanel } from "./components/LibraryPanel";
 import "./styles/presentation.css";
 
 const AIToolsDialog = lazy(() =>
@@ -45,15 +47,24 @@ const FrameOverlay = lazy(() =>
 const App: React.FC = () => {
     const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
     const [isAIToolsOpen, setIsAIToolsOpen] = useState(false);
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [initialDataLoaded, setInitialDataLoaded] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Dropdown + voice-command shell state (see hooks/useAppShell.ts).
+    // openAITools is a stable callback so the shell's handleVoiceCommand
+    // keeps the original []-deps stability.
+    const openAITools = useCallback(() => setIsAIToolsOpen(true), []);
+    const {
+        isDropdownOpen,
+        setIsDropdownOpen,
+        dropdownRef,
+        pendingVoiceCommand,
+        voiceCmd,
+        handleVoiceCommandDone,
+    } = useAppShell({ onVoiceCommand: openAITools });
 
     // Explain bulb visibility (shows when a text element is selected)
     const [showExplainBulb, setShowExplainBulb] = useState(false);
-    // Voice command state: stores the classified command to pass to AIToolsDialog
-    const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommandResult | null>(null);
 
     // Sticky notes system
     const stickyNotes = useStickyNotes();
@@ -67,6 +78,13 @@ const App: React.FC = () => {
         debounceMs: 2000,
     });
 
+    // Track 5: multiple boards. When no board is active, behaviour is unchanged:
+    // auto-save still goes to the single scene and restore still uses loadSavedData fallback.
+    const boards = useBoards();
+    const { activeBoardId, saveActiveBoard, resolveInitialScene } = boards;
+    const [isBoardsOpen, setIsBoardsOpen] = useState(false);
+    const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
     const {
         isCollaborating,
         roomId,
@@ -77,61 +95,47 @@ const App: React.FC = () => {
         onSceneChange,
     } = useCollaboration({ excalidrawAPI });
 
-    // ─── Voice Command System ────────────────────────────────────────
-    const handleVoiceCommand = useCallback((result: VoiceCommandResult) => {
-        // Store the command and open the dialog — the dialog will auto-execute it
-        setPendingVoiceCommand(result);
-        setIsAIToolsOpen(true);
-        setIsDropdownOpen(false);
-    }, []);
-
-    const handleVoiceError = useCallback((msg: string) => {
-        console.error("[VoiceCommand]", msg);
-        // Could show a toast here in the future
-    }, []);
-
-    const voiceCmd = useVoiceCommand({
-        onCommand: handleVoiceCommand,
-        onError: handleVoiceError,
-    });
-
-    const handleVoiceCommandDone = useCallback(() => {
-        setPendingVoiceCommand(null);
-        voiceCmd.resetPhase();
-    }, [voiceCmd.resetPhase]);
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsDropdownOpen(false);
+    // Restores any scene object ({ elements, appState, files }) onto the canvas
+    // with the exact order App.tsx already uses: files first, then updateScene.
+    const restoreSceneOnCanvas = useCallback(
+        (
+            scene: { elements: unknown[]; appState: Record<string, unknown>; files: Record<string, unknown> } | null,
+            options: { clearIfEmpty: boolean; scrollToContent: boolean },
+        ) => {
+            if (!excalidrawAPI || !scene) return;
+            if (scene.elements.length === 0 && !options.clearIfEmpty) return;
+            if (scene.files && Object.keys(scene.files).length > 0) {
+                excalidrawAPI.addFiles(
+                    Object.values(scene.files) as unknown as BinaryFileData[]
+                );
             }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+            const elements = scene.elements as OrderedExcalidrawElement[];
+            excalidrawAPI.updateScene({
+                elements,
+                appState: scene.appState as unknown as AppState,
+            });
+            if (options.scrollToContent && elements.length > 0) {
+                requestAnimationFrame(() => {
+                    excalidrawAPI.scrollToContent(elements, { fitToContent: true, animate: true });
+                });
+            }
+        },
+        [excalidrawAPI],
+    );
 
-    // Restore saved scene on mount
+    // Restore saved scene on mount — Track 5: boards first, single scene fallback.
+    // If no boards exist, resolveInitialScene() calls the untouched loadScene()
+    // path, so existing users restore exactly as before.
     useEffect(() => {
         if (excalidrawAPI && !initialDataLoaded) {
-            loadSavedData().then((savedData) => {
-                if (savedData && savedData.elements.length > 0) {
-                    // Add files first before updating scene
-                    if (savedData.files && Object.keys(savedData.files).length > 0) {
-                        excalidrawAPI.addFiles(
-                            Object.values(savedData.files) as unknown as BinaryFileData[]
-                        );
-                    }
-                    excalidrawAPI.updateScene({
-                        elements: savedData.elements as OrderedExcalidrawElement[],
-                        appState: savedData.appState as unknown as AppState,
-                    });
-                    if (import.meta.env.DEV) console.log('[App] Restored saved scene with files');
+            resolveInitialScene().then((result) => {
+                if (result.scene && result.scene.elements.length > 0) {
+                    restoreSceneOnCanvas(result.scene, { clearIfEmpty: false, scrollToContent: false });
                 }
                 setInitialDataLoaded(true);
             });
         }
-    }, [excalidrawAPI, initialDataLoaded, loadSavedData]);
+    }, [excalidrawAPI, initialDataLoaded, resolveInitialScene, restoreSceneOnCanvas]);
 
     // Toggle collaboration
     const toggleCollaboration = useCallback(() => {
@@ -168,10 +172,18 @@ const App: React.FC = () => {
             }
 
             if (initialDataLoaded && !isCollaborating) {
-                triggerSave(elements, appState as unknown as Record<string, unknown>, files as unknown as Record<string, unknown>);
+                if (activeBoardId) {
+                    saveActiveBoard({
+                        elements,
+                        appState: appState as unknown as Record<string, unknown>,
+                        files: files as unknown as Record<string, unknown>,
+                    });
+                } else {
+                    triggerSave(elements, appState as unknown as Record<string, unknown>, files as unknown as Record<string, unknown>);
+                }
             }
         },
-        [onSceneChange, triggerSave, initialDataLoaded, isCollaborating]
+        [onSceneChange, triggerSave, saveActiveBoard, activeBoardId, initialDataLoaded, isCollaborating]
     );
 
     /** Read current canvas transform from the Excalidraw API (for one-off use in click handlers) */
@@ -579,6 +591,45 @@ const App: React.FC = () => {
         </div>
     ), [isChatOpen, isDropdownOpen, isCollaborating, roomId, voiceCmd, toggleCollaboration, excalidrawAPI, getCanvasTransform, presentation]);
 
+    // Track 5: read the LIVE canvas (same three getters the Export handler uses).
+    const readLiveScene = useCallback(() => {
+        if (!excalidrawAPI) return null;
+        return {
+            elements: excalidrawAPI.getSceneElements(),
+            appState: excalidrawAPI.getAppState() as unknown as Record<string, unknown>,
+            files: (excalidrawAPI.getFiles() || {}) as unknown as Record<string, unknown>,
+        };
+    }, [excalidrawAPI]);
+
+    const handleSwitchBoard = useCallback(async (id: string) => {
+        const scene = await boards.switchBoard(id, readLiveScene() ?? undefined);
+        if (scene) restoreSceneOnCanvas(scene, { clearIfEmpty: true, scrollToContent: true });
+        setIsBoardsOpen(false);
+    }, [boards, readLiveScene, restoreSceneOnCanvas]);
+
+    const handleCreateBoard = useCallback(async (name: string) => {
+        const live = readLiveScene();
+        await boards.createBoard(name, live ?? undefined);
+    }, [boards, readLiveScene]);
+
+    const handleDeleteBoard = useCallback(async (id: string) => {
+        const next = await boards.deleteBoard(id);
+        if (next === undefined) return;
+        if (next) {
+            restoreSceneOnCanvas(
+                { elements: next.elements, appState: next.appState, files: next.files },
+                { clearIfEmpty: true, scrollToContent: true },
+            );
+        } else {
+            const single = await loadSavedData();
+            if (single && single.elements.length > 0) {
+                restoreSceneOnCanvas(single, { clearIfEmpty: false, scrollToContent: false });
+            } else {
+                restoreSceneOnCanvas({ elements: [], appState: {}, files: {} }, { clearIfEmpty: true, scrollToContent: false });
+            }
+        }
+    }, [boards, loadSavedData, restoreSceneOnCanvas]);
+
     return (
         <div className={`whiteboard-root${(isAIToolsOpen || isChatOpen) ? " has-open-panel" : ""}`}>
             {/* ─── Canvas Error Boundary ─── */}
@@ -785,6 +836,38 @@ const App: React.FC = () => {
                     />
                 )}
             </Suspense>
+
+            {/* Track 5: Boards + Library panels (fixed overlay, inline styles only) */}
+            <button
+                onClick={() => setIsBoardsOpen((v) => !v)}
+                style={{ position: 'fixed', top: 12, right: 180, zIndex: 10 }}
+            >
+                Boards
+            </button>
+            <button
+                onClick={() => setIsLibraryOpen((v) => !v)}
+                style={{ position: 'fixed', top: 12, right: 110, zIndex: 10 }}
+            >
+                Library
+            </button>
+            {isBoardsOpen && (
+                <div style={{ position: 'fixed', top: 56, right: 16, zIndex: 10, background: '#fff', border: '1px solid #ddd', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', maxHeight: '70vh', overflowY: 'auto' }}>
+                    <BoardsPanel
+                        boards={boards.boards}
+                        activeBoardId={boards.activeBoardId}
+                        onSwitch={(id) => void handleSwitchBoard(id)}
+                        onCreate={(name) => void handleCreateBoard(name)}
+                        onRename={(id, name) => void boards.renameBoard(id, name)}
+                        onDuplicate={(id) => void boards.duplicateBoard(id)}
+                        onDelete={(id) => void handleDeleteBoard(id)}
+                    />
+                </div>
+            )}
+            {isLibraryOpen && (
+                <div style={{ position: 'fixed', top: 56, right: 16, zIndex: 10, background: '#fff', border: '1px solid #ddd', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', maxHeight: '70vh', overflowY: 'auto' }}>
+                    <LibraryPanel excalidrawAPI={excalidrawAPI} />
+                </div>
+            )}
         </div>
     );
 };

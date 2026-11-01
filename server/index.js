@@ -13,17 +13,57 @@ const __dirname = dirname(__filename);
 
 dotenv.config({ path: join(__dirname, ".env") });
 
-// ─── CORS: restrict in production, allow all in dev ─────────────────────────
+// ─── CORS: default is localhost dev origins only (never "*") ─────────────
+// Set ALLOWED_ORIGINS (comma-separated) to allow other origins in production.
+// An explicitly-set "*" still behaves as before (origin: true); only the
+// unset default changed, from "*" to localhost-only. Track 1 P0 security fix.
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map(s => s.trim())
-    : ["*"];
+    : ["http://localhost:3000", "http://localhost:5173"];
 const corsOptions = ALLOWED_ORIGINS.includes("*")
     ? { origin: true }   // allow any origin (dev mode)
     : { origin: ALLOWED_ORIGINS };
 
 const app = express();
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
+app.use(express.json({ limit: '10mb' })); // Track 1 P0: reduced from 50mb
+
+// ─── AI rate limiter (dependency-free, in-memory) ─────────────────────────
+// Track 1 P0: 60 requests / minute / IP, applied only to /api/ai/* routes
+// (all AI endpoints found in this file live under /api/ai/: generate-diagram,
+// generate-image, sketch-to-image, ocr, speech-to-text, voice-command, voices,
+// text-to-speech). No new npm dependency added; server/package.json untouched.
+// NOTE: in-memory state resets on restart and is per-process (not shared
+// across instances); sufficient for this single-process server.
+const AI_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const AI_RATE_LIMIT_MAX = 60;
+const aiRateLimitStore = new Map(); // ip -> { count, resetTime }
+function aiRateLimiter(req, res, next) {
+    const ip = req.ip || req.socket?.remoteAddress || "unknown";
+    const now = Date.now();
+    let entry = aiRateLimitStore.get(ip);
+    if (!entry || now >= entry.resetTime) {
+        entry = { count: 0, resetTime: now + AI_RATE_LIMIT_WINDOW_MS };
+        aiRateLimitStore.set(ip, entry);
+    }
+    // Opportunistic cleanup so the map cannot grow unboundedly.
+    if (aiRateLimitStore.size > 10000) {
+        for (const [key, value] of aiRateLimitStore) {
+            if (now >= value.resetTime) aiRateLimitStore.delete(key);
+        }
+    }
+    entry.count += 1;
+    if (entry.count > AI_RATE_LIMIT_MAX) {
+        const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
+        res.set("Retry-After", String(retryAfter));
+        return res.status(429).json({
+            error: "Too many AI requests. Please wait and try again.",
+            retryAfterSeconds: retryAfter,
+        });
+    }
+    next();
+}
+app.use("/api/ai", aiRateLimiter);
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {

@@ -9,8 +9,8 @@ dist/
 build/
 *.log
 .DS_Store
-
-
-
-
-
+repomix-output.xml
+SKILLS_AUDIT.md
+my_whiteboard_exploration_report.md
+skills-lock.json
+server/temp/

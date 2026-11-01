@@ -15,6 +15,41 @@ export interface AIHistoryEntry {
     metadata?: Record<string, unknown>; // seed, voice, width, etc.
 }
 
+// ─── Track 5: Multiple boards + Library (v5, additive only) ───────────────
+// A Board is a full scene snapshot (same element/appState/files shape as the
+// single 'scenes' record) plus a name and created/updated timestamps. The
+// single-scene record under SCENE_KEY ('current-scene') is NOT touched by
+// any board function below, so users with no boards keep the old restore
+// path exactly as before (see useBoards.resolveInitialScene).
+export interface Board {
+    id: string;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+    elements: unknown[];
+    appState: Record<string, unknown>;
+    files: Record<string, unknown>;
+}
+
+/** Metadata-only view of a board, for list UIs that do not need scene data. */
+export interface BoardMeta {
+    id: string;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+    elementCount: number;
+}
+
+// A LibraryItem is a named snapshot of selected elements (+ their files),
+// saved so it can be re-inserted onto any canvas later.
+export interface LibraryItem {
+    id: string;
+    name: string;
+    createdAt: number;
+    elements: unknown[];
+    files: Record<string, unknown>;
+}
+
 interface WhiteboardDB extends DBSchema {
     scenes: {
         key: string;
@@ -36,12 +71,23 @@ interface WhiteboardDB extends DBSchema {
         value: StickyNote;
         indexes: { 'by-zIndex': number; 'by-updatedAt': number };
     };
+    // Track 5 (v5): one record per board, one record per library item.
+    boards: {
+        key: string;
+        value: Board;
+        indexes: { 'by-updatedAt': number };
+    };
+    'library-items': {
+        key: string;
+        value: LibraryItem;
+        indexes: { 'by-createdAt': number };
+    };
 }
 
 // ─── DB Setup ────────────────────────────────────────────────────────────────
 
 const DB_NAME = 'whiteboard-db';
-const DB_VERSION = 4; // bumped: added sticky-notes store
+const DB_VERSION = 5; // bumped (Track 5): added boards + library-items stores
 const SCENE_KEY = 'current-scene';
 const MAX_HISTORY_ENTRIES = 50; // keep last 50 per tab type
 
@@ -69,6 +115,18 @@ async function getDB(): Promise<IDBPDatabase<WhiteboardDB>> {
                 const store = db.createObjectStore('sticky-notes', { keyPath: 'id' });
                 store.createIndex('by-zIndex', 'zIndex');
                 store.createIndex('by-updatedAt', 'updatedAt');
+            }
+
+            // ── boards store (v5, Track 5) ──
+            if (!db.objectStoreNames.contains('boards')) {
+                const store = db.createObjectStore('boards', { keyPath: 'id' });
+                store.createIndex('by-updatedAt', 'updatedAt');
+            }
+
+            // ── library-items store (v5, Track 5) ──
+            if (!db.objectStoreNames.contains('library-items')) {
+                const store = db.createObjectStore('library-items', { keyPath: 'id' });
+                store.createIndex('by-createdAt', 'createdAt');
             }
         },
     });
@@ -321,5 +379,245 @@ export async function clearAllStickyNotes(): Promise<void> {
         if (import.meta.env.DEV) console.log('[StickyNotes] Cleared all notes');
     } catch (error) {
         console.error('[StickyNotes] Failed to clear:', error);
+    }
+}
+
+// ─── Boards CRUD (Track 5) ─────────────────────────────────────────────────
+// All functions here touch ONLY the 'boards' store. They never read or write
+// the single-scene record ('current-scene'), so the pre-existing restore
+// path (loadScene) keeps working unchanged for users with no boards.
+// appState is filtered to the same subset saveScene() keeps
+// (viewBackgroundColor, zoom, scrollX, scrollY, theme) so board snapshots
+// stay consistent with single-scene snapshots.
+
+function makeBoardId(): string {
+    // Same id style as saveAIResult(): `hist_<ms>_<rand>` in this file.
+    return `board_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function filterAppState(appState: Record<string, unknown>): Record<string, unknown> {
+    return {
+        viewBackgroundColor: appState.viewBackgroundColor,
+        zoom: appState.zoom,
+        scrollX: appState.scrollX,
+        scrollY: appState.scrollY,
+        theme: appState.theme,
+    };
+}
+
+/** List all boards, most recently updated first. Returns [] on error. */
+export async function listBoards(): Promise<Board[]> {
+    try {
+        const db = await getDB();
+        const all = await db.getAllFromIndex('boards', 'by-updatedAt');
+        return all.reverse(); // newest first (mirrors getAIHistory)
+    } catch (error) {
+        console.error('[Boards] Failed to list:', error);
+        return [];
+    }
+}
+
+/** True when at least one board exists. Used for the no-boards fallback. */
+export async function hasBoards(): Promise<boolean> {
+    try {
+        const db = await getDB();
+        return (await db.count('boards')) > 0;
+    } catch {
+        return false;
+    }
+}
+
+/** Get one board by id, or undefined when missing. */
+export async function getBoard(id: string): Promise<Board | undefined> {
+    try {
+        const db = await getDB();
+        return await db.get('boards', id);
+    } catch (error) {
+        console.error('[Boards] Failed to get board:', error);
+        return undefined;
+    }
+}
+
+/**
+ * Create a board. When `scene` is omitted the board starts empty; callers
+ * that create a board from the live canvas pass the current scene so
+ * nothing is lost. The name is trimmed; an empty name becomes "Untitled board".
+ */
+export async function createBoard(
+    name: string,
+    scene?: { elements: readonly unknown[]; appState: Record<string, unknown>; files: Record<string, unknown> },
+): Promise<Board> {
+    const db = await getDB();
+    const now = Date.now();
+    const board: Board = {
+        id: makeBoardId(),
+        name: name.trim() || 'Untitled board',
+        createdAt: now,
+        updatedAt: now,
+        elements: scene ? [...scene.elements] : [],
+        appState: scene ? filterAppState(scene.appState) : {},
+        files: scene ? scene.files : {},
+    };
+    await db.put('boards', board);
+    if (import.meta.env.DEV) console.log(`[Boards] Created board ${board.id}`);
+    return board;
+}
+
+/** Rename a board. No-op (returns undefined) when the board does not exist. */
+export async function renameBoard(id: string, name: string): Promise<Board | undefined> {
+    try {
+        const db = await getDB();
+        const board = await db.get('boards', id);
+        if (!board) return undefined;
+        board.name = name.trim() || board.name;
+        board.updatedAt = Date.now();
+        await db.put('boards', board);
+        return board;
+    } catch (error) {
+        console.error('[Boards] Failed to rename:', error);
+        return undefined;
+    }
+}
+
+/**
+ * Duplicate a board (new id, "<name> copy", same scene snapshot).
+ * Returns undefined when the source board does not exist.
+ */
+export async function duplicateBoard(id: string): Promise<Board | undefined> {
+    try {
+        const db = await getDB();
+        const src = await db.get('boards', id);
+        if (!src) return undefined;
+        const now = Date.now();
+        const copy: Board = {
+            ...src,
+            id: makeBoardId(),
+            name: `${src.name} copy`,
+            createdAt: now,
+            updatedAt: now,
+            elements: [...src.elements],
+            appState: { ...src.appState },
+            files: { ...src.files },
+        };
+        await db.put('boards', copy);
+        return copy;
+    } catch (error) {
+        console.error('[Boards] Failed to duplicate:', error);
+        return undefined;
+    }
+}
+
+/** Delete a board. Deleting the last board restores the no-boards fallback. */
+export async function deleteBoard(id: string): Promise<void> {
+    try {
+        const db = await getDB();
+        await db.delete('boards', id);
+        if (import.meta.env.DEV) console.log(`[Boards] Deleted board ${id}`);
+    } catch (error) {
+        console.error('[Boards] Failed to delete:', error);
+    }
+}
+
+/**
+ * Overwrite a board's scene snapshot (the board auto-save target).
+ * Mirrors saveScene(): skips empty element lists so a blank canvas never
+ * wipes a board — callers that must clear a board should delete it instead.
+ * Updates updatedAt and returns the saved board, or undefined when missing.
+ */
+export async function saveBoardScene(
+    id: string,
+    elements: readonly unknown[],
+    appState: Record<string, unknown>,
+    files: Record<string, unknown> = {},
+): Promise<Board | undefined> {
+    try {
+        if (elements.length === 0) return await getBoard(id);
+        const db = await getDB();
+        const board = await db.get('boards', id);
+        if (!board) return undefined;
+        board.elements = [...elements] as unknown[];
+        board.appState = filterAppState(appState);
+        board.files = files;
+        board.updatedAt = Date.now();
+        await db.put('boards', board);
+        if (import.meta.env.DEV) {
+            console.log('[Boards] Scene saved', { boardId: id, elementCount: elements.length });
+        }
+        return board;
+    } catch (error) {
+        console.error('[Boards] Failed to save scene:', error);
+        return undefined;
+    }
+}
+
+// ─── Library CRUD (Track 5) ─────────────────────────────────────────────────
+// Same pattern as the AI-history store above: keyPath 'id', one index, no
+// interaction with the 'scenes' store, so library use never disturbs restore.
+
+function makeLibraryId(): string {
+    return `lib_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** List all library items, newest first. Returns [] on error. */
+export async function listLibraryItems(): Promise<LibraryItem[]> {
+    try {
+        const db = await getDB();
+        const all = await db.getAllFromIndex('library-items', 'by-createdAt');
+        return all.reverse(); // newest first (mirrors getAIHistory)
+    } catch (error) {
+        console.error('[Library] Failed to list:', error);
+        return [];
+    }
+}
+
+/** Get one library item by id, or undefined when missing. */
+export async function getLibraryItem(id: string): Promise<LibraryItem | undefined> {
+    try {
+        const db = await getDB();
+        return await db.get('library-items', id);
+    } catch (error) {
+        console.error('[Library] Failed to get item:', error);
+        return undefined;
+    }
+}
+
+/**
+ * Save elements as a named library item. Empty element lists are rejected
+ * (returns null) — there is nothing useful to re-insert. `files` is stored
+ * verbatim as passed by the caller (see useLibrary: it passes
+ * excalidrawAPI.getFiles()); no fileId filtering is assumed here.
+ */
+export async function saveLibraryItem(
+    name: string,
+    elements: readonly unknown[],
+    files: Record<string, unknown> = {},
+): Promise<LibraryItem | null> {
+    try {
+        if (elements.length === 0) return null;
+        const db = await getDB();
+        const item: LibraryItem = {
+            id: makeLibraryId(),
+            name: name.trim() || 'Untitled item',
+            createdAt: Date.now(),
+            elements: [...elements] as unknown[],
+            files,
+        };
+        await db.put('library-items', item);
+        if (import.meta.env.DEV) console.log(`[Library] Saved item ${item.id} (${elements.length} elements)`);
+        return item;
+    } catch (error) {
+        console.error('[Library] Failed to save:', error);
+        return null;
+    }
+}
+
+/** Delete a library item. */
+export async function deleteLibraryItem(id: string): Promise<void> {
+    try {
+        const db = await getDB();
+        await db.delete('library-items', id);
+        if (import.meta.env.DEV) console.log(`[Library] Deleted item ${id}`);
+    } catch (error) {
+        console.error('[Library] Failed to delete:', error);
     }
 }
